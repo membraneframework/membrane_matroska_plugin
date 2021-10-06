@@ -1,12 +1,12 @@
-defmodule Membrane.Template.Mixfile do
+defmodule Membrane.WebM.Plugin.Mixfile do
   use Mix.Project
 
   @version "0.1.0"
-  @github_url "https://github.com/membraneframework/membrane_template_plugin"
+  @github_url "https://github.com/membraneframework/membrane_webm_plugin"
 
   def project do
     [
-      app: :membrane_template_plugin,
+      app: :membrane_webm_plugin,
       version: @version,
       elixir: "~> 1.12",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -14,11 +14,11 @@ defmodule Membrane.Template.Mixfile do
       deps: deps(),
 
       # hex
-      description: "Template Plugin for Membrane Multimedia Framework",
+      description: "WebM Plugin for Membrane Multimedia Framework",
       package: package(),
 
       # docs
-      name: "Membrane Template plugin",
+      name: "Membrane WebM plugin",
       source_url: @github_url,
       homepage_url: "https://membraneframework.org",
       docs: docs()
@@ -37,6 +37,7 @@ defmodule Membrane.Template.Mixfile do
   defp deps do
     [
       {:membrane_core, "~> 0.7.0"},
+      {:membrane_file_plugin, "~> 0.6.0"},
       {:ex_doc, "~> 0.24", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
       {:credo, "~> 1.5", only: :dev, runtime: false}
