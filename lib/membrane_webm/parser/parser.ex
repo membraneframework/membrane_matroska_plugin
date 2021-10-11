@@ -148,16 +148,6 @@ defmodule Membrane.WebM.Parser.Element do
   """
 
   alias Membrane.WebM.Parser.Vint
-  alias Membrane.WebM.Schema.Structs.HeaderElement
-
-  # def parse_ebml_file(<<id_bytes::binary-size(8)>> = bytes) do
-  #   id = Vint.parse(id_bytes).element_id
-  #   if classify(id) == :EBML do
-  #     parse(type, bytes)
-  #   else
-  #     "Not an EBML file sorry"
-  #   end
-  # end
 
   def parse_chunk(acc, bytes) do
     %{element: element, rest: bytes} = parse_element(bytes)
@@ -169,56 +159,48 @@ defmodule Membrane.WebM.Parser.Element do
     end
   end
 
-  def parse(bytes, :File) do
-    parse_chunk([], bytes)
+  def parse(bytes, :master) do
+    if byte_size(bytes) == 0 do
+      []
+    else
+      parse_chunk([], bytes)
+    end
   end
 
-  def parse(bytes, :EBML) do
-    parse_chunk([], bytes)
+  def parse(bytes, :uint) do
+    :binary.decode_unsigned(bytes)
   end
 
-  def parse(bytes, :DocTypeReadVersion) do
-    uint(bytes)
+  def parse(bytes, :float) do
+    bytes
   end
 
-  def parse(bytes, :DocTypeVersion) do
-    uint(bytes)
+  def parse(bytes, :binary) do
+    bytes
   end
 
-  def parse(bytes, :DocType) do
-    string(bytes)
+  def parse(bytes, :string) do
+    Enum.join(for <<c::utf8 <- bytes>>, do: <<c::utf8>>)
   end
 
-  def parse(bytes, :EBMLMaxSizeLength) do
-    uint(bytes)
+  def parse(bytes, :utf_8) do
+    bytes
+    |> String.codepoints()
+    |> Enum.reduce("", fn(codepoint, result) ->
+                     << parsed :: 8>> = codepoint
+                     if parsed == 0, do: result, else: result <> <<parsed>>
+                   end)
   end
 
-  def parse(bytes, :EBMLMaxIDLength) do
-    uint(bytes)
+  def parse(_bytes, :void) do
+    nil # Base.encode16(bytes)
   end
 
-  def parse(bytes, :EBMLReadVersion) do
-    uint(bytes)
+  def parse(bytes, :unknown) do
+    Base.encode16(bytes)
   end
 
-  def parse(bytes, :EBMLVersion) do
-    uint(bytes)
-  end
-
-  def parse(_bytes, :Void) do
-    0
-    # Base.encode16(bytes)
-  end
-
-  def parse(bytes, :Segment) do
-    parse_chunk([], bytes)
-  end
-
-  # def parse(bytes, :Cluster) do
-  #   parse_chunk([], bytes)
-  # end
-
-  def parse(bytes, :Unknown) do
+  def parse(bytes, :ignore) do
     Base.encode16(bytes)
   end
 
@@ -228,138 +210,134 @@ defmodule Membrane.WebM.Parser.Element do
     %{vint: vint, rest: bytes} = Vint.parse(bytes)
     data_size = vint.vint_data
     # TODO: deal with unknown data size
-    type = classify_element(id)
+    {name, type} = classify_element(id)
+
+    if type == :unknown do
+      IO.puts "unknown element ID: #{id}"
+    end
 
     # debug
-    element = %{
-      id: id,
-      data_size: data_size,
-      type: type,
-      data: "unprocessed"
-    }
-    IO.inspect(element)
+    # element = %{
+    #   id: id,
+    #   data_size: data_size,
+    #   name: name,
+    #   data: "unprocessed"
+    # }
+    # IO.inspect(element)
 
-    with %{bytes: data, rest: bytes} <- get_data(bytes, data_size) do
+    with %{bytes: data, rest: bytes} <- trim_bytes(bytes, data_size) do
       element = %{
         id: id,
         data_size: data_size,
-        type: type,
-        data: parse(data, type)
+        name: name,
+        data: parse(data, type),
+        type: type
       }
 
       %{element: element, rest: bytes}
     end
   end
 
-  # def parse(bytes) do
-  #     %{element: element, bytes: bytes} = parse_element(bytes)
-
-  #     IO.inspect(element)
-
-  #     element = %{
-  #       element |
-  #       data:
-  #         if element_data_size <= 8 or dont_parse(type) do
-  #           if  element_data_size >= 10000 do
-  #             :HUGE
-  #           else
-  #             :binary.decode_unsigned(element_data)
-  #           end
-  #         else
-  #           parse_chunk([], element_data, type)
-  #         end
-  #     }
-
-  #     %{element: element, rest: bytes}
-  #   else
-  #     _ -> {:more_bytes_plz, bytes}
-  #   end
-  # end
-
-  def uint(bytes) do
-    :binary.decode_unsigned(bytes)
-  end
-
-  def string(bytes) do
-    Enum.join(for <<c::utf8 <- bytes>>, do: <<c::utf8>>)
-  end
-
-  def get_data(bytes, how_many) do
-    # if byte_size(bytes) < how_many do
-    #   IO.inspect("split by #{how_many} (got: #{byte_size(bytes)})")
-    #   :more_bytes_plz
-    # else
+  def trim_bytes(bytes, how_many) do
     <<bytes::binary-size(how_many), rest::binary>> = bytes
     %{bytes: bytes, rest: rest}
-    # {:ok, bytes: bytes, rest: rest}
-    # end
   end
 
-  def classify_element(element_id) do #(%{element_id: element_id, element_data_size: element_data_size, element_data: element_data} = element) do
+  def classify_element(element_id) do
     case element_id do
-      # EBML elements:
 
-      "1A45DFA3" -> :EBML #%{element | type: :EBML}
-      "4286" -> :EBMLVersion #%{element | type: :EBMLVersion}
-      "42F7" -> :EBMLReadVersion #%{element | type: :EBMLReadVersion}
-      "42F2" -> :EBMLMaxIDLength #%{element | type: :EBMLMaxIDLength}
-      "42F3" -> :EBMLMaxSizeLength #%{element | type: :EBMLMaxSizeLength}
-      "4282" -> :DocType #%{element | type: :DocType}
-      "4287" -> :DocTypeVersion #%{element | type: :DocTypeVersion}
-      "4285" -> :DocTypeReadVersion #%{element | type: :DocTypeReadVersion}
-      "4281" -> :DocTypeExtension #%{element | type: :DocTypeExtension}
-      "4283" -> :DocTypeExtensionName #%{element | type: :DocTypeExtensionName}
-      "4284" -> :DocTypeExtensionVersion #%{element | type: :DocTypeExtensionVersion}
-      "BF" -> :CRC_32
+      ### EBML elements:
+
+      "1A45DFA3" -> {:EBML, :master}
+      "4286" -> {:EBMLVersion, :uint}
+      "42F7" -> {:EBMLReadVersion, :uint}
+      "42F2" -> {:EBMLMaxIDLength, :uint}
+      "42F3" -> {:EBMLMaxSizeLength, :uint}
+      "4282" -> {:DocType, :string}
+      "4287" -> {:DocTypeVersion, :uint}
+      "4285" -> {:DocTypeReadVersion, :uint}
+      "4281" -> {:DocTypeExtension, :master}
+      "4283" -> {:DocTypeExtensionName, :string}
+      "4284" -> {:DocTypeExtensionVersion, :uint}
+      "BF" -> {:CRC_32, :crc_32} # shouldn't occur in mkv or webm files
+      "EC" -> {:Void, :void}
+
+      ### Matroska elements:
+
+      "18538067" -> {:Segment, :master}
+        # \Segment
+
+        "1C53BB6B" -> {:Cues, :master}
+          # \Segment\Cues
+          "BB" -> {:CuePoint, :master}
+            # \Segment\Cues\CuePoint
+            "B3" -> {:CueTime, :uint}
+            "B7" -> {:CueTrackPositions, :master}
+              # \Segment\Cues\CuePoint\CueTrackPositions
+              "F0" -> {:CueRelativePosition, :uint}
+              "F1" -> {:CueClusterPosition, :uint}
+              "F7" -> {:CueTrack, :uint}
+
+        # data is stored here:
+        "1F43B675" -> {:Cluster, :ignore}
+        # \Segment\Cluster
+
+        "1254C367" -> {:Tags, :master}
+        # \Segment\Tags
+          "7373" -> {:Tag, :master}
+          # \Segment\Tags\Tag
+          "63C0" -> {:Targets, :master}
+            # \Segment\Tags\Tag\Targets
+            "63C5" -> {:TagTractUID, :uint}
+          "67C8" -> {:SimpleTag, :master}
+            # \Segment\Tags\Tag\SimpleTag
+            "4487" -> {:TagString, :utf_8}
+            "45A3" -> {:TagName, :utf_8}
+
+        "1654AE6B" -> {:Tracks, :master}
+          # \Segment\Tracks
+          "AE" -> {:TrackEntry, :master}
+            # \Segment\Tracks\TrackEntry
+            "D7" -> {:TrackNumber, :uint}
+            "73C5" -> {:TrackUID, :uint}
+            "9C" -> {:FlagLacing, :uint}
+            "22B59C" -> {:Language, :string}
+            "86" -> {:CodecID, :string}
+            "56AA" -> {:CodecDelay, :uint}
+            "56BB" -> {:SeekPreRoll, :uint}
+            "83" -> {:TrackType, :uint}
+            "63A2" -> {:CodecPrivate, :binary}
+            "E1" -> {:Audio, :master}
+              # \Segment\Tracks\TrackEntry\Audio
+              "9F" -> {:Channels, :uint}
+              "B5" -> {:SamplingFrequency, :float}
+              "6264" -> {:BitDepth, :uint}
+
+        "1549A966" -> {:Info, :master}
+          # \Segment\Info
+          "2AD7B1" -> {:TimecodeScale, :uint}
+          "7BA9" -> {:Title, :utf_8}
+          "4D80" -> {:MuxingApp, :utf_8}
+          "5741" -> {:WritingApp, :utf_8}
+          "4489" -> {:Duration, :float}
+          "114D9B74" -> {:SeekHead, :master}
+            # \Segment\SeekHead
+            "4DBB" -> {:Seek, :master}
+              # \Segment\SeekHead\Seek
+              "53AC" -> {:SeekPosition, :uint}
+              "53AB" -> {:SeekID, :binary}
+
+      _ -> {:UnknownName, :unknown}
+    end
+  end
+end
+
+
+
+
+
         # if element_data_size != 4 do
         #   raise "CRC-32 element with wrong length (should be 4): #{element}"
         # else
         #   %{element | type: :CRC_32}
         # end
-      "EC" -> :Void #%{element | type: :Void}
-
-      # Matroska elements:
-      "18538067" -> :Segment
-      # "1F43B675" -> :Cluster
-      # maaaany more
-      _ -> :Unknown # raise "Unknown element type: #{element_id}"
-    end
-  end
-
-end
-
-defmodule Membrane.WebM.Parser.Document do
-  @moduledoc """
-  composed only of an EBML header and EBML body
-
-  (an EBML Stream is a file that consists of one or more EBML documents concatenated together)
-  """
-end
-
-
-
-# 8.1. EBML Header
-# The EBML Header is a declaration that provides processing instructions and identification of the
-# EBML Body. The EBML Header of an EBML Document is analogous to the XML Declaration of an
-# XML Document.
-# The EBML Header documents the EBML Schema (also known as the EBML DocType) that is used
-# to semantically interpret the structure and meaning of the EBML Document. Additionally, the
-# EBML Header documents the versions of both EBML and the EBML Schema that were used to
-# write the EBML Document and the versions required to read the EBML Document.
-# The EBML Header contain a single Master Element with an Element Name of EBML and
-# Element ID of 0x1A45DFA3 (see Section 11.2.1); the Master Element may have any number of
-# additional EBML Elements within it. The EBML Header of an EBML Document that uses an
-# EBMLVersion of 1 only contain EBML Elements that are defined as part of this document.
-# Elements within an EBML Header can be at most 4 octets long, except for the EBML Element with
-# Element Name EBML and Element ID 0x1A45DFA3 (see Section 11.2.1); this Element can be up to 8
-# octets long.
-# MUST
-# MUST
-# 8.2. EBML Body
-# All data of an EBML Document following the EBML Header is the EBML Body. The end of the
-# EBML Body, as well as the end of the EBML Document that contains the EBML Body, is reached at
-# whichever comes first: the beginning of a new EBML Header at the Root Level or the end of the
-# file. This document defines precisely which EBML Elements are to be used within the EBML
-# Header but does not name or define which EBML Elements are to be used within the EBML Body.
-# The definition of which EBML Elements are to be used within the EBML Body is defined by an
-# EBML Schema.
