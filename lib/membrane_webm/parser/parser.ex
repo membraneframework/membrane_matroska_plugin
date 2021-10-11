@@ -259,7 +259,7 @@ defmodule Membrane.WebM.Parser.Element do
       "4281" -> {:DocTypeExtension, :master}
       "4283" -> {:DocTypeExtensionName, :string}
       "4284" -> {:DocTypeExtensionVersion, :uint}
-      "BF" -> {:CRC_32, :crc_32} # shouldn't occur in mkv or webm files
+      "BF" -> {:CRC_32, :crc_32} # shouldn't occur in a mkv or webm file
       "EC" -> {:Void, :void}
 
       ### Matroska elements:
@@ -279,8 +279,10 @@ defmodule Membrane.WebM.Parser.Element do
               "F7" -> {:CueTrack, :uint}
 
         # data is stored here:
-        "1F43B675" -> {:Cluster, :ignore}
+        "1F43B675" -> {:Cluster, :master}
         # \Segment\Cluster
+          "A3" -> {:SimpleBlock, :binary}
+          "E7" -> {:Timecode, :uint}
 
         "1254C367" -> {:Tags, :master}
         # \Segment\Tags
@@ -320,12 +322,13 @@ defmodule Membrane.WebM.Parser.Element do
           "4D80" -> {:MuxingApp, :utf_8}
           "5741" -> {:WritingApp, :utf_8}
           "4489" -> {:Duration, :float}
-          "114D9B74" -> {:SeekHead, :master}
-            # \Segment\SeekHead
-            "4DBB" -> {:Seek, :master}
-              # \Segment\SeekHead\Seek
-              "53AC" -> {:SeekPosition, :uint}
-              "53AB" -> {:SeekID, :binary}
+
+        "114D9B74" -> {:SeekHead, :master}
+          # \Segment\SeekHead
+          "4DBB" -> {:Seek, :master}
+            # \Segment\SeekHead\Seek
+            "53AC" -> {:SeekPosition, :uint}
+            "53AB" -> {:SeekID, :binary}
 
       _ -> {:UnknownName, :unknown}
     end

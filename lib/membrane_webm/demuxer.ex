@@ -37,7 +37,7 @@ def_output_pad :output,
       # ebml = Element.parse(bytes)
       ebml = Element.parse_chunk([], bytes)
 
-      ebml |> IO.inspect
+      # ebml |> IO.inspect
     end
     new_state = %{state | counter: state.counter + 1}
     {{:ok, buffer: {:output, buffer}}, new_state}
