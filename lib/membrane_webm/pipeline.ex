@@ -4,7 +4,7 @@ defmodule Membrane.WebM.Pipeline do
   @impl true
   def handle_init(_) do
     children = [
-      file_src: %Membrane.File.Source{location: Path.join([File.cwd!, "_stuff", "sample.webm"]), chunk_size: 1024},
+      file_src: %Membrane.File.Source{location: Path.join([File.cwd!, "_stuff", "sample.webm"]), chunk_size: 1048576},
       demuxer: Membrane.WebM.Demuxer,
       file_sink: %Membrane.File.Sink{location: Path.join([File.cwd!, "_stuff", "sink.webm"])}
     ]
@@ -15,14 +15,6 @@ defmodule Membrane.WebM.Pipeline do
     ]
     {{:ok, spec: %ParentSpec{children: children, links: links}}, %{}}
   end
-
-  # @impl true
-  # def handle_notification(notification, source, _context, state) do
-  #   # Membrane.Pipeline.stop_and_terminate(self())
-  #   IO.puts(notification)
-  #   IO.puts(source)
-  #   {:ok, state}
-  # end
 end
 
 # #! test

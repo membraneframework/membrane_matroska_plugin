@@ -1,6 +1,8 @@
 defmodule Membrane.WebM.Demuxer do
   use Membrane.Filter
 
+  alias Membrane.WebM.Parser.Element
+
   def_input_pad :input,
   availability: :always,
   mode: :pull,
@@ -28,21 +30,22 @@ def_output_pad :output,
   @impl true
   def handle_process(:input, buffer, _context, state) do
     if state.counter == 0 do
-      byte_string = buffer.payload
-      |> Base.encode16
+      bytes = buffer.payload
 
-      hexdump(byte_string)
+      hexdump(bytes)
+
+      # ebml = Element.parse(bytes)
+      ebml = Element.parse_chunk([], bytes)
+
+      ebml |> IO.inspect
     end
     new_state = %{state | counter: state.counter + 1}
     {{:ok, buffer: {:output, buffer}}, new_state}
   end
 
-  def hexdump(byte_string) do
-    # byte_string
-    # |> String.length
-    # |> IO.inspect
-
-    byte_string
+  def hexdump(bytes) do
+    bytes
+    |> Base.encode16
     |> String.codepoints()
     |> Enum.chunk_every(4)
     |> Enum.intersperse(" ")
