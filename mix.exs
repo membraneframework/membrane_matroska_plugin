@@ -36,7 +36,12 @@ defmodule Membrane.WebM.Plugin.Mixfile do
 
   defp deps do
     [
-      {:membrane_core, "~> 0.7.0"},
+      {:membrane_core, "~> 0.7.0", override: true},
+      {:membrane_opus_plugin, "~> 0.7.0"},
+      # {:membrane_ogg_plugin, git: "https://github.com/membraneframework/membrane_ogg_plugin", branch: "fix-dependencies"},
+      # {:membrane_ogg_plugin, path: "/Users/maksstachowiak/Projects/membrane_ogg_plugin"},
+      {:membrane_portaudio_plugin, "~> 0.9.0"},
+      {:membrane_ffmpeg_swresample_plugin, path: "/Users/maksstachowiak/Projects/membrane_ffmpeg_swresample_plugin"}, #"~> 0.8.0"},
       {:membrane_file_plugin, "~> 0.6.0"},
       {:ex_doc, "~> 0.24", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
@@ -60,7 +65,7 @@ defmodule Membrane.WebM.Plugin.Mixfile do
       main: "readme",
       extras: ["README.md", "LICENSE"],
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [Membrane.Template]
+      nest_modules_by_prefix: [Membrane.WebM]
     ]
   end
 end

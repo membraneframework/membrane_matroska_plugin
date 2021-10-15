@@ -4,14 +4,26 @@ defmodule Membrane.WebM.Pipeline do
   @impl true
   def handle_init(_) do
     children = [
-      file_src: %Membrane.File.Source{location: Path.join([File.cwd!, "_stuff", "sample.webm"]), chunk_size: 1048576},
+      source: %Membrane.File.Source{location: Path.join([File.cwd!, "_stuff", "sample.webm"]), chunk_size: 1048576},
       demuxer: Membrane.WebM.Demuxer,
-      file_sink: %Membrane.File.Sink{location: Path.join([File.cwd!, "_stuff", "sink.webm"])}
+      decoder: Membrane.Opus.Decoder,
+      converter: %Membrane.FFmpeg.SWResample.Converter{
+        output_caps: %Membrane.Caps.Audio.Raw{
+          format: :s16le,
+          sample_rate: 48000,
+          channels: 2
+        }
+      },
+      portaudio: Membrane.PortAudio.Sink,
+      # sink: %Membrane.File.Sink{location: Path.join([File.cwd!, "_stuff", "sru.opus"])}
     ]
     links = [
-      link(:file_src)
+      link(:source)
       |> to(:demuxer)
-      |> to(:file_sink)
+      |> to(:decoder)
+      |> to(:converter)
+      |> to(:portaudio)
+      # |> to(:sink)
     ]
     {{:ok, spec: %ParentSpec{children: children, links: links}}, %{}}
   end

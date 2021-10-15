@@ -61,18 +61,13 @@ defmodule Membrane.WebM.Parser.Vint do
     # the hex representation of the whole VINT including WIDTH, MARKER and DATA:
     element_id = Integer.to_string(vint, 16)
 
-
-
-    vint = %{vint: %Vint{
+    %{vint: %Vint{
         vint: vint,
         vint_width: vint_width,
         vint_data: vint_data,
         element_id: element_id},
-      rest: rest_bytes}
-
-    # IO.inspect(vint)
-
-    vint
+      rest: rest_bytes
+    }
   end
 
   # in case of binary `bytes` is shorter than 8 octets
@@ -95,18 +90,13 @@ defmodule Membrane.WebM.Parser.Vint do
     # the hex representation of the whole VINT including WIDTH, MARKER and DATA:
     element_id = Integer.to_string(vint, 16)
 
-
-
-    vint = %{vint: %Vint{
+    %{vint: %Vint{
         vint: vint,
         vint_width: vint_width,
         vint_data: vint_data,
         element_id: element_id},
-      rest: rest_bytes}
-
-    # IO.inspect(vint)
-
-    vint
+      rest: rest_bytes
+    }
   end
 end
 
@@ -149,41 +139,77 @@ defmodule Membrane.WebM.Parser.Element do
 
   alias Membrane.WebM.Parser.Vint
 
-  def parse_chunk(acc, bytes) do
+  def parse_chunk(bytes, acc) do
     %{element: element, rest: bytes} = parse_element(bytes)
     acc = [element | acc]
     if bytes == "" do
       acc
     else
-      parse_chunk(acc, bytes)
+      parse_chunk(bytes, acc)
     end
   end
 
-  def parse(bytes, :master) do
+  def parse(bytes, :master, _name) do
     if byte_size(bytes) == 0 do
       []
     else
-      parse_chunk([], bytes)
+      parse_chunk(bytes, [])
     end
   end
 
-  def parse(bytes, :uint) do
+  def parse(bytes, :uint, _name) do
     :binary.decode_unsigned(bytes)
   end
 
-  def parse(bytes, :float) do
+  def parse(bytes, :float, _name) do
     bytes
   end
 
-  def parse(bytes, :binary) do
-    bytes
+  def parse(bytes, :binary, :SimpleBlock) do
+    # https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#rfc.section.6.2.4.4
+
+    # track_number is a vint with size 1 or 2 bytes
+    %{vint: track_number_vint, rest: bytes} = Vint.parse(bytes)
+    << timecode::integer-signed-size(16), flags::bitstring-size(8), data::binary>> = bytes
+    <<keyframe::1, reserved::3, invisible::1, lacing::2, discardable::1>> = flags
+
+    if reserved != 0 do
+      IO.puts "SimpleBlock reserved bits in header flag should all be 0 but they are #{reserved}"
+    end
+
+    lacing = case lacing do
+      0b00 -> :no_lacing
+      0b01 -> :Xiph_lacing
+      0b11 -> :EBML_lacing
+      0b10 -> :fixed_size_lacing
+    end
+
+    # TODO deal with lacing != 00 https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#laced-data-1
+
+    %{
+      track_number: track_number_vint.vint_data,
+      timecode: timecode,
+      header_flags: %{
+          keyframe: keyframe==1,
+          reserved: reserved,
+          invisible: invisible==1,
+          lacing: lacing,
+          discardable: discardable==1
+      },
+      data: data
+    }
   end
 
-  def parse(bytes, :string) do
+  def parse(bytes, :binary, _name) do
+    bytes
+    # Base.encode16(bytes)
+  end
+
+  def parse(bytes, :string, _name) do
     Enum.join(for <<c::utf8 <- bytes>>, do: <<c::utf8>>)
   end
 
-  def parse(bytes, :utf_8) do
+  def parse(bytes, :utf_8, _name) do
     bytes
     |> String.codepoints()
     |> Enum.reduce("", fn(codepoint, result) ->
@@ -192,15 +218,15 @@ defmodule Membrane.WebM.Parser.Element do
                    end)
   end
 
-  def parse(_bytes, :void) do
+  def parse(_bytes, :void, _name) do
     nil # Base.encode16(bytes)
   end
 
-  def parse(bytes, :unknown) do
+  def parse(bytes, :unknown, _name) do
     Base.encode16(bytes)
   end
 
-  def parse(bytes, :ignore) do
+  def parse(bytes, :ignore, _name) do
     Base.encode16(bytes)
   end
 
@@ -216,21 +242,12 @@ defmodule Membrane.WebM.Parser.Element do
       IO.puts "unknown element ID: #{id}"
     end
 
-    # debug
-    # element = %{
-    #   id: id,
-    #   data_size: data_size,
-    #   name: name,
-    #   data: "unprocessed"
-    # }
-    # IO.inspect(element)
-
     with %{bytes: data, rest: bytes} <- trim_bytes(bytes, data_size) do
       element = %{
         id: id,
         data_size: data_size,
         name: name,
-        data: parse(data, type),
+        data: parse(data, type, name),
         type: type
       }
 
