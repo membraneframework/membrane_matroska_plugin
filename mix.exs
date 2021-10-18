@@ -38,8 +38,6 @@ defmodule Membrane.WebM.Plugin.Mixfile do
     [
       {:membrane_core, "~> 0.7.0", override: true},
       {:membrane_opus_plugin, "~> 0.7.0"},
-      # {:membrane_ogg_plugin, git: "https://github.com/membraneframework/membrane_ogg_plugin", branch: "fix-dependencies"},
-      # {:membrane_ogg_plugin, path: "/Users/maksstachowiak/Projects/membrane_ogg_plugin"},
       {:membrane_portaudio_plugin, "~> 0.9.0"},
       {:membrane_ffmpeg_swresample_plugin, path: "/Users/maksstachowiak/Projects/membrane_ffmpeg_swresample_plugin"}, #"~> 0.8.0"},
       {:membrane_file_plugin, "~> 0.6.0"},

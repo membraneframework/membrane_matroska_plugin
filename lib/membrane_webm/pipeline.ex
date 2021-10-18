@@ -1,29 +1,34 @@
 defmodule Membrane.WebM.Pipeline do
   use Membrane.Pipeline
 
+  @file_name "tracks"
+
   @impl true
   def handle_init(_) do
     children = [
+      # source: %Membrane.File.Source{location: Path.join([File.cwd!, "_stuff", "libwebm", "testing", "testdata", @file_name <> ".webm"]), chunk_size: 1048576},
       source: %Membrane.File.Source{location: Path.join([File.cwd!, "_stuff", "sample.webm"]), chunk_size: 1048576},
-      demuxer: Membrane.WebM.Demuxer,
-      decoder: Membrane.Opus.Decoder,
-      converter: %Membrane.FFmpeg.SWResample.Converter{
-        output_caps: %Membrane.Caps.Audio.Raw{
-          format: :s16le,
-          sample_rate: 48000,
-          channels: 2
-        }
-      },
-      portaudio: Membrane.PortAudio.Sink,
-      # sink: %Membrane.File.Sink{location: Path.join([File.cwd!, "_stuff", "sru.opus"])}
+      parser: %Membrane.WebM.Parser{debug: true, output_as_string: true},
+      # demuxer: Membrane.WebM.Demuxer,
+      # decoder: Membrane.Opus.Decoder,
+      # converter: %Membrane.FFmpeg.SWResample.Converter{
+      #   output_caps: %Membrane.Caps.Audio.Raw{
+      #     format: :s16le,
+      #     sample_rate: 48000,
+      #     channels: 2
+      #   }
+      # },
+      # portaudio: Membrane.PortAudio.Sink,
+      sink: %Membrane.File.Sink{location: Path.join([File.cwd!, "_stuff", "sample" <> "_parsed"])}
     ]
     links = [
       link(:source)
-      |> to(:demuxer)
-      |> to(:decoder)
-      |> to(:converter)
-      |> to(:portaudio)
-      # |> to(:sink)
+      |> to(:parser)
+      # |> to(:demuxer)
+      # |> to(:decoder)
+      # |> to(:converter)
+      # |> to(:portaudio)
+      |> to(:sink)
     ]
     {{:ok, spec: %ParentSpec{children: children, links: links}}, %{}}
   end

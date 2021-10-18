@@ -1,7 +1,6 @@
 defmodule Membrane.WebM.Demuxer do
   use Membrane.Filter
 
-  alias Membrane.WebM.Parser.Element
   alias Membrane.Buffer
 
   def_input_pad :input,
@@ -14,7 +13,6 @@ def_output_pad :output,
   availability: :always,
   mode: :pull,
   caps: {Membrane.Opus, channels: 2}
-
 
   @impl true
   def handle_init(_) do
@@ -34,24 +32,18 @@ def_output_pad :output,
 
   @impl true
   def handle_process(:input, buffer, _context, state) do
-    # hexdump(buffer.payload)
+    parsed_webm = buffer.payload
+    tracks_info = identify_tracks(parsed_webm)
 
-    # for each track determine it's codec and demux it accordingly
-    # codec mappings: https://matroska.org/technical/codec_specs.html
-    # element of the CodecID string to be mapped: \Segment\Tracks\TrackEntry\CodecID
+    tracks =
+      parsed_webm
+      |> demux(tracks_info)
 
-    ebml =
-      buffer.payload
-      |> Element.parse_chunk([])
+    {{:ok, buffer: {:output, tracks}}, state}
+  end
 
-    opus =
-      ebml
-      |> demux_single_opus_track()
-
-
-
-    # {{:ok, buffer: {:output, %Buffer{payload: inspect(stuff, limit: :infinity, pretty: true)}}}, new_state}
-    {{:ok, buffer: {:output, opus}}, state}
+  def identify_tracks(parsed_webm) do
+    [%{TrackUID: 1, TrackCodec: :opus}]
   end
 
   def hexdump(bytes) do
@@ -65,8 +57,27 @@ def_output_pad :output,
     |> IO.puts()
   end
 
+  def demux(parsed_webm, tracks_info) do
+    tracks = []
+    for track_info <- tracks_info do
+      %{TrackUID: track_UID, TrackCodec: track_codec} = track_info
+      # TODO add filtering
+      track =
+        parsed_webm
+        |> child(:Segment)
+        |> children(:Cluster)
+        |> children(:SimpleBlock)
+        |> Enum.reverse()
+        |> unpack()
+        |> unpack()
+        |> Enum.map(&(%Buffer{payload: &1}))
+
+      tracks = [tracks | track]
+    end
+  end
+
   def demux_single_opus_track(parsed_file) do
-    binary = parsed_file
+    parsed_file
     |> child(:Segment)
     |> children(:Cluster)
     |> children(:SimpleBlock)
