@@ -37,6 +37,7 @@ defmodule Membrane.WebM.Plugin.Mixfile do
   defp deps do
     [
       {:membrane_core, "~> 0.7.0", override: true},
+      {:membrane_ivf_plugin, "~> 0.1.0"},
       {:membrane_opus_plugin, "~> 0.7.0"},
       {:membrane_portaudio_plugin, "~> 0.9.0"},
       {:membrane_ffmpeg_swresample_plugin, path: "/Users/maksstachowiak/Projects/membrane_ffmpeg_swresample_plugin"}, #"~> 0.8.0"},

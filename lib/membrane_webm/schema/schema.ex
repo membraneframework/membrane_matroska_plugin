@@ -15,20 +15,20 @@ defmodule Membrane.WebM.Schema do
   - Audio: Vorbis or Opus
   """
 
-  @typedoc """
-    A typical EBML file has the following structure:
-  [Matroska]
-  [WebM]
-  EBML Header (master)
-  + DocType (string)
-  + DocTypeVersion (unsigned integer)
-  EBML Body Root (master)
-  + ElementA (utf-8)
-  + Parent (master)
-  + ElementB (integer)
-  + Parent (master)
-  + ElementB (integer)
-  """
+  # @typedoc """
+  #   A typical EBML file has the following structure:
+  # [Matroska]
+  # [WebM]
+  # EBML Header (master)
+  # + DocType (string)
+  # + DocTypeVersion (unsigned integer)
+  # EBML Body Root (master)
+  # + ElementA (utf-8)
+  # + Parent (master)
+  # + ElementB (integer)
+  # + Parent (master)
+  # + ElementB (integer)
+  # """
   # @type ebml :: nil
 
   # @ebml_element %{element_id: :  element_data_size: :vint, element_data: :vint}
@@ -131,10 +131,23 @@ defmodule Membrane.WebM.Schema do
             "83" -> {:TrackType, :uint}
             "63A2" -> {:CodecPrivate, :binary}
             "E1" -> {:Audio, :master}
+            "23E383" ->{:DefaultDuration, :uint}
               # \Segment\Tracks\TrackEntry\Audio
               "9F" -> {:Channels, :uint}
               "B5" -> {:SamplingFrequency, :float}
               "6264" -> {:BitDepth, :uint}
+            "E0" -> {:Video, :master}
+              # \Segment\Tracks\TrackEntry\Video
+              "B0" -> {:PixelWidth, :uint}
+              "BA" -> {:PixelHeight, :uint}
+              "9A" -> {:FlagInterlaced, :uint}
+              "55B0" -> {:Colour, :master}
+                # \Segment\Tracks\TrackEntry\Video\Colour
+                "55B7" -> {:ChromaSitingHorz, :uint}
+                "55B8" -> {:ChromaSitingVert, :uint}
+
+
+
 
 # Tracks
 # TrackEntry
@@ -154,14 +167,14 @@ defmodule Membrane.WebM.Schema do
 # CodecDelay
 # SeekPreRoll
 #               # Video Start
-# Video
-# FlagInterlaced
+### Video
+### FlagInterlaced
 # StereoMode
 #     Supported Modes: 0: mono, 1: side by side (left eye is first), 2: top-bottom (right eye is first), 3: top-bottom (left eye is first), 11: side by side (right eye is first)
 #     Unsupported Modes: 4: checkboard (right is first), 5: checkboard (left is first), 6: row interleaved (right is first), 7: row interleaved (left is first), 8: column interleaved (right is first), 9: column interleaved (left is first), 10: anaglyph (cyan/red)
 # AlphaMode
-# PixelWidth
-# PixelHeight
+### PixelWidth
+###  PixelHeight
 # PixelCropBottom
 # PixelCropTop
 # PixelCropLeft
@@ -201,8 +214,8 @@ defmodule Membrane.WebM.Schema do
 # ChromaSubsamplingVert
 # CbSubsamplingHorz
 # CbSubsamplingVert
-# ChromaSitingHorz
-# ChromaSitingVert
+### ChromaSitingHorz
+### ChromaSitingVert
 # Range
 # TransferCharacteristics
 # Primaries

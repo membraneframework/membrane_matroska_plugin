@@ -70,13 +70,41 @@ defmodule Membrane.WebM.Parser.Element do
     end
   end
 
+  def parse(bytes, :uint, :FlagInterlaced) do
+    <<int::unsigned-integer-size(8)>> = bytes
+    case int do
+      0	-> :undetermined	#Unknown status.This value SHOULD be avoided.
+      1	-> :interlaced	#Interlaced frames.
+      2	-> :progressive	#No interlacing.
+    end
+  end
+
+  def parse(bytes, :uint, :ChromaSitingHorz) do
+    <<int::unsigned-integer-size(8)>> = bytes
+    case int do
+      0	-> :unspecified
+      1	-> :left_collocated
+      2	-> :half
+    end
+  end
+
+  def parse(bytes, :uint, :ChromaSitingVert) do
+    <<int::unsigned-integer-size(8)>> = bytes
+    case int do
+      0	-> :unspecified
+      1	-> :top_collocated
+      2	-> :half
+    end
+  end
+
   def parse(bytes, :uint, _name) do
     :binary.decode_unsigned(bytes)
   end
 
   def parse(bytes, :integer, _name) do
-    <<int::integer-signed>> = bytes
-    int
+    s = byte_size(bytes) * 8
+    <<num :: size(s)-signed, _ :: binary >> = bytes
+    num
   end
 
   def parse(bytes, :float, _name) do
@@ -124,6 +152,10 @@ defmodule Membrane.WebM.Parser.Element do
   end
 
   def parse(bytes, :string, :CodecID) do
+    # Video	    “V_*”
+    # Audio	    “A_*”
+    # Subtitle  “S_*”
+    # Button	  “B_*”
     codec_string = Enum.join(for <<c::utf8 <- bytes>>, do: <<c::utf8>>)
     case codec_string do
       "A_OPUS" -> :opus
@@ -132,10 +164,6 @@ defmodule Membrane.WebM.Parser.Element do
       "V_VP9" -> :vp9
       _ -> raise "Illegal codec for a .webm file: #{codec_string}"
     end
-    # Video	“V_”
-    # Audio	“A_”
-    # Subtitle	“S_”
-    # Button	“B_”
   end
 
   def parse(bytes, :string, _name) do
