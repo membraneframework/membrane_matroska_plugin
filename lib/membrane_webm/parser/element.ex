@@ -41,6 +41,7 @@ defmodule Membrane.WebM.Parser.Element do
   def parse_list(bytes, acc) do
     %{element: element, rest: bytes} = parse_element(bytes)
     acc = [element | acc]
+
     if bytes == "" do
       acc
     else
@@ -58,42 +59,49 @@ defmodule Membrane.WebM.Parser.Element do
 
   def parse(bytes, :uint, :TrackType) do
     <<int::unsigned-integer-size(8)>> = bytes
+
     case int do
-      1	-> :video
-      2	-> :audio
-      3	-> :complex
-      16	-> :logo
-      17	-> :subtitle
-      18	-> :buttons
-      32	-> :control
-      33	-> :metadata
+      1 -> :video
+      2 -> :audio
+      3 -> :complex
+      16 -> :logo
+      17 -> :subtitle
+      18 -> :buttons
+      32 -> :control
+      33 -> :metadata
     end
   end
 
   def parse(bytes, :uint, :FlagInterlaced) do
     <<int::unsigned-integer-size(8)>> = bytes
+
     case int do
-      0	-> :undetermined	#Unknown status.This value SHOULD be avoided.
-      1	-> :interlaced	#Interlaced frames.
-      2	-> :progressive	#No interlacing.
+      # Unknown status.This value SHOULD be avoided.
+      0 -> :undetermined
+      # Interlaced frames.
+      1 -> :interlaced
+      # No interlacing.
+      2 -> :progressive
     end
   end
 
   def parse(bytes, :uint, :ChromaSitingHorz) do
     <<int::unsigned-integer-size(8)>> = bytes
+
     case int do
-      0	-> :unspecified
-      1	-> :left_collocated
-      2	-> :half
+      0 -> :unspecified
+      1 -> :left_collocated
+      2 -> :half
     end
   end
 
   def parse(bytes, :uint, :ChromaSitingVert) do
     <<int::unsigned-integer-size(8)>> = bytes
+
     case int do
-      0	-> :unspecified
-      1	-> :top_collocated
-      2	-> :half
+      0 -> :unspecified
+      1 -> :top_collocated
+      2 -> :half
     end
   end
 
@@ -103,7 +111,7 @@ defmodule Membrane.WebM.Parser.Element do
 
   def parse(bytes, :integer, _name) do
     s = byte_size(bytes) * 8
-    <<num :: size(s)-signed, _ :: binary >> = bytes
+    <<num::size(s)-signed, _::binary>> = bytes
     num
   end
 
@@ -116,19 +124,20 @@ defmodule Membrane.WebM.Parser.Element do
 
     # track_number is a vint with size 1 or 2 bytes
     %{vint: track_number_vint, rest: bytes} = Vint.parse(bytes)
-    << timecode::integer-signed-size(16), flags::bitstring-size(8), data::binary>> = bytes
+    <<timecode::integer-signed-size(16), flags::bitstring-size(8), data::binary>> = bytes
     <<keyframe::1, reserved::3, invisible::1, lacing::2, discardable::1>> = flags
 
     if reserved != 0 do
-      IO.puts "SimpleBlock reserved bits in header flag should all be 0 but they are #{reserved}"
+      IO.puts("SimpleBlock reserved bits in header flag should all be 0 but they are #{reserved}")
     end
 
-    lacing = case lacing do
-      0b00 -> :no_lacing
-      0b01 -> :Xiph_lacing
-      0b11 -> :EBML_lacing
-      0b10 -> :fixed_size_lacing
-    end
+    lacing =
+      case lacing do
+        0b00 -> :no_lacing
+        0b01 -> :Xiph_lacing
+        0b11 -> :EBML_lacing
+        0b10 -> :fixed_size_lacing
+      end
 
     # TODO deal with lacing != 00 https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#laced-data-1
 
@@ -136,11 +145,11 @@ defmodule Membrane.WebM.Parser.Element do
       track_number: track_number_vint.vint_data,
       timecode: timecode,
       header_flags: %{
-          keyframe: keyframe==1,
-          reserved: reserved,
-          invisible: invisible==1,
-          lacing: lacing,
-          discardable: discardable==1
+        keyframe: keyframe == 1,
+        reserved: reserved,
+        invisible: invisible == 1,
+        lacing: lacing,
+        discardable: discardable == 1
       },
       data: data
     }
@@ -157,6 +166,7 @@ defmodule Membrane.WebM.Parser.Element do
     # Subtitle  “S_*”
     # Button	  “B_*”
     codec_string = Enum.join(for <<c::utf8 <- bytes>>, do: <<c::utf8>>)
+
     case codec_string do
       "A_OPUS" -> :opus
       "A_VORBIS" -> :vorbis
@@ -173,10 +183,10 @@ defmodule Membrane.WebM.Parser.Element do
   def parse(bytes, :utf_8, _name) do
     bytes
     |> String.codepoints()
-    |> Enum.reduce("", fn(codepoint, result) ->
-                     << parsed :: 8>> = codepoint
-                     if parsed == 0, do: result, else: result <> <<parsed>>
-                   end)
+    |> Enum.reduce("", fn codepoint, result ->
+      <<parsed::8>> = codepoint
+      if parsed == 0, do: result, else: result <> <<parsed>>
+    end)
   end
 
   def parse(bytes, :date, _name) do
@@ -184,7 +194,8 @@ defmodule Membrane.WebM.Parser.Element do
   end
 
   def parse(_bytes, :void, _name) do
-    nil # Base.encode16(bytes)
+    # Base.encode16(bytes)
+    nil
   end
 
   def parse(bytes, :unknown, _name) do
@@ -203,17 +214,18 @@ defmodule Membrane.WebM.Parser.Element do
     # TODO: deal with unknown data size
     {name, type} = Schema.classify_element(id)
 
-    if type == :unknown do
-      IO.puts "unknown element ID: #{id}"
+    if name == :Unknown do
+      IO.puts("unknown element ID: #{id}")
     end
 
     with %{bytes: data, rest: bytes} <- trim_bytes(bytes, data_size) do
-      element = %{
-        id: id,
-        data_size: data_size,
-        name: name,
-        data: parse(data, type, name),
-        type: type
+      element = {
+        name,
+        %{
+          data_size: data_size,
+          data: parse(data, type, name),
+          type: type
+        }
       }
 
       %{element: element, rest: bytes}

@@ -1,29 +1,47 @@
 defmodule Membrane.WebM.Demuxer do
   use Membrane.Filter
 
-  alias Membrane.Buffer
+  alias Membrane.{Buffer, Time, RemoteStream}
+  alias Membrane.{VP8, VP9}
 
   def_input_pad :input,
-  availability: :always,
-  mode: :pull,
-  demand_unit: :buffers,
-  caps: :any
+    availability: :always,
+    mode: :pull,
+    demand_unit: :buffers,
+    caps: :any
+
+  # def_output_pad :output,
+  # availability: :always,
+  # mode: :pull,
+  # caps: {RemoteStream, content_format: VP9, type: :packetized}
 
   def_output_pad :output,
-  availability: :always,
-  mode: :pull,
-  caps: {Membrane.Opus, channels: 2}
+    availability: :always,
+    mode: :pull,
+    caps: :any
+
+  def_options output_as_string: [
+                spec: boolean,
+                default: false,
+                description: "Output tracks as pretty-formatted string for inspection."
+              ]
 
   @impl true
   def handle_init(_) do
-    state = %{counter: 0, parsed: ""}
-    {:ok, state}
+    {:ok, %{}}
   end
 
   @impl true
   def handle_prepared_to_playing(_ctx, state) do
-    {{:ok, caps: {:output, %Membrane.Opus{channels: 2, self_delimiting?: false}}}, state}
+    caps = %RemoteStream{content_format: VP8, type: :packetized}
+    {{:ok, caps: {:output, caps}}, state}
   end
+
+  # @impl true
+  # def handle_prepared_to_playing(_ctx, state) do
+  #   caps = %Membrane.Opus{channels: 2, self_delimiting?: false}
+  #   {{:ok, caps: {:output, caps}}, state}
+  # end
 
   @impl true
   def handle_demand(:output, size, :buffers, _context, state) do
@@ -32,91 +50,113 @@ defmodule Membrane.WebM.Demuxer do
 
   @impl true
   def handle_process(:input, buffer, _context, state) do
-    parsed_webm = buffer.payload
-    track_info = identify_tracks(parsed_webm)
-    tracks = tracks(parsed_webm, track_info)
-    demuxed = for track <- tracks do
-      demux(track)
-    end
+    parsed = buffer.payload
+    IO.inspect(track_info = identify_tracks(parsed))
+    tracks = tracks(parsed)
 
-    # {{:ok, buffer: {:output, demuxed[:opus]}}, state}
-    # demuxed = List.first(demuxed)
-    out = demuxed[:opus]
-    # out = inspect(out, limit: :infinity, pretty: true)
-    # out = %Buffer{payload: out}
+    out = tracks
+    # provide width, height, rate and scale
+    out = inspect(out, limit: :infinity, pretty: true)
+    out = %Buffer{payload: out}
     {{:ok, buffer: {:output, out}}, state}
   end
 
-  def demux({codec, data}) do
-    data =
-      data
-      # |> Enum.reverse()
-      |> Enum.map(fn x -> %Buffer{payload: x} end)
-
-    {codec, data}
+  defp timecode_scale(parsed_webm) do
+    # scale of block timecodes in nanoseconds
+    # should be 1_000_000 i.e. 1 ms
+    parsed_webm
+    |> child(:Segment)
+    |> child(:Info)
+    |> child(:TimecodeScale)
+    |> unpack
   end
 
-  def identify_tracks(parsed_webm) do
+  def identify_tracks(parsed) do
     tracks =
-      parsed_webm
+      parsed
       |> child(:Segment)
       |> child(:Tracks)
       |> children(:TrackEntry)
-      |> get_values([:TrackNumber, :CodecID])
+      |> unpack
 
-    for track <- tracks, into: %{}, do: {track[:TrackNumber], track[:CodecID]}
+    timecode_scale = timecode_scale(parsed)
+
+    for track <- tracks, into: %{} do
+      if track[:TrackType].data == :audio do
+        {track[:TrackNumber].data, %{codec: track[:CodecID].data}}
+      else
+        {
+          track[:TrackNumber].data,
+          %{
+            codec: track[:CodecID].data,
+            height: track[:Video].data[:PixelHeight].data,
+            width: track[:Video].data[:PixelWidth].data,
+            rate: Time.second(),
+            scale: timecode_scale
+          }
+        }
+      end
+    end
   end
 
-  def get_values(element_list, keys) when is_list element_list do
-    Enum.map(element_list, &get_values(&1, keys))
+  def get_data(element_list, keys) when is_list(element_list) do
+    Enum.map(element_list, &get_data(&1, keys))
   end
 
-  def get_values(element, keys) do
-    for key <- keys, into: %{}, do: {key, unpack(child(element, key))}
+  def get_data(element, keys) do
+    for key <- keys, key in children(element), into: %{}, do: {key, unpack(child(element, key))}
   end
 
   def hexdump(bytes) do
     bytes
-    |> Base.encode16
+    |> Base.encode16()
     |> String.codepoints()
     |> Enum.chunk_every(4)
     |> Enum.intersperse(" ")
-    |> Enum.chunk_every(8*2)
+    |> Enum.chunk_every(8 * 2)
     |> Enum.intersperse("\n")
     |> IO.puts()
   end
 
-  def tracks(parsed_webm, track_info) do
-    parsed_webm
-    |> child(:Segment)
-    |> children(:Cluster)
-    |> children(:SimpleBlock)
+  def tracks(parsed_webm) do
+    clusters =
+      parsed_webm[:Segment]
+      |> children(:Cluster)
+
+    cluster_timecodes =
+      clusters
+      |> children(:Timecode)
+      |> unpack
+
+    augmented_blocks =
+      for {cluster, timecode} <- Enum.zip(clusters, cluster_timecodes) do
+        blocks =
+          cluster
+          |> children(:SimpleBlock)
+          |> unpack()
+          |> Enum.map(fn block ->
+            %{
+              timecode: timecode + block.timecode,
+              track_number: block.track_number,
+              data: block.data
+            }
+          end)
+
+        blocks
+      end
+
+    augmented_blocks
+    |> List.flatten()
     |> Enum.reverse()
-    |> unpack()
-    |> Enum.group_by(&(track_info[&1.track_number]), &unpack/1)
+    |> Enum.group_by(& &1.track_number, &packetize/1)
   end
 
-  def demux_single_opus_track(parsed_file) do
-    parsed_file
-    |> child(:Segment)
-    |> children(:Cluster)
-    # |> adjust_timecodes()
-    |> children(:SimpleBlock)
-    |> Enum.reverse()
-    |> unpack()
-    |> unpack()
-    |> Enum.map(&(%Buffer{payload: &1}))
+  def packetize(%{timecode: timecode, data: data, track_number: _track_number}) do
+    %Buffer{payload: data, metadata: %{timestamp: timecode}}
   end
-
-  # def adjust_timecodes(clusters) do
-  #   for cluster <- clusters do
-  #     cluster_time = child(cluster, :TimeCode) |> unpack()
-  #     for block in
-  #   end
-  # end
 
   def unpack(elements) when is_list(elements) do
-    Enum.map(elements, &(unpack(&1)))
+    Enum.map(elements, &unpack(&1))
   end
 
   def unpack(element) do
@@ -125,35 +165,28 @@ defmodule Membrane.WebM.Demuxer do
 
   def child(element_list, name) when is_list(element_list) do
     # assumes there's only one child - this should be checked!
-    Enum.find(element_list, nil, &(&1[:name] == name))
+    element_list[name]
   end
 
   def child(element, name) do
     # assumes there's only one child - this should be checked!
-    Enum.find(element.data, nil, &(&1[:name] == name))
+    element.data[name]
   end
 
   def children(element_list, name) when is_list(element_list) do
     element_list
-    |> Enum.flat_map(&(children(&1, name)))
+    |> Enum.flat_map(&children(&1, name))
   end
 
   def children(element, name) do
-    Enum.filter(element.data, &(&1[:name] == name))
+    Keyword.get_values(element.data, name)
   end
 
-#   def get_fields(element_list, names) when is_list(element_list) do
-#     element_list
-#     |> Enum.map()
-#     |> _get_fields(names)
-#   end
-
-#   def _get_fields(element, names) do
-#     result = %{}
-#     for name <- names do
-#       result = Map.put(result, name, child(element, name))
-#     end
-#     result
-#   end
-
+  def children(element) do
+    if element.type == :master do
+      for {key, _data} <- element.data, do: key
+    else
+      nil
+    end
+  end
 end

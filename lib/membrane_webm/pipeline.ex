@@ -6,10 +6,18 @@ defmodule Membrane.WebM.Pipeline do
   @impl true
   def handle_init(_) do
     children = [
-      # source: %Membrane.File.Source{location: Path.join([File.cwd!, "_stuff", "libwebm", "testing", "testdata", @file_name <> ".webm"]), chunk_size: 1048576},
-      source: %Membrane.File.Source{location: Path.join([File.cwd!, "_stuff", "short2.webm"]), chunk_size: 1114194304},
+      source: %Membrane.File.Source{
+        location: Path.join([File.cwd!(), "test", "fixtures", "short_vp8_opus.webm"]),
+        chunk_size: 1_114_194_304
+      },
       parser: %Membrane.WebM.Parser{debug: false, output_as_string: false},
-      demuxer: Membrane.WebM.Demuxer,
+      demuxer: %Membrane.WebM.Demuxer{output_as_string: true},
+      # serializer: %Membrane.Element.IVF.Serializer{
+      #   width: 1920,
+      #   height: 1080,
+      #   rate: 1000,
+      #   scale: 1
+      # },
       # decoder: Membrane.Opus.Decoder,
       # converter: %Membrane.FFmpeg.SWResample.Converter{
       #   output_caps: %Membrane.Caps.Audio.Raw{
@@ -19,23 +27,25 @@ defmodule Membrane.WebM.Pipeline do
       #   }
       # },
       # portaudio: Membrane.PortAudio.Sink,
-      sink: %Membrane.File.Sink{location: Path.join([File.cwd!, "_stuff", "attempt" <> ".opus"])}
+      sink: %Membrane.File.Sink{location: Path.join([File.cwd!(), "_stuff", "tracks.parsed"])}
     ]
+
     links = [
       link(:source)
       |> to(:parser)
       |> to(:demuxer)
+      # |> to(:serializer)
       # |> to(:decoder)
       # |> to(:converter)
       # |> to(:portaudio)
       |> to(:sink)
     ]
+
     {{:ok, spec: %ParentSpec{children: children, links: links}}, %{}}
   end
-end
 
-# #! test
-# Membrane.WebM.Pipeline.start_link()
-# |> elem(1)
-# |> tap(&Membrane.Pipeline.play/1)
-# |> then(&Process.monitor/1)
+  def handle_notification({:pad_added, info}, :demuxer, _context, state) do
+    IO.inspect(info)
+    {:ok, state}
+  end
+end

@@ -42,7 +42,6 @@ defmodule Membrane.WebM.Schema do
 
   def classify_element(element_id) do
     case element_id do
-
       ### EBML elements:
 
       "1A45DFA3" -> {:EBML, :master}
@@ -58,7 +57,6 @@ defmodule Membrane.WebM.Schema do
       "4284" -> {:DocTypeExtensionVersion, :uint}
       # "BF" -> {:CRC_32, :crc_32} unsupported by WebM
       "EC" -> {:Void, :void}
-
       ### Matroska elements:
 
       "18538067" -> {:Segment, :master}
@@ -76,7 +74,6 @@ defmodule Membrane.WebM.Schema do
               "F7" -> {:CueTrack, :uint}
               "B2" -> {:CueDuration, :unit}
               "5378" -> {:CueBlockNumber, :uint}
-
         # data is stored here:
         "1F43B675" -> {:Cluster, :master}
         # \Segment\Cluster
@@ -115,7 +112,6 @@ defmodule Membrane.WebM.Schema do
             "447A" -> {:TagLanguage, :string}
             "4484" -> {:TagDefault, :uint}
             "4485" -> {:TagBinary, :binary}
-
         "1654AE6B" -> {:Tracks, :master}
           # \Segment\Tracks
           "AE" -> {:TrackEntry, :master}
@@ -145,10 +141,6 @@ defmodule Membrane.WebM.Schema do
                 # \Segment\Tracks\TrackEntry\Video\Colour
                 "55B7" -> {:ChromaSitingHorz, :uint}
                 "55B8" -> {:ChromaSitingVert, :uint}
-
-
-
-
 # Tracks
 # TrackEntry
 # TrackNumber
@@ -247,7 +239,6 @@ defmodule Membrane.WebM.Schema do
 # ChapLanguage
 # ChapCountry
 
-
         "1549A966" -> {:Info, :master}
           # \Segment\Info
           "2AD7B1" -> {:TimecodeScale, :uint}
@@ -256,7 +247,6 @@ defmodule Membrane.WebM.Schema do
           "5741" -> {:WritingApp, :utf_8}
           "4489" -> {:Duration, :float}
           "4461" -> {:DateUTC, :date}
-
         "114D9B74" -> {:SeekHead, :master}
           # \Segment\SeekHead
           "4DBB" -> {:Seek, :master}
@@ -268,8 +258,6 @@ defmodule Membrane.WebM.Schema do
     end
   end
 end
-
-
 
 # defmodule Membrane.WebM.Schema do
 

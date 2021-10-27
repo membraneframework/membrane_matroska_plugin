@@ -5,15 +5,15 @@ defmodule Membrane.WebM.Parser do
   alias Membrane.Buffer
 
   def_input_pad :input,
-  availability: :always,
-  mode: :pull,
-  demand_unit: :buffers,
-  caps: :any
+    availability: :always,
+    mode: :pull,
+    demand_unit: :buffers,
+    caps: :any
 
   def_output_pad :output,
-  availability: :always,
-  mode: :pull,
-  caps: :any
+    availability: :always,
+    mode: :pull,
+    caps: :any
 
   def_options debug: [
                 spec: boolean,
@@ -23,7 +23,8 @@ defmodule Membrane.WebM.Parser do
               output_as_string: [
                 spec: boolean,
                 default: false,
-                description: "Output parsed WebM as a pretty-formatted string dumping to file etc."
+                description:
+                  "Output parsed WebM as a pretty-formatted string for dumping to file etc."
               ]
 
   @impl true
@@ -46,22 +47,23 @@ defmodule Membrane.WebM.Parser do
       buffer.payload
       |> Element.parse_list([])
 
-    output = if state.options.output_as_string do
-      inspect(output, limit: :infinity, pretty: true)
-    else
-      output
-    end
+    output =
+      if state.options.output_as_string do
+        inspect(output, limit: :infinity, pretty: true)
+      else
+        output
+      end
 
     {{:ok, buffer: {:output, %Buffer{payload: output}}}, state}
   end
 
   def debug_hexdump(bytes) do
     bytes
-    |> Base.encode16
+    |> Base.encode16()
     |> String.codepoints()
     |> Enum.chunk_every(4)
     |> Enum.intersperse(" ")
-    |> Enum.chunk_every(8*2)
+    |> Enum.chunk_every(8 * 2)
     |> Enum.intersperse("\n")
     |> Enum.take(80)
     |> IO.puts()
