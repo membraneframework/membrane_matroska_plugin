@@ -36,12 +36,12 @@ defmodule Membrane.WebM.Plugin.Mixfile do
 
   defp deps do
     [
-      {:membrane_core, "~> 0.7.0"},
+      {:membrane_core, path: "/Users/maksstachowiak/Projects/membrane_core", override: true},
       # "~> 0.2.0"},
       {:membrane_ivf_plugin, path: "/Users/maksstachowiak/Projects/membrane_ivf_plugin"},
       {:membrane_opus_plugin, "~> 0.7.0"},
+      # path: "/Users/maksstachowiak/Projects/membrane_opus_plugin"},
       {:membrane_portaudio_plugin, "~> 0.9.0"},
-      # "~> 0.8.0"},
       {:membrane_ffmpeg_swresample_plugin,
        path: "/Users/maksstachowiak/Projects/membrane_ffmpeg_swresample_plugin"},
       {:membrane_file_plugin, "~> 0.6.0"},

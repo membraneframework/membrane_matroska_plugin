@@ -10,38 +10,21 @@ defmodule Membrane.WebM.Demuxer do
     demand_unit: :buffers,
     caps: :any
 
-  # def_output_pad :output,
-  # availability: :always,
-  # mode: :pull,
-  # caps: {RemoteStream, content_format: VP9, type: :packetized}
-
   def_output_pad :output,
-    availability: :always,
+    availability: :on_request,
     mode: :pull,
     caps: :any
 
   def_options output_as_string: [
                 spec: boolean,
                 default: false,
-                description: "Output tracks as pretty-formatted string for inspection."
+                description: "Outputs tracks as pretty-formatted string for inspection."
               ]
 
   @impl true
-  def handle_init(_) do
-    {:ok, %{}}
+  def handle_prepared_to_playing(_context, _state) do
+    {{:ok, demand: :input}, %{todo: nil, track_info: nil}}
   end
-
-  @impl true
-  def handle_prepared_to_playing(_ctx, state) do
-    caps = %RemoteStream{content_format: VP8, type: :packetized}
-    {{:ok, caps: {:output, caps}}, state}
-  end
-
-  # @impl true
-  # def handle_prepared_to_playing(_ctx, state) do
-  #   caps = %Membrane.Opus{channels: 2, self_delimiting?: false}
-  #   {{:ok, caps: {:output, caps}}, state}
-  # end
 
   @impl true
   def handle_demand(:output, size, :buffers, _context, state) do
@@ -49,16 +32,62 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   @impl true
+  def handle_demand(Pad.ref(:output, id), _size, :buffers, _context, state) do
+    case state.track_info[id].codec do
+      :opus ->
+        caps = %Membrane.Opus{channels: 2, self_delimiting?: false}
+
+        {{:ok,
+          [
+            {:caps, {Pad.ref(:output, id), caps}},
+            state.todo[id],
+            {:end_of_stream, Pad.ref(:output, id)}
+          ]}, state}
+
+      :vp8 ->
+        caps = %RemoteStream{content_format: VP8, type: :packetized}
+
+        {{:ok,
+          [
+            {:caps, {Pad.ref(:output, id), caps}},
+            state.todo[id],
+            {:end_of_stream, Pad.ref(:output, id)}
+          ]}, state}
+
+      :vp9 ->
+        caps = %RemoteStream{content_format: VP9, type: :packetized}
+
+        {{:ok,
+          [
+            {:caps, {Pad.ref(:output, id), caps}},
+            state.todo[id],
+            {:end_of_stream, Pad.ref(:output, id)}
+          ]}, state}
+    end
+  end
+
+  @impl true
   def handle_process(:input, buffer, _context, state) do
     parsed = buffer.payload
-    IO.inspect(track_info = identify_tracks(parsed))
+    track_info = identify_tracks(parsed)
     tracks = tracks(parsed)
 
-    out = tracks
-    # provide width, height, rate and scale
-    out = inspect(out, limit: :infinity, pretty: true)
-    out = %Buffer{payload: out}
-    {{:ok, buffer: {:output, out}}, state}
+    actions =
+      track_info
+      |> Enum.map(&notify_output/1)
+
+    sent = for track <- tracks, into: %{}, do: send(track)
+    newstate = %{state | todo: sent, track_info: track_info}
+    {{:ok, actions}, newstate}
+  end
+
+  defp send({track_num, track}) do
+    # track = %Buffer{payload: inspect(track, limit: :infinity, pretty: true)} #!
+    {track_num, {:buffer, {Pad.ref(:output, track_num), track}}}
+  end
+
+  defp notify_output({track_id, details}) do
+    {:notify, {:new_channel, {track_id, details}}}
   end
 
   defp timecode_scale(parsed_webm) do
@@ -152,7 +181,7 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   def packetize(%{timecode: timecode, data: data, track_number: _track_number}) do
-    %Buffer{payload: data, metadata: %{timestamp: timecode}}
+    %Buffer{payload: data, metadata: %{timestamp: timecode * 1_000_000}}
   end
 
   def unpack(elements) when is_list(elements) do

@@ -1,0 +1,15 @@
+[
+  EBML: %{
+    data: [
+      EBMLVersion: %{data: 1, data_size: 1, type: :uint},
+      EBMLReadVersion: %{data: 1, data_size: 1, type: :uint},
+      EBMLMaxIDLength: %{data: 4, data_size: 1, type: :uint},
+      EBMLMaxSizeLength: %{data: 8, data_size: 1, type: :uint},
+      DocType: %{data: "webm", data_size: 4, type: :string},
+      DocTypeVersion: %{data: 4, data_size: 1, type: :uint},
+      DocTypeReadVersion: %{data: 2, data_size: 1, type: :uint}
+    ],
+    data_size: 31,
+    type: :master
+  }
+]

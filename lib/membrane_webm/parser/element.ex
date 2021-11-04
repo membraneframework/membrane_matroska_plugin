@@ -35,6 +35,7 @@ defmodule Membrane.WebM.Parser.Element do
 
   """
 
+  alias Membrane.Time
   alias Membrane.WebM.Parser.Vint
   alias Membrane.WebM.Schema
 
@@ -42,7 +43,7 @@ defmodule Membrane.WebM.Parser.Element do
     %{element: element, rest: bytes} = parse_element(bytes)
     acc = [element | acc]
 
-    if bytes == "" do
+    if bytes == <<>> do
       acc
     else
       parse_list(bytes, acc)
@@ -105,18 +106,28 @@ defmodule Membrane.WebM.Parser.Element do
     end
   end
 
-  def parse(bytes, :uint, _name) do
-    :binary.decode_unsigned(bytes)
+  def parse(<<>>, :uint, _name) do
+    0
   end
 
-  def parse(bytes, :integer, _name) do
-    s = byte_size(bytes) * 8
-    <<num::size(s)-signed, _::binary>> = bytes
+  def parse(bytes, :uint, _name) do
+    :binary.decode_unsigned(bytes, :little)
+  end
+
+  def parse(<<>>, :integer, _name) do
+    0
+  end
+
+  def parse(<<num::little-signed>>, :integer, _name) do
     num
   end
 
-  def parse(bytes, :float, _name) do
-    bytes
+  def parse(<<>>, :float, _name) do
+    0
+  end
+
+  def parse(<<num::float>>, :float, _name) do
+    num
   end
 
   def parse(bytes, :binary, :SimpleBlock) do
@@ -172,12 +183,13 @@ defmodule Membrane.WebM.Parser.Element do
       "A_VORBIS" -> :vorbis
       "V_VP8" -> :vp8
       "V_VP9" -> :vp9
-      _ -> raise "Illegal codec for a .webm file: #{codec_string}"
+      _ -> raise "Invalid codec: #{codec_string}"
     end
   end
 
   def parse(bytes, :string, _name) do
-    Enum.join(for <<c::utf8 <- bytes>>, do: <<c::utf8>>)
+    chars = for <<c::utf8 <- bytes>>, do: <<c::utf8>>
+    chars |> Enum.take_while(fn c -> c != <<0>> end) |> Enum.join()
   end
 
   def parse(bytes, :utf_8, _name) do
@@ -189,8 +201,14 @@ defmodule Membrane.WebM.Parser.Element do
     end)
   end
 
-  def parse(bytes, :date, _name) do
-    bytes
+  def parse(<<>>, :date, _name) do
+    {{2001, 1, 1}, {0, 0, 0}}
+  end
+
+  def parse(<<nanoseconds::little-signed>>, :date, _name) do
+    seconds_zero = :calendar.datetime_to_gregorian_seconds({{2001, 1, 1}, {0, 0, 0}})
+    seconds = div(nanoseconds, Time.nanosecond()) + seconds_zero
+    :calendar.gregorian_seconds_to_datetime(seconds)
   end
 
   def parse(_bytes, :void, _name) do

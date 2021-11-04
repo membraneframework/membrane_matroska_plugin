@@ -118,6 +118,9 @@ defmodule Membrane.WebM.Schema do
             # \Segment\Tracks\TrackEntry
             "D7" -> {:TrackNumber, :uint}
             "73C5" -> {:TrackUID, :uint}
+            "B9" -> {:FlagEnabled, :unit}
+            "88" -> {:FlagDefault, :uint}
+            "55AA" -> {:FlagForced, :uint}
             "9C" -> {:FlagLacing, :uint}
             "22B59C" -> {:Language, :string}
             "86" -> {:CodecID, :string}
@@ -126,6 +129,7 @@ defmodule Membrane.WebM.Schema do
             "536E" -> {:Name, :utf_8}
             "83" -> {:TrackType, :uint}
             "63A2" -> {:CodecPrivate, :binary}
+            "258688" -> {:CodecName, :utf_8}
             "E1" -> {:Audio, :master}
             "23E383" ->{:DefaultDuration, :uint}
               # \Segment\Tracks\TrackEntry\Audio
@@ -137,36 +141,16 @@ defmodule Membrane.WebM.Schema do
               "B0" -> {:PixelWidth, :uint}
               "BA" -> {:PixelHeight, :uint}
               "9A" -> {:FlagInterlaced, :uint}
+              # StereoMode
+              #     Supported Modes: 0: mono, 1: side by side (left eye is first), 2: top-bottom (right eye is first), 3: top-bottom (left eye is first), 11: side by side (right eye is first)
+              #     Unsupported Modes: 4: checkboard (right is first), 5: checkboard (left is first), 6: row interleaved (right is first), 7: row interleaved (left is first), 8: column interleaved (right is first), 9: column interleaved (left is first), 10: anaglyph (cyan/red)
               "55B0" -> {:Colour, :master}
-                # \Segment\Tracks\TrackEntry\Video\Colour
-                "55B7" -> {:ChromaSitingHorz, :uint}
-                "55B8" -> {:ChromaSitingVert, :uint}
-# Tracks
-# TrackEntry
-# TrackNumber
-# TrackUID
-# TrackType
-# FlagEnabled
-# FlagDefault
-# FlagForced
-# FlagLacing
-# DefaultDuration
-# Name
-# Language
-# CodecID
-# CodecPrivate
-# CodecName
-# CodecDelay
-# SeekPreRoll
+              # \Segment\Tracks\TrackEntry\Video\Colour
+              "55B7" -> {:ChromaSitingHorz, :uint}
+              "55B8" -> {:ChromaSitingVert, :uint}
+
 #               # Video Start
-### Video
-### FlagInterlaced
-# StereoMode
-#     Supported Modes: 0: mono, 1: side by side (left eye is first), 2: top-bottom (right eye is first), 3: top-bottom (left eye is first), 11: side by side (right eye is first)
-#     Unsupported Modes: 4: checkboard (right is first), 5: checkboard (left is first), 6: row interleaved (right is first), 7: row interleaved (left is first), 8: column interleaved (right is first), 9: column interleaved (left is first), 10: anaglyph (cyan/red)
 # AlphaMode
-### PixelWidth
-###  PixelHeight
 # PixelCropBottom
 # PixelCropTop
 # PixelCropLeft
