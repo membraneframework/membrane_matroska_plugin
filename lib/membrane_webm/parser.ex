@@ -70,3 +70,23 @@ defmodule Membrane.WebM.Parser do
     |> IO.puts()
   end
 end
+
+# demuxer and parser combo:
+# 1 identify tracks and send caps info to pipeline
+# 2 pluck out packets from partially parsed stream and send packets as you get them
+# 3 notify parent youre done
+
+
+# def handle_process(:input, buffer, _context, state) do
+#   parse_chunk
+
+#   need more?
+#   {demand: {:input, 1}}
+#   else
+#   {buffer: {:output, b}}
+# end
+
+# def parse_chunk(bytes, accumulator) do
+#   {:needs_more_data}
+
+# end

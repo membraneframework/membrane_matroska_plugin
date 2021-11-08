@@ -111,14 +111,16 @@ defmodule Membrane.WebM.Parser.Element do
   end
 
   def parse(bytes, :uint, _name) do
-    :binary.decode_unsigned(bytes, :little)
+    :binary.decode_unsigned(bytes, :big)
   end
 
   def parse(<<>>, :integer, _name) do
     0
   end
 
-  def parse(<<num::little-signed>>, :integer, _name) do
+  def parse(bytes, :integer, _name) do
+    s = byte_size(bytes) * 8
+    <<num::signed-big-integer-size(s)>> = bytes
     num
   end
 
@@ -126,7 +128,7 @@ defmodule Membrane.WebM.Parser.Element do
     0
   end
 
-  def parse(<<num::float>>, :float, _name) do
+  def parse(<<num::float-big>>, :float, _name) do
     num
   end
 
@@ -205,15 +207,15 @@ defmodule Membrane.WebM.Parser.Element do
     {{2001, 1, 1}, {0, 0, 0}}
   end
 
-  def parse(<<nanoseconds::little-signed>>, :date, _name) do
+  def parse(<<nanoseconds::big-signed>>, :date, _name) do
     seconds_zero = :calendar.datetime_to_gregorian_seconds({{2001, 1, 1}, {0, 0, 0}})
     seconds = div(nanoseconds, Time.nanosecond()) + seconds_zero
     :calendar.gregorian_seconds_to_datetime(seconds)
   end
 
-  def parse(_bytes, :void, _name) do
+  def parse(bytes, :void, _name) do
     # Base.encode16(bytes)
-    nil
+    byte_size(bytes)
   end
 
   def parse(bytes, :unknown, _name) do
@@ -239,10 +241,11 @@ defmodule Membrane.WebM.Parser.Element do
     with %{bytes: data, rest: bytes} <- trim_bytes(bytes, data_size) do
       element = {
         name,
+        # parse(data, type, name)
         %{
           data_size: data_size,
           data: parse(data, type, name),
-          type: type
+          # type: type
         }
       }
 

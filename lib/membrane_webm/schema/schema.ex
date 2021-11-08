@@ -225,7 +225,7 @@ defmodule Membrane.WebM.Schema do
 
         "1549A966" -> {:Info, :master}
           # \Segment\Info
-          "2AD7B1" -> {:TimecodeScale, :uint}
+          "2AD7B1" -> {:TimestampScale, :uint}
           "7BA9" -> {:Title, :utf_8}
           "4D80" -> {:MuxingApp, :utf_8}
           "5741" -> {:WritingApp, :utf_8}
@@ -242,47 +242,3 @@ defmodule Membrane.WebM.Schema do
     end
   end
 end
-
-# defmodule Membrane.WebM.Schema do
-
-#   alias Membrane.WebM.Schema.Structs.HeaderElement
-
-#   def header_elements do
-#     [
-#       %HeaderElement{
-#         name: "EBML",
-#         path: "\\EBML",
-#         id: "1A45DFA3",
-#         min_occurs: 1,
-#         max_occurs: 1,
-#         type: :master_element,
-#         description: "Set the EBML characteristics of the data to follow. Each EBML Document has to
-#         start with this. "
-#       },
-#       %HeaderElement{
-#         name: "EBMLVersion",
-#         path: "\\EBML\\EBMLVersion",
-#         id: "4286",
-#         min_occurs: 1,
-#         max_occurs: 1,
-#         # range: not 0,
-#         # default: 1,
-#         type: :u_int,
-#         description: "The version of EBML specifications used to create the EBML Document. The
-#         version of EBML defined in this document is 1, so EBMLVersion be 1."
-#       },
-#       %HeaderElement{
-#         name: "EBMLReadVersion",
-#         path: "\\EBML\\EBMLReadVersion",
-#         id: "42F7",
-#         min_occurs: 1,
-#         max_occurs: 1,
-#         # range: 1,
-#         # default: 1,
-#         type: :u_int,
-#         description: "The minimum EBML version an EBML Reader has to support to read this EBML
-#         Document. The EBMLReadVersion Element be less than or equal to EBMLVersion."
-#       },
-#     ]
-#   end
-# end
