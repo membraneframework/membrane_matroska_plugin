@@ -40,7 +40,7 @@ defmodule Membrane.WebM.Parser do
 
   @impl true
   def handle_process(:input, buffer, _context, state) do
-    IO.inspect(buffer.payload)
+
     if state.options.debug do
       debug_hexdump(buffer.payload)
     end

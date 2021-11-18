@@ -25,7 +25,6 @@ defmodule Membrane.WebM.Demuxer do
   def handle_init(_) do
     state = %{tracks: []}
 
-
      {:ok, state}
   end
 
