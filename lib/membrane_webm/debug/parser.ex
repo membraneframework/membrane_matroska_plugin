@@ -1,7 +1,7 @@
 defmodule Membrane.WebM.Debug.Parser do
   use Membrane.Filter
 
-  alias Membrane.WebM.Parser.Element
+  alias Membrane.WebM.Debug.Element
   alias Membrane.Buffer
 
   def_input_pad :input,
@@ -25,6 +25,12 @@ defmodule Membrane.WebM.Debug.Parser do
                 default: false,
                 description:
                   "Output parsed WebM as a pretty-formatted string for dumping to file etc."
+              ],
+              verbose: [
+                spec: boolean,
+                default: false,
+                description:
+                  "Should parsed elements contain `data`, `data_size` and `type` fields?"
               ]
 
   @impl true
@@ -46,7 +52,7 @@ defmodule Membrane.WebM.Debug.Parser do
 
     output =
       buffer.payload
-      |> Element.parse_list([])
+      |> Element.parse_list([], state.options.verbose)
 
     output =
       if state.options.output_as_string do

@@ -22,6 +22,14 @@ defmodule Membrane.WebM.Demuxer do
               ]
 
   @impl true
+  def handle_init(_) do
+    state = %{tracks: []}
+
+
+     {:ok, state}
+  end
+
+  @impl true
   def handle_prepared_to_playing(_context, _state) do
     {{:ok, demand: :input}, %{todo: nil, track_info: nil}}
   end
@@ -82,7 +90,7 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   defp send({track_num, track}) do
-    # track = %Buffer{payload: inspect(track, limit: :infinity, pretty: true)} #!
+    # track = %Buffer{payload: inspect(track, limit: :infinity, pretty: true)}
     {track_num, {:buffer, {Pad.ref(:output, track_num), track}}}
   end
 
@@ -93,47 +101,32 @@ defmodule Membrane.WebM.Demuxer do
   defp timecode_scale(parsed_webm) do
     # scale of block timecodes in nanoseconds
     # should be 1_000_000 i.e. 1 ms
-    parsed_webm
-    |> child(:Segment)
-    |> child(:Info)
-    |> child(:TimecodeScale)
-    |> unpack
+    parsed_webm[:Segment][:Info][:TimecodeScale]
   end
 
   def identify_tracks(parsed) do
     tracks =
-      parsed
-      |> child(:Segment)
-      |> child(:Tracks)
+      parsed[:Segment][:Tracks]
       |> children(:TrackEntry)
-      |> unpack
 
     timecode_scale = timecode_scale(parsed)
 
     for track <- tracks, into: %{} do
-      if track[:TrackType].data == :audio do
-        {track[:TrackNumber].data, %{codec: track[:CodecID].data}}
+      if track[:TrackType] == :audio do
+        {track[:TrackNumber], %{codec: track[:CodecID]}}
       else
         {
-          track[:TrackNumber].data,
+          track[:TrackNumber],
           %{
-            codec: track[:CodecID].data,
-            height: track[:Video].data[:PixelHeight].data,
-            width: track[:Video].data[:PixelWidth].data,
+            codec: track[:CodecID],
+            height: track[:Video][:PixelHeight],
+            width: track[:Video][:PixelWidth],
             rate: Time.second(),
             scale: timecode_scale
           }
         }
       end
     end
-  end
-
-  def get_data(element_list, keys) when is_list(element_list) do
-    Enum.map(element_list, &get_data(&1, keys))
-  end
-
-  def get_data(element, keys) do
-    for key <- keys, key in children(element), into: %{}, do: {key, unpack(child(element, key))}
   end
 
   def hexdump(bytes) do
@@ -152,17 +145,13 @@ defmodule Membrane.WebM.Demuxer do
       parsed_webm[:Segment]
       |> children(:Cluster)
 
-    cluster_timecodes =
-      clusters
-      |> children(:Timecode)
-      |> unpack
+    cluster_timecodes = child_foreach(clusters, :Timecode)
 
     augmented_blocks =
       for {cluster, timecode} <- Enum.zip(clusters, cluster_timecodes) do
         blocks =
           cluster
           |> children(:SimpleBlock)
-          |> unpack()
           |> Enum.map(fn block ->
             %{
               timecode: timecode + block.timecode,
@@ -184,38 +173,16 @@ defmodule Membrane.WebM.Demuxer do
     %Buffer{payload: data, metadata: %{timestamp: timecode * 1_000_000}}
   end
 
-  def unpack(elements) when is_list(elements) do
-    Enum.map(elements, &unpack(&1))
-  end
-
-  def unpack(element) do
-    element.data
-  end
-
   def child(element_list, name) when is_list(element_list) do
-    # assumes there's only one child - this should be checked!
     element_list[name]
   end
 
-  def child(element, name) do
-    # assumes there's only one child - this should be checked!
-    element.data[name]
+  def child_foreach(element_list, name) do
+    Enum.map(element_list, &child(&1, name))
   end
 
   def children(element_list, name) when is_list(element_list) do
-    element_list
-    |> Enum.flat_map(&children(&1, name))
+    Keyword.get_values(element_list, name)
   end
 
-  def children(element, name) do
-    Keyword.get_values(element.data, name)
-  end
-
-  def children(element) do
-    if element.type == :master do
-      for {key, _data} <- element.data, do: key
-    else
-      nil
-    end
-  end
 end

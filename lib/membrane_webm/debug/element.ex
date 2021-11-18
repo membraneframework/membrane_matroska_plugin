@@ -39,26 +39,26 @@ defmodule Membrane.WebM.Debug.Element do
   alias Membrane.WebM.Parser.Vint
   alias Membrane.WebM.Schema
 
-  def parse_list(bytes, acc) do
-    %{element: element, rest: bytes} = parse_element(bytes)
+  def parse_list(bytes, acc, verbose) do
+    %{element: element, rest: bytes} = parse_element(bytes, verbose)
     acc = [element | acc]
 
     if bytes == <<>> do
       acc
     else
-      parse_list(bytes, acc)
+      parse_list(bytes, acc, verbose)
     end
   end
 
-  def parse(bytes, :master, _name) do
+  def parse(bytes, :master, _name, verbose) do
     if byte_size(bytes) == 0 do
       []
     else
-      parse_list(bytes, [])
+      parse_list(bytes, [], verbose)
     end
   end
 
-  def parse(bytes, :uint, :TrackType) do
+  def parse(bytes, :uint, :TrackType, _verbose) do
     <<int::unsigned-integer-size(8)>> = bytes
 
     case int do
@@ -73,7 +73,7 @@ defmodule Membrane.WebM.Debug.Element do
     end
   end
 
-  def parse(bytes, :uint, :FlagInterlaced) do
+  def parse(bytes, :uint, :FlagInterlaced, _verbose) do
     <<int::unsigned-integer-size(8)>> = bytes
 
     case int do
@@ -86,7 +86,7 @@ defmodule Membrane.WebM.Debug.Element do
     end
   end
 
-  def parse(bytes, :uint, :ChromaSitingHorz) do
+  def parse(bytes, :uint, :ChromaSitingHorz, _verbose) do
     <<int::unsigned-integer-size(8)>> = bytes
 
     case int do
@@ -96,7 +96,7 @@ defmodule Membrane.WebM.Debug.Element do
     end
   end
 
-  def parse(bytes, :uint, :ChromaSitingVert) do
+  def parse(bytes, :uint, :ChromaSitingVert, _verbose) do
     <<int::unsigned-integer-size(8)>> = bytes
 
     case int do
@@ -106,33 +106,33 @@ defmodule Membrane.WebM.Debug.Element do
     end
   end
 
-  def parse(<<>>, :uint, _name) do
+  def parse(<<>>, :uint, _name, _verbose) do
     0
   end
 
-  def parse(bytes, :uint, _name) do
+  def parse(bytes, :uint, _name, _verbose) do
     :binary.decode_unsigned(bytes, :big)
   end
 
-  def parse(<<>>, :integer, _name) do
+  def parse(<<>>, :integer, _name, _verbose) do
     0
   end
 
-  def parse(bytes, :integer, _name) do
+  def parse(bytes, :integer, _name, _verbose) do
     s = byte_size(bytes) * 8
     <<num::signed-big-integer-size(s)>> = bytes
     num
   end
 
-  def parse(<<>>, :float, _name) do
+  def parse(<<>>, :float, _name, _verbose) do
     0
   end
 
-  def parse(<<num::float-big>>, :float, _name) do
+  def parse(<<num::float-big>>, :float, _name, _verbose) do
     num
   end
 
-  def parse(bytes, :binary, :SimpleBlock) do
+  def parse(bytes, :binary, :SimpleBlock, _verbose) do
     # https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#rfc.section.6.2.4.4
 
     # track_number is a vint with size 1 or 2 bytes
@@ -168,12 +168,12 @@ defmodule Membrane.WebM.Debug.Element do
     }
   end
 
-  def parse(bytes, :binary, _name) do
+  def parse(bytes, :binary, _name, _verbose) do
     bytes
     # Base.encode16(bytes)
   end
 
-  def parse(bytes, :string, :CodecID) do
+  def parse(bytes, :string, :CodecID, _verbose) do
     # Video	    “V_*”
     # Audio	    “A_*”
     # Subtitle  “S_*”
@@ -189,12 +189,12 @@ defmodule Membrane.WebM.Debug.Element do
     end
   end
 
-  def parse(bytes, :string, _name) do
+  def parse(bytes, :string, _name, _verbose) do
     chars = for <<c::utf8 <- bytes>>, do: <<c::utf8>>
     chars |> Enum.take_while(fn c -> c != <<0>> end) |> Enum.join()
   end
 
-  def parse(bytes, :utf_8, _name) do
+  def parse(bytes, :utf_8, _name, _verbose) do
     bytes
     |> String.codepoints()
     |> Enum.reduce("", fn codepoint, result ->
@@ -203,30 +203,30 @@ defmodule Membrane.WebM.Debug.Element do
     end)
   end
 
-  def parse(<<>>, :date, _name) do
+  def parse(<<>>, :date, _name, _verbose) do
     {{2001, 1, 1}, {0, 0, 0}}
   end
 
-  def parse(<<nanoseconds::big-signed>>, :date, _name) do
+  def parse(<<nanoseconds::big-signed>>, :date, _name, _verbose) do
     seconds_zero = :calendar.datetime_to_gregorian_seconds({{2001, 1, 1}, {0, 0, 0}})
     seconds = div(nanoseconds, Time.nanosecond()) + seconds_zero
     :calendar.gregorian_seconds_to_datetime(seconds)
   end
 
-  def parse(bytes, :void, _name) do
+  def parse(bytes, :void, _name, _verbose) do
     # Base.encode16(bytes)
     byte_size(bytes)
   end
 
-  def parse(bytes, :unknown, _name) do
+  def parse(bytes, :unknown, _name, _verbose) do
     Base.encode16(bytes)
   end
 
-  def parse(bytes, :ignore, _name) do
+  def parse(bytes, :ignore, _name, _verbose) do
     Base.encode16(bytes)
   end
 
-  def parse_element(bytes) do
+  def parse_element(bytes, verbose) do
     %{vint: vint, rest: bytes} = Vint.parse(bytes)
     id = vint.element_id
     %{vint: vint, rest: bytes} = Vint.parse(bytes)
@@ -239,15 +239,21 @@ defmodule Membrane.WebM.Debug.Element do
     end
 
     with %{bytes: data, rest: bytes} <- trim_bytes(bytes, data_size) do
-      element = {
-        name,
-        # parse(data, type, name)
-        %{
-          data_size: data_size,
-          data: parse(data, type, name),
-          # type: type
+      element = if verbose do
+        {
+          name,
+          %{
+            data_size: data_size,
+            data: parse(data, type, name, verbose),
+            type: type
+          }
         }
-      }
+      else
+        {
+          name,
+          parse(data, type, name, verbose)
+        }
+      end
 
       %{element: element, rest: bytes}
     end

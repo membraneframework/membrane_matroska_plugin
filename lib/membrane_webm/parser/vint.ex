@@ -77,6 +77,7 @@ defmodule Membrane.WebM.Parser.Vint do
     #   1 1111111
     #   0 1 11111111111111
     # are reserver to mean `unknown`
+    # unknown values are handled in a specific way
 
     <<vint::integer-size(vint_width)-unit(8)>> = bytes
     vint_data = vint &&& @data_mask[vint_width]
@@ -95,7 +96,7 @@ defmodule Membrane.WebM.Parser.Vint do
   end
 
   def encode_number(number) do
-    octets = cond do # TODO should be precomputed? or does the compile handle it just fine?
+    octets = cond do # TODO should be precomputed? or does the compiler handle it just fine?
       number < :math.pow(2,7) - 2 ->
         1
       number < :math.pow(2,14) - 2 ->

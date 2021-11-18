@@ -57,6 +57,7 @@ defmodule Membrane.WebM.Schema do
       "4284" -> {:DocTypeExtensionVersion, :uint}
       # "BF" -> {:CRC_32, :crc_32} unsupported by WebM
       "EC" -> {:Void, :void}
+
       ### Matroska elements:
 
       "18538067" -> {:Segment, :master}

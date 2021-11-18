@@ -6,21 +6,21 @@ defmodule Membrane.WebM.DemuxerPipeline do
     children = [
       source: %Membrane.File.Source{
         # location: Path.join([File.cwd!(), "test", "results", "muxer"]),
-        location: Path.join([File.cwd!(), "test", "fixtures", "short_vp9_opus.webm"]),
+        location: Path.join([File.cwd!(), "test", "fixtures", "sample_opus.webm"]),
         chunk_size: 1_114_194_304
       },
-      # parser: %Membrane.WebM.Parser{debug: false, output_as_string: true},
-      # demuxer: %Membrane.WebM.Demuxer{output_as_string: false},
-      pretty_sink: %Membrane.WebM.Debug.PrettySink{
-        location: "test/results/working.parsed"
-      }
+      parser: %Membrane.WebM.Parser{debug: false, output_as_string: false},
+      demuxer: %Membrane.WebM.Demuxer{output_as_string: false},
+      # pretty_sink: %Membrane.WebM.Debug.PrettySink{
+      #   location: "test/results/working.parsed"
+      # }
     ]
 
     links = [
       link(:source)
-      # |> to(:parser)
-      |> to(:pretty_sink)
-      # |> to(:demuxer)
+      # |> to(:pretty_sink)
+      |> to(:parser)
+      |> to(:demuxer)
     ]
 
     {{:ok, spec: %ParentSpec{children: children, links: links}}, %{}}
