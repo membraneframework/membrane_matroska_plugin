@@ -109,17 +109,6 @@ defmodule Membrane.WebM.DemuxerTest do
           {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
       end
     end
-
-    @impl true
-    def handle_element_end_of_stream({:sink, pad_ref}, _, state) do
-      stop_and_terminate(self())
-      {:ok, state}
-    end
-
-    @impl true
-    def handle_element_end_of_stream(_, _, state) do
-      {:ok, state}
-    end
   end
 
   test "demuxing webm containing opus" do
