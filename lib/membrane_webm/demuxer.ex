@@ -15,22 +15,19 @@ defmodule Membrane.WebM.Demuxer do
     mode: :pull,
     caps: :any
 
-  def_options output_as_string: [
-                spec: boolean,
-                default: false,
-                description: "Outputs tracks as pretty-formatted string for inspection."
-              ]
+    defmodule State do
+      defstruct [todo: nil, track_info: nil]
+    end
+
 
   @impl true
   def handle_init(_) do
-    state = %{tracks: []}
-
-     {:ok, state}
+     {:ok, %State{}}
   end
 
   @impl true
-  def handle_prepared_to_playing(_context, _state) do
-    {{:ok, demand: :input}, %{todo: nil, track_info: nil}}
+  def handle_prepared_to_playing(_context, state) do
+    {{:ok, demand: :input}, state}
   end
 
   @impl true
@@ -42,7 +39,7 @@ defmodule Membrane.WebM.Demuxer do
   def handle_demand(Pad.ref(:output, id), _size, :buffers, _context, state) do
     case state.track_info[id].codec do
       :opus ->
-        caps = %Membrane.Opus{channels: 2, self_delimiting?: false}
+        caps = %Membrane.Opus{channels: 2, self_delimiting?: false} # TODO other channel counts
 
         {{:ok,
           [
@@ -89,7 +86,6 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   defp send({track_num, track}) do
-    # track = %Buffer{payload: inspect(track, limit: :infinity, pretty: true)}
     {track_num, {:buffer, {Pad.ref(:output, track_num), track}}}
   end
 
@@ -144,7 +140,9 @@ defmodule Membrane.WebM.Demuxer do
       parsed_webm[:Segment]
       |> children(:Cluster)
 
-    cluster_timecodes = child_foreach(clusters, :Timecode)
+    cluster_timecodes =
+      clusters
+      |> Enum.map(fn c -> c[:Timecode] end)
 
     augmented_blocks =
       for {cluster, timecode} <- Enum.zip(clusters, cluster_timecodes) do
@@ -170,14 +168,6 @@ defmodule Membrane.WebM.Demuxer do
 
   def packetize(%{timecode: timecode, data: data, track_number: _track_number}) do
     %Buffer{payload: data, metadata: %{timestamp: timecode * 1_000_000}}
-  end
-
-  def child(element_list, name) when is_list(element_list) do
-    element_list[name]
-  end
-
-  def child_foreach(element_list, name) do
-    Enum.map(element_list, &child(&1, name))
   end
 
   def children(element_list, name) when is_list(element_list) do

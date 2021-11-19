@@ -226,7 +226,7 @@ defmodule Membrane.WebM.Schema do
 
         "1549A966" -> {:Info, :master}
           # \Segment\Info
-          "2AD7B1" -> {:TimestampScale, :uint}
+          "2AD7B1" -> {:TimecodeScale, :uint}
           "7BA9" -> {:Title, :utf_8}
           "4D80" -> {:MuxingApp, :utf_8}
           "5741" -> {:WritingApp, :utf_8}
