@@ -9,7 +9,11 @@ defmodule Membrane.WebM.DemuxerPipeline do
         chunk_size: 1_114_194_304
       },
       parser: %Membrane.WebM.Parser{debug: false, output_as_string: false},
+<<<<<<< HEAD
       demuxer: Membrane.WebM.Demuxer
+=======
+      demuxer: %Membrane.WebM.Demuxer{output_as_string: false},
+>>>>>>> parent of e13d6a2 (pass ivf option through demuxer track details)
     ]
 
     links = [
@@ -54,10 +58,10 @@ defmodule Membrane.WebM.DemuxerPipeline do
       :vp8 ->
         children = %{
           {:serializer, channel_id} => %Membrane.Element.IVF.Serializer{
-            width: details.width,
-            height: details.height,
-            rate: details.rate,
-            scale: details.scale
+            width: 1920,
+            height: 1080,
+            rate: 1000,
+            scale: 1
           },
           {:sink, channel_id} => %Membrane.File.Sink{
             location: "test/results/#{channel_id}_vp8.ivf"
@@ -76,10 +80,10 @@ defmodule Membrane.WebM.DemuxerPipeline do
       :vp9 ->
         children = %{
           {:serializer, channel_id} => %Membrane.Element.IVF.Serializer{
-            width: details.width,
-            height: details.height,
-            rate: details.rate,
-            scale: details.scale
+            width: 1920,
+            height: 1080,
+            rate: 1000,
+            scale: 1
           },
           {:sink, channel_id} => %Membrane.File.Sink{
             location: "test/results/#{channel_id}_vp9.ivf"
