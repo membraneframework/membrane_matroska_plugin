@@ -39,7 +39,6 @@ defmodule Membrane.WebM.Debug.Parser do
 
   @impl true
   def handle_process(:input, buffer, _context, state) do
-
     if state.options.debug do
       debug_hexdump(buffer.payload)
     end

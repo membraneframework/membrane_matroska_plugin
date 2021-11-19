@@ -40,7 +40,6 @@ defmodule Membrane.WebM.Parser do
 
   @impl true
   def handle_process(:input, buffer, _context, state) do
-
     if state.options.debug do
       debug_hexdump(buffer.payload)
     end
@@ -273,12 +272,7 @@ defmodule Membrane.WebM.Parser do
     with %{bytes: data, rest: bytes} <- trim_bytes(bytes, data_size) do
       element = {
         name,
-        # parse(data, type, name)
-        # %{
-          # data_size: data_size,
-          parse(data, type, name)
-          # type: type
-        # }
+        parse(data, type, name)
       }
 
       %{element: element, rest: bytes}
@@ -291,22 +285,7 @@ defmodule Membrane.WebM.Parser do
   end
 end
 
-#! demuxer and parser combo:
+# TODO demuxer and parser combo:
 # 1 identify tracks and send caps info to pipeline
 # 2 pluck out packets from partially parsed stream and send packets as you get them
-# 3 notify parent youre done
-
-
-# def handle_process(:input, buffer, _context, state) do
-#   parse_chunk
-
-#   need more?
-#   {demand: {:input, 1}}
-#   else
-#   {buffer: {:output, b}}
-# end
-
-# def parse_chunk(bytes, accumulator) do
-#   {:needs_more_data}
-
-# end
+# 3 notify parent you're done

@@ -5,10 +5,10 @@ defmodule Membrane.WebM.Debug.PrettySink do
   alias Membrane.WebM.Debug.Parser
 
   def_options location: [
-    spec: String.t(),
-    default: "output.parsed",
-    description: "Output file path + `name`"
-  ]
+                spec: String.t(),
+                default: "output.parsed",
+                description: "Output file path + `name`"
+              ]
 
   def_input_pad :input,
     demand_unit: :buffers,
@@ -32,6 +32,7 @@ defmodule Membrane.WebM.Debug.PrettySink do
       |> to(:parser)
       |> to(:sink)
     ]
+
     state = %{}
 
     {{:ok, spec: %ParentSpec{children: children, links: links}}, state}

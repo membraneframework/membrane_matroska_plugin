@@ -1,5 +1,4 @@
 defmodule Membrane.WebM.PrettyPrintPipeline do
-
   use Membrane.Pipeline
 
   @impl true

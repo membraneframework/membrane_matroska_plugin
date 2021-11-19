@@ -239,21 +239,22 @@ defmodule Membrane.WebM.Debug.Element do
     end
 
     with %{bytes: data, rest: bytes} <- trim_bytes(bytes, data_size) do
-      element = if verbose do
-        {
-          name,
-          %{
-            data_size: data_size,
-            data: parse(data, type, name, verbose),
-            type: type
+      element =
+        if verbose do
+          {
+            name,
+            %{
+              data_size: data_size,
+              data: parse(data, type, name, verbose),
+              type: type
+            }
           }
-        }
-      else
-        {
-          name,
-          parse(data, type, name, verbose)
-        }
-      end
+        else
+          {
+            name,
+            parse(data, type, name, verbose)
+          }
+        end
 
       %{element: element, rest: bytes}
     end

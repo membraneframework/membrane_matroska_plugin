@@ -15,14 +15,13 @@ defmodule Membrane.WebM.Demuxer do
     mode: :pull,
     caps: :any
 
-    defmodule State do
-      defstruct [todo: nil, track_info: nil]
-    end
-
+  defmodule State do
+    defstruct todo: nil, track_info: nil
+  end
 
   @impl true
   def handle_init(_) do
-     {:ok, %State{}}
+    {:ok, %State{}}
   end
 
   @impl true
@@ -39,7 +38,8 @@ defmodule Membrane.WebM.Demuxer do
   def handle_demand(Pad.ref(:output, id), _size, :buffers, _context, state) do
     case state.track_info[id].codec do
       :opus ->
-        caps = %Membrane.Opus{channels: 2, self_delimiting?: false} # TODO other channel counts
+        # TODO other channel counts
+        caps = %Membrane.Opus{channels: 2, self_delimiting?: false}
 
         {{:ok,
           [
@@ -124,17 +124,6 @@ defmodule Membrane.WebM.Demuxer do
     end
   end
 
-  def hexdump(bytes) do
-    bytes
-    |> Base.encode16()
-    |> String.codepoints()
-    |> Enum.chunk_every(4)
-    |> Enum.intersperse(" ")
-    |> Enum.chunk_every(8 * 2)
-    |> Enum.intersperse("\n")
-    |> IO.puts()
-  end
-
   def tracks(parsed_webm) do
     clusters =
       parsed_webm[:Segment]
@@ -173,5 +162,4 @@ defmodule Membrane.WebM.Demuxer do
   def children(element_list, name) when is_list(element_list) do
     Keyword.get_values(element_list, name)
   end
-
 end

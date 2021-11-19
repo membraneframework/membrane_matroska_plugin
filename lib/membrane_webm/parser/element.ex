@@ -244,7 +244,7 @@ defmodule Membrane.WebM.Parser.Element do
         # parse(data, type, name)
         %{
           data_size: data_size,
-          data: parse(data, type, name),
+          data: parse(data, type, name)
           # type: type
         }
       }

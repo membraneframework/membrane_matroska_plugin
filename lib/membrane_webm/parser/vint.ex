@@ -96,26 +96,24 @@ defmodule Membrane.WebM.Parser.Vint do
   end
 
   def encode_number(number) do
-    octets = cond do # TODO should be precomputed? or does the compiler handle it just fine?
-      number < :math.pow(2,7) - 2 ->
-        1
-      number < :math.pow(2,14) - 2 ->
-        2
-      number < :math.pow(2,21) - 2 ->
-        3
-      number < :math.pow(2,28) - 2 ->
-        4
-      number < :math.pow(2,35) - 2 ->
-        5
-      number < :math.pow(2,42) - 2 ->
-        6
-      number < :math.pow(2,49) - 2 ->
-        7
-      number < :math.pow(2,56) - 2 ->
-        8
-      true ->
-        raise "number #{number} is too big"
-    end
+    # TODO should be precomputed? or does the compiler handle it just fine?
+    limits = [
+      {1, 126},
+      {2, 16382},
+      {3, 2_097_150},
+      {4, 268_435_454},
+      {5, 34_359_738_366},
+      {6, 4_398_046_511_102},
+      {7, 562_949_953_421_310},
+      {8, 72_057_594_037_927_936}
+    ]
+
+    octets =
+      limits
+      |> Enum.drop_while(fn {_n, max_num} -> number < max_num end)
+      |> hd()
+      |> elem(1)
+
     width_bits = octets - 1
     data_bits = octets * 7
 

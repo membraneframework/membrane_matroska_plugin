@@ -9,7 +9,7 @@ defmodule Membrane.WebM.DemuxerPipeline do
         chunk_size: 1_114_194_304
       },
       parser: %Membrane.WebM.Parser{debug: false, output_as_string: false},
-      demuxer: Membrane.WebM.Demuxer,
+      demuxer: Membrane.WebM.Demuxer
     ]
 
     links = [
@@ -34,7 +34,7 @@ defmodule Membrane.WebM.DemuxerPipeline do
               channels: 2
             }
           },
-          {:portaudio, channel_id} => Membrane.PortAudio.Sink,
+          {:portaudio, channel_id} => Membrane.PortAudio.Sink
           # {:sink, channel_id} => %Membrane.File.Sink{
           #   location: "test/results/#{channel_id}_opus.opus"
           # }
