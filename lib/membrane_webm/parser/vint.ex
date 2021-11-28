@@ -9,8 +9,6 @@ defmodule Membrane.WebM.Parser.Vint do
   - VINT_DATA - the 7*N bits following the VINT_MARKER
   """
 
-  # nice bitmap library: https://gitlab.com/Project-FiFo/DalmatinerDB/bitmap https://github.com/gausby/bit_field_set
-
   use Bitwise
 
   # not sure if thte first `8` shouldn't be -inf or something. are all 0's legal?

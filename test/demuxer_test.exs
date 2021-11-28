@@ -16,7 +16,7 @@ defmodule Membrane.WebM.DemuxerTest do
       children = [
         source: %Membrane.File.Source{
           location: options.input_file,
-          chunk_size: 1_114_194_304
+          chunk_size: 2048
         },
         parser: Membrane.WebM.Parser,
         demuxer: Membrane.WebM.Demuxer

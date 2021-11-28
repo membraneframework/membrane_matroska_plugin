@@ -2,7 +2,7 @@ defmodule Membrane.WebM.Demuxer do
   use Membrane.Filter
 
   alias Membrane.{Buffer, RemoteStream, Time}
-  alias Membrane.{VP8, VP9}
+  alias Membrane.{Opus, VP8, VP9}
 
   def_input_pad :input,
     availability: :always,
@@ -39,8 +39,7 @@ defmodule Membrane.WebM.Demuxer do
     caps =
       case state.track_info[id].codec do
         :opus ->
-          # TODO other channel counts
-          %Membrane.Opus{channels: 2, self_delimiting?: false}
+          %Opus{channels: state.track_info[id].channels, self_delimiting?: false}
 
         :vp8 ->
           %RemoteStream{
@@ -94,7 +93,13 @@ defmodule Membrane.WebM.Demuxer do
 
     for track <- tracks, into: %{} do
       if track[:TrackType] == :audio do
-        {track[:TrackNumber], %{codec: track[:CodecID]}}
+        {
+          track[:TrackNumber],
+          %{
+            codec: track[:CodecID],
+            channels: track[:Audio][:Channels]
+          }
+        }
       else
         {
           track[:TrackNumber],

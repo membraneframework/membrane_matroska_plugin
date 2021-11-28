@@ -16,25 +16,76 @@ defmodule Membrane.WebM.Parser do
     mode: :pull,
     caps: :any
 
+  defmodule State do
+    @moduledoc false
+    defstruct [:acc]
+  end
+
+  @impl true
+  def handle_init(_) do
+    {:ok, %State{acc: <<>>}}
+  end
+
   @impl true
   def handle_demand(:output, size, :buffers, _context, state) do
     {{:ok, demand: {:input, size}}, state}
   end
 
   @impl true
-  def handle_process(:input, %Buffer{payload: payload}, _context, state) do
-    output = parse_master(payload, [])
-    {{:ok, buffer: {:output, %Buffer{payload: output}}}, state}
+  def handle_process(:input, %Buffer{payload: payload}, _context, %State{acc: acc} = state) do
+    unparsed = acc <> payload
+    case parse_many(unparsed, []) do
+      :need_more_bytes ->
+        {{:ok, redemand: :output}, %State{acc: unparsed}}
+      parsed ->
+        {{:ok, buffer: {:output, %Buffer{payload: parsed}}}, state}
+    end
   end
 
-  def parse_master(bytes, acc) do
-    %{element: element, rest: bytes} = parse_element(bytes)
-    acc = [element | acc]
+  def parse_many(bytes, acc) do
+    case parse_element(bytes) do
+      %{element: element, rest: rest} ->
+        acc = [element | acc]
 
-    if bytes == <<>> do
-      acc
+        if rest == <<>> do
+          acc
+        else
+          parse_many(rest, acc)
+        end
+      :need_more_bytes ->
+        IO.puts("Needs more bytes")
+        :need_more_bytes
+    end
+  end
+
+  def parse_element(bytes) do
+    %{vint: vint, rest: bytes} = Vint.parse(bytes)
+    id = vint.element_id
+    %{vint: vint, rest: bytes} = Vint.parse(bytes)
+    # TODO: deal with unknown data size
+    data_size = vint.vint_data
+    name = Schema.element_id_to_name(id)
+    type = Schema.element_type(name)
+
+    if name == :Unknown do
+      IO.warn("unknown element ID: #{id}")
+    end
+
+    case trim_bytes(bytes, data_size) do
+      %{bytes: data, rest: rest} ->
+        element = {name, parse(data, type, name)}
+        %{element: element, rest: rest}
+      :need_more_bytes ->
+        :need_more_bytes
+    end
+  end
+
+  def trim_bytes(bytes, how_many) do
+    if how_many > byte_size(bytes) do
+      :need_more_bytes
     else
-      parse_master(bytes, acc)
+      <<bytes::binary-size(how_many), rest::binary>> = bytes
+      %{bytes: bytes, rest: rest}
     end
   end
 
@@ -42,7 +93,7 @@ defmodule Membrane.WebM.Parser do
     if byte_size(bytes) == 0 do
       []
     else
-      parse_master(bytes, [])
+      parse_many(bytes, [])
     end
   end
 
@@ -204,34 +255,6 @@ defmodule Membrane.WebM.Parser do
 
   def parse(bytes, :ignore, _name) do
     Base.encode16(bytes)
-  end
-
-  def parse_element(bytes) do
-    %{vint: vint, rest: bytes} = Vint.parse(bytes)
-    id = vint.element_id
-    %{vint: vint, rest: bytes} = Vint.parse(bytes)
-    # TODO: deal with unknown data size
-    data_size = vint.vint_data
-    name = Schema.element_id_to_name(id)
-    type = Schema.element_type(name)
-
-    if name == :Unknown do
-      IO.warn("unknown element ID: #{id}")
-    end
-
-    with %{bytes: data, rest: rest} <- trim_bytes(bytes, data_size) do
-      element = {
-        name,
-        parse(data, type, name)
-      }
-
-      %{element: element, rest: rest}
-    end
-  end
-
-  def trim_bytes(bytes, how_many) do
-    <<bytes::binary-size(how_many), rest::binary>> = bytes
-    %{bytes: bytes, rest: rest}
   end
 end
 
