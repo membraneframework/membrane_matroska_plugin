@@ -9,11 +9,7 @@ defmodule Membrane.WebM.DemuxerPipeline do
         chunk_size: 1_114_194_304
       },
       parser: %Membrane.WebM.Parser{debug: false, output_as_string: false},
-<<<<<<< HEAD
       demuxer: Membrane.WebM.Demuxer
-=======
-      demuxer: %Membrane.WebM.Demuxer{output_as_string: false},
->>>>>>> parent of e13d6a2 (pass ivf option through demuxer track details)
     ]
 
     links = [

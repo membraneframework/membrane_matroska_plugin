@@ -1,7 +1,7 @@
 defmodule Membrane.WebM.Demuxer do
   use Membrane.Filter
 
-  alias Membrane.{Buffer, Time, RemoteStream}
+  alias Membrane.{Buffer, RemoteStream, Time}
   alias Membrane.{VP8, VP9}
 
   def_input_pad :input,
@@ -15,7 +15,6 @@ defmodule Membrane.WebM.Demuxer do
     mode: :pull,
     caps: :any
 
-<<<<<<< HEAD
   defmodule State do
     defstruct todo: nil, track_info: nil
   end
@@ -23,24 +22,11 @@ defmodule Membrane.WebM.Demuxer do
   @impl true
   def handle_init(_) do
     {:ok, %State{}}
-=======
-  def_options output_as_string: [
-                spec: boolean,
-                default: false,
-                description: "Outputs tracks as pretty-formatted string for inspection."
-              ]
-
-  @impl true
-  def handle_init(_) do
-    state = %{tracks: []}
-
-     {:ok, state}
->>>>>>> parent of e13d6a2 (pass ivf option through demuxer track details)
   end
 
   @impl true
-  def handle_prepared_to_playing(_context, _state) do
-    {{:ok, demand: :input}, %{todo: nil, track_info: nil}}
+  def handle_prepared_to_playing(_context, state) do
+    {{:ok, demand: :input}, state}
   end
 
   @impl true
@@ -50,60 +36,44 @@ defmodule Membrane.WebM.Demuxer do
 
   @impl true
   def handle_demand(Pad.ref(:output, id), _size, :buffers, _context, state) do
-    case state.track_info[id].codec do
-      :opus ->
-<<<<<<< HEAD
-        # TODO other channel counts
-=======
->>>>>>> parent of e13d6a2 (pass ivf option through demuxer track details)
-        caps = %Membrane.Opus{channels: 2, self_delimiting?: false}
+    caps =
+      case state.track_info[id].codec do
+        :opus ->
+          # TODO other channel counts
+          %Membrane.Opus{channels: 2, self_delimiting?: false}
 
-        {{:ok,
-          [
-            {:caps, {Pad.ref(:output, id), caps}},
-            state.todo[id],
-            {:end_of_stream, Pad.ref(:output, id)}
-          ]}, state}
+        :vp8 ->
+          %RemoteStream{
+            content_format: VP8,
+            type: :packetized
+          }
 
-      :vp8 ->
-        caps = %RemoteStream{content_format: VP8, type: :packetized}
+        :vp9 ->
+          %RemoteStream{
+            content_format: VP9,
+            type: :packetized
+          }
+      end
 
-        {{:ok,
-          [
-            {:caps, {Pad.ref(:output, id), caps}},
-            state.todo[id],
-            {:end_of_stream, Pad.ref(:output, id)}
-          ]}, state}
-
-      :vp9 ->
-        caps = %RemoteStream{content_format: VP9, type: :packetized}
-
-        {{:ok,
-          [
-            {:caps, {Pad.ref(:output, id), caps}},
-            state.todo[id],
-            {:end_of_stream, Pad.ref(:output, id)}
-          ]}, state}
-    end
+    {{:ok,
+      [
+        {:caps, {Pad.ref(:output, id), caps}},
+        state.todo[id],
+        {:end_of_stream, Pad.ref(:output, id)}
+      ]}, state}
   end
 
   @impl true
-  def handle_process(:input, buffer, _context, state) do
-    parsed = buffer.payload
+  def handle_process(:input, %Buffer{payload: parsed}, _context, state) do
     track_info = identify_tracks(parsed)
     tracks = tracks(parsed)
-
-    actions =
-      track_info
-      |> Enum.map(&notify_output/1)
-
+    actions = Enum.map(track_info, &notify_output/1)
     sent = for track <- tracks, into: %{}, do: send(track)
     newstate = %{state | todo: sent, track_info: track_info}
     {{:ok, actions}, newstate}
   end
 
   defp send({track_num, track}) do
-    # track = %Buffer{payload: inspect(track, limit: :infinity, pretty: true)}
     {track_num, {:buffer, {Pad.ref(:output, track_num), track}}}
   end
 
@@ -118,9 +88,7 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   def identify_tracks(parsed) do
-    tracks =
-      parsed[:Segment][:Tracks]
-      |> children(:TrackEntry)
+    tracks = children(parsed[:Segment][:Tracks], :TrackEntry)
 
     timecode_scale = timecode_scale(parsed)
 
@@ -143,11 +111,8 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   def tracks(parsed_webm) do
-    clusters =
-      parsed_webm[:Segment]
-      |> children(:Cluster)
-
-    cluster_timecodes = child_foreach(clusters, :Timecode)
+    clusters = children(parsed_webm[:Segment], :Cluster)
+    cluster_timecodes = Enum.map(clusters, fn c -> c[:Timecode] end)
 
     augmented_blocks =
       for {cluster, timecode} <- Enum.zip(clusters, cluster_timecodes) do
@@ -173,14 +138,6 @@ defmodule Membrane.WebM.Demuxer do
 
   def packetize(%{timecode: timecode, data: data, track_number: _track_number}) do
     %Buffer{payload: data, metadata: %{timestamp: timecode * 1_000_000}}
-  end
-
-  def child(element_list, name) when is_list(element_list) do
-    element_list[name]
-  end
-
-  def child_foreach(element_list, name) do
-    Enum.map(element_list, &child(&1, name))
   end
 
   def children(element_list, name) when is_list(element_list) do
