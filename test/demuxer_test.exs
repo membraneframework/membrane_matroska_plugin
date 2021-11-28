@@ -3,8 +3,7 @@ defmodule Membrane.WebM.DemuxerTest do
 
   import Membrane.Testing.Assertions
 
-  alias Membrane.WebM
-  alias Membrane.{Testing}
+  alias Membrane.Testing
 
   @input_dir "./test/fixtures/"
   @output_dir "./test/results/"
@@ -19,7 +18,7 @@ defmodule Membrane.WebM.DemuxerTest do
           location: options.input_file,
           chunk_size: 1_114_194_304
         },
-        parser: %Membrane.WebM.Parser{debug: false, output_as_string: false},
+        parser: Membrane.WebM.Parser,
         demuxer: Membrane.WebM.Demuxer
       ]
 

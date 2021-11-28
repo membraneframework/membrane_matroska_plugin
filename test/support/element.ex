@@ -230,9 +230,10 @@ defmodule Membrane.WebM.Debug.Element do
     %{vint: vint, rest: bytes} = Vint.parse(bytes)
     id = vint.element_id
     %{vint: vint, rest: bytes} = Vint.parse(bytes)
-    data_size = vint.vint_data
     # TODO: deal with unknown data size
-    {name, type} = Schema.classify_element(id)
+    data_size = vint.vint_data
+    name = Schema.element_id_to_name(id)
+    type = Schema.element_type(name)
 
     if name == :Unknown do
       IO.puts("unknown element ID: #{id}")
