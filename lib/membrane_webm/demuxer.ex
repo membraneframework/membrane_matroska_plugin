@@ -63,13 +63,16 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   @impl true
-  def handle_process(:input, %Buffer{payload: parsed}, _context, state) do
-    track_info = identify_tracks(parsed)
-    tracks = tracks(parsed)
-    actions = Enum.map(track_info, &notify_output/1)
-    sent = for track <- tracks, into: %{}, do: send(track)
-    newstate = %{state | todo: sent, track_info: track_info}
-    {{:ok, actions}, newstate}
+  def handle_process(:input, %Buffer{payload: {name, data} = parsed} = buf, _context, state) do
+    IO.puts("      Demuxer received #{name}")
+    {{:ok, demand: {:input, 1}}, state}
+
+    # track_info = identify_tracks(parsed)
+    # tracks = tracks(parsed)
+    # actions = Enum.map(track_info, &notify_output/1)
+    # sent = for track <- tracks, into: %{}, do: send(track)
+    # newstate = %{state | todo: sent, track_info: track_info}
+    # {{:ok, actions}, newstate}
   end
 
   defp send({track_num, track}) do

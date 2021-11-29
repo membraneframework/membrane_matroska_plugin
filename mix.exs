@@ -38,7 +38,7 @@ defmodule Membrane.WebM.Plugin.Mixfile do
     [
       {:membrane_core, "~> 0.8.0"},
       {:membrane_ivf_plugin, "~> 0.3.0"},
-      {:membrane_opus_plugin, github: "membraneframework/membrane_opus_plugin", branch: "fix"},
+      {:membrane_opus_plugin, "~> 0.8.0"},
       {:membrane_portaudio_plugin, "~> 0.10.0"},
       {:membrane_ffmpeg_swresample_plugin, "~> 0.10.0"},
       {:membrane_file_plugin, "~> 0.7.0"},

@@ -16,7 +16,7 @@ defmodule Membrane.WebM.DemuxerTest do
       children = [
         source: %Membrane.File.Source{
           location: options.input_file,
-          chunk_size: 2048
+          chunk_size: 4096
         },
         parser: Membrane.WebM.Parser,
         demuxer: Membrane.WebM.Demuxer
@@ -118,13 +118,13 @@ defmodule Membrane.WebM.DemuxerTest do
     test_stream("opus_audio.webm", ["1.opus"], ["1.opus"])
   end
 
-  test "demuxing webm containing vp8 + opus" do
-    test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.opus"], ["1_vp8.ivf", "2.opus"])
-  end
+  # test "demuxing webm containing vp8 + opus" do
+  #   test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.opus"], ["1_vp8.ivf", "2.opus"])
+  # end
 
-  test "demuxing webm containing vp9 + opus" do
-    test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.opus"], ["1_vp9.ivf", "2.opus"])
-  end
+  # test "demuxing webm containing vp9 + opus" do
+  #   test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.opus"], ["1_vp9.ivf", "2.opus"])
+  # end
 
   defp test_stream(input_file, references, results) do
     args = Enum.zip(references, results)

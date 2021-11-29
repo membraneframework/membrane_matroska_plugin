@@ -21,6 +21,16 @@ defmodule Membrane.WebM.Parser do
     defstruct [:acc]
   end
 
+  @return_elements [
+    :EBML,
+    :SeekHead,
+    :Info,
+    :Tracks,
+    :Tags,
+    :Cues,
+    :Cluster
+  ]
+
   @impl true
   def handle_init(_) do
     {:ok, %State{acc: <<>>}}
@@ -34,27 +44,39 @@ defmodule Membrane.WebM.Parser do
   @impl true
   def handle_process(:input, %Buffer{payload: payload}, _context, %State{acc: acc} = state) do
     unparsed = acc <> payload
+
     case parse_many(unparsed, []) do
+      {:ok, {name, data} = result, rest} ->
+        IO.puts("    Parser sending #{name}")
+        {{:ok, buffer: {:output, %Buffer{payload: result}}}, %State{acc: rest}} # , {:redemand, :output}
+
       :need_more_bytes ->
         {{:ok, redemand: :output}, %State{acc: unparsed}}
-      parsed ->
-        {{:ok, buffer: {:output, %Buffer{payload: parsed}}}, state}
     end
   end
 
+  # if parsing top element and encountered new top element or rest is empty: you done, bro. not necessarily
+
   def parse_many(bytes, acc) do
     case parse_element(bytes) do
-      %{element: element, rest: rest} ->
-        acc = [element | acc]
-
-        if rest == <<>> do
-          acc
+      %{element: {name, _data} = element, rest: rest} ->
+        if name in @return_elements do
+          IO.puts("  Returning #{name}")
+          {:ok, element, rest}
         else
-          parse_many(rest, acc)
+          if rest == <<>> do
+            [element | acc]
+          else
+            parse_many(rest, [element | acc])
+          end
         end
+
       :need_more_bytes ->
-        IO.puts("Needs more bytes")
+        IO.puts("  Needs more bytes")
         :need_more_bytes
+
+      {:ok, element, rest} ->
+        {:ok, element, rest}
     end
   end
 
@@ -67,16 +89,23 @@ defmodule Membrane.WebM.Parser do
     name = Schema.element_id_to_name(id)
     type = Schema.element_type(name)
 
-    if name == :Unknown do
-      IO.warn("unknown element ID: #{id}")
-    end
+    # if name == :Unknown do
+    #   IO.warn("unknown element ID: #{id}")
+    # end
 
-    case trim_bytes(bytes, data_size) do
-      %{bytes: data, rest: rest} ->
-        element = {name, parse(data, type, name)}
-        %{element: element, rest: rest}
-      :need_more_bytes ->
-        :need_more_bytes
+    IO.puts("Parsing #{name}")
+
+    if name == :Segment do
+      parse_many(bytes, [])
+    else
+      case trim_bytes(bytes, data_size) do
+        %{bytes: data, rest: rest} ->
+          element = {name, parse(data, type, name)}
+          %{element: element, rest: rest}
+
+        :need_more_bytes ->
+          :need_more_bytes
+      end
     end
   end
 
@@ -96,6 +125,14 @@ defmodule Membrane.WebM.Parser do
       parse_many(bytes, [])
     end
   end
+
+  ##################################
+  ##################################
+  ##################################
+  ##################################
+  ##################################
+  ##################################
+  ##################################
 
   def parse(<<type::unsigned-integer-size(8)>>, :uint, :TrackType) do
     case type do
@@ -174,7 +211,6 @@ defmodule Membrane.WebM.Parser do
       "A_VORBIS" -> :vorbis
       "V_VP8" -> :vp8
       "V_VP9" -> :vp9
-      _ -> raise "Invalid codec: #{codec_string}"
     end
   end
 
@@ -260,5 +296,5 @@ end
 
 # TODO demuxer and parser combo:
 # 1 identify tracks and send caps info to pipeline
-# 2 pluck out packets from partially parsed stream and send packets as you get them
+# 2 pluck out simpleblock packets from partially parsed stream and send them as you get them
 # 3 notify parent you're done
