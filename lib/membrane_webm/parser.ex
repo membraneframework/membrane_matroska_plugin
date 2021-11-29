@@ -61,7 +61,6 @@ defmodule Membrane.WebM.Parser do
     case parse_element(bytes) do
       %{element: {name, _data} = element, rest: rest} ->
         if name in @return_elements do
-          IO.puts("  Returning #{name}")
           {:ok, element, rest}
         else
           if rest == <<>> do
@@ -72,7 +71,6 @@ defmodule Membrane.WebM.Parser do
         end
 
       :need_more_bytes ->
-        IO.puts("  Needs more bytes")
         :need_more_bytes
 
       {:ok, element, rest} ->
@@ -89,11 +87,9 @@ defmodule Membrane.WebM.Parser do
     name = Schema.element_id_to_name(id)
     type = Schema.element_type(name)
 
-    # if name == :Unknown do
-    #   IO.warn("unknown element ID: #{id}")
-    # end
-
-    IO.puts("Parsing #{name}")
+    if name == :Unknown do
+      IO.warn("unknown element ID: #{id}")
+    end
 
     if name == :Segment do
       parse_many(bytes, [])
@@ -125,14 +121,6 @@ defmodule Membrane.WebM.Parser do
       parse_many(bytes, [])
     end
   end
-
-  ##################################
-  ##################################
-  ##################################
-  ##################################
-  ##################################
-  ##################################
-  ##################################
 
   def parse(<<type::unsigned-integer-size(8)>>, :uint, :TrackType) do
     case type do
@@ -293,8 +281,3 @@ defmodule Membrane.WebM.Parser do
     Base.encode16(bytes)
   end
 end
-
-# TODO demuxer and parser combo:
-# 1 identify tracks and send caps info to pipeline
-# 2 pluck out simpleblock packets from partially parsed stream and send them as you get them
-# 3 notify parent you're done
