@@ -34,15 +34,9 @@ defmodule Membrane.WebM.Demuxer do
     {{:ok, demand: {:input, size}}, state}
   end
 
+  #! ignoring for now
   @impl true
-  def handle_demand(
-        Pad.ref(:output, _id),
-        _size,
-        :buffers,
-        _context,
-        %State{cache: _cache} = state
-      ) do
-    #! ignore?
+  def handle_demand(Pad.ref(:output, _id), _size, :buffers, _context, state) do
     {:ok, state}
   end
 
@@ -62,12 +56,7 @@ defmodule Membrane.WebM.Demuxer do
           actions = send_notify_pads(tracks)
           {actions, %State{state | tracks: tracks}}
 
-        :Tags ->
-          # :timer.sleep(1000)
-          {[], state}
-
         :Cluster ->
-          # :timer.sleep(1)
           buffers = to_buffers(data)
           actions = Enum.map(active_pads(buffers, state), &output/1)
 
@@ -76,8 +65,8 @@ defmodule Membrane.WebM.Demuxer do
           end
 
           to_cache = inactive_pads(buffers, state)
-          cache = state.cache ++ to_cache
-          {actions, %State{state | cache: cache}}
+          new_cache = state.cache ++ to_cache
+          {actions, %State{state | cache: new_cache}}
 
         _ ->
           {[], state}
@@ -85,14 +74,6 @@ defmodule Membrane.WebM.Demuxer do
 
     actions = [{:demand, {:input, 1}} | actions]
     {{:ok, actions}, state}
-  end
-
-  def active_pads(buffers, state) do
-    Enum.filter(buffers, fn {id, _data} -> state.tracks[id].active_pad end)
-  end
-
-  def inactive_pads(buffers, state) do
-    Enum.filter(buffers, fn {id, _data} -> not state.tracks[id].active_pad end)
   end
 
   @impl true
@@ -115,36 +96,47 @@ defmodule Membrane.WebM.Demuxer do
     to_send = active_pads(state.cache, new_state)
     new_cache = inactive_pads(state.cache, new_state)
     final_state = %State{new_state | cache: new_cache}
+    buffer_actions = Enum.map(to_send, &output/1)
+    caps_action = {:caps, {Pad.ref(:output, id), caps}}
+    actions = [caps_action | buffer_actions]
 
-    {{:ok, [{:caps, {Pad.ref(:output, id), caps}}, output_to(to_send, id)]}, final_state}
+    IO.puts("    Pad #{id} added. Demuxer sending cached Buffers")
+    {{:ok, actions}, final_state}
+  end
+
+  defp output({track_id, buffers}) do
+    {:buffer, {Pad.ref(:output, track_id), buffers}}
+  end
+
+  #returns buffers intended for pads that are currently active
+  defp active_pads(buffers, state) do
+    Enum.filter(buffers, fn {id, _data} -> state.tracks[id].active_pad end)
+  end
+
+  defp inactive_pads(buffers, state) do
+    Enum.filter(buffers, fn {id, _data} -> not state.tracks[id].active_pad end)
   end
 
   defp send_notify_pads(tracks) when is_map(tracks) do
     Enum.map(tracks, &send_notify_pads/1)
   end
 
-  # sends tuple {track_id, track_info}
+  # sends tuple `{track_id, track_info} = track`
   defp send_notify_pads(track) do
     {:notify, {:new_track, track}}
   end
 
   defp to_buffers(cluster) do
     cluster
-    |> children(:SimpleBlock)
+    |> Keyword.get_values(:SimpleBlock)
     |> Enum.map(&prepare_simple_block(&1, cluster[:Timecode]))
     |> List.flatten()
     |> Enum.reverse()
     |> Enum.group_by(& &1.track_number, &packetize/1)
   end
 
-  def output_to(buffers, id) when is_list(buffers) do
-    IO.puts("    Pad #{id} added. Demuxer sending cached Buffers")
-    buffers = Enum.map(buffers, fn {_pad, buffers_list} -> buffers_list end) |> List.flatten()
-    {:buffer, {Pad.ref(:output, id), buffers}}
-  end
-
-  def output({track_id, buffers}) do
-    {:buffer, {Pad.ref(:output, track_id), buffers}}
+  defp packetize(%{timecode: timecode, data: data}) do
+    %Buffer{payload: data, metadata: %{timestamp: timecode * 1_000_000}}
   end
 
   defp prepare_simple_block(block, cluster_timecode) do
@@ -155,8 +147,8 @@ defmodule Membrane.WebM.Demuxer do
     }
   end
 
-  def identify_tracks(tracks, timecode_scale) do
-    tracks = children(tracks, :TrackEntry)
+  defp identify_tracks(tracks, timecode_scale) do
+    tracks = Keyword.get_values(tracks, :TrackEntry)
 
     for track <- tracks, into: %{} do
       if track[:TrackType] == :audio do
@@ -182,13 +174,5 @@ defmodule Membrane.WebM.Demuxer do
         }
       end
     end
-  end
-
-  def packetize(%{timecode: timecode, data: data}) do
-    %Buffer{payload: data, metadata: %{timestamp: timecode * 1_000_000}}
-  end
-
-  def children(element_list, name) when is_list(element_list) do
-    Keyword.get_values(element_list, name)
   end
 end
