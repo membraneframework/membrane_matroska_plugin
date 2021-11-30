@@ -35,14 +35,20 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   @impl true
-  def handle_demand(Pad.ref(:output, _id), _size, :buffers, _context, %State{cache: _cache} = state) do
+  def handle_demand(
+        Pad.ref(:output, _id),
+        _size,
+        :buffers,
+        _context,
+        %State{cache: _cache} = state
+      ) do
     #! ignore?
     {:ok, state}
   end
 
   @impl true
   def handle_process(:input, %Buffer{payload: {name, data}}, _context, state) do
-    IO.puts("      Demuxer received #{name}")
+    IO.puts("  Demuxer received #{name}")
 
     {actions, state} =
       case name do
@@ -64,9 +70,11 @@ defmodule Membrane.WebM.Demuxer do
           # :timer.sleep(1)
           buffers = to_buffers(data)
           actions = Enum.map(active_pads(buffers, state), &output/1)
+
           if actions != [] do
-            IO.puts("         Demuxer sending Buffer")
+            IO.puts("    Demuxer sending Buffer")
           end
+
           to_cache = inactive_pads(buffers, state)
           cache = state.cache ++ to_cache
           {actions, %State{state | cache: cache}}
@@ -76,8 +84,6 @@ defmodule Membrane.WebM.Demuxer do
       end
 
     actions = [{:demand, {:input, 1}} | actions]
-    # IO.inspect(actions, limit: 10)
-    # IO.inspect(state, limit: 10)
     {{:ok, actions}, state}
   end
 
@@ -105,11 +111,12 @@ defmodule Membrane.WebM.Demuxer do
     new_tracks = Map.put(tracks, id, new_track_info)
     new_state = %State{state | tracks: new_tracks}
 
-    ready = active_pads(state.cache, new_state)
+    # now that the pad is added all cached buffers intended for this pad can be sent
+    to_send = active_pads(state.cache, new_state)
     new_cache = inactive_pads(state.cache, new_state)
     final_state = %State{new_state | cache: new_cache}
 
-    {{:ok, [{:caps, {Pad.ref(:output, id), caps}}, output_to(ready, id)]}, final_state}
+    {{:ok, [{:caps, {Pad.ref(:output, id), caps}}, output_to(to_send, id)]}, final_state}
   end
 
   defp send_notify_pads(tracks) when is_map(tracks) do
@@ -130,8 +137,8 @@ defmodule Membrane.WebM.Demuxer do
     |> Enum.group_by(& &1.track_number, &packetize/1)
   end
 
-  def output_to(buffers, id) when is_list buffers do
-    IO.puts("       Pad #{id} added. Demuxer sending cached Buffers")
+  def output_to(buffers, id) when is_list(buffers) do
+    IO.puts("    Pad #{id} added. Demuxer sending cached Buffers")
     buffers = Enum.map(buffers, fn {_pad, buffers_list} -> buffers_list end) |> List.flatten()
     {:buffer, {Pad.ref(:output, id), buffers}}
   end

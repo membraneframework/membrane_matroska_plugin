@@ -16,11 +16,6 @@ defmodule Membrane.WebM.Parser do
     mode: :pull,
     caps: :any
 
-  defmodule State do
-    @moduledoc false
-    defstruct [:acc]
-  end
-
   @return_elements [
     :EBML,
     :SeekHead,
@@ -33,7 +28,7 @@ defmodule Membrane.WebM.Parser do
 
   @impl true
   def handle_init(_) do
-    {:ok, %State{acc: <<>>}}
+    {:ok, %{acc: <<>>}}
   end
 
   @impl true
@@ -42,25 +37,22 @@ defmodule Membrane.WebM.Parser do
   end
 
   @impl true
-  def handle_process(:input, %Buffer{payload: payload}, _context, %State{acc: acc} = state) do
+  def handle_process(:input, %Buffer{payload: payload}, _context, %{acc: acc}) do
     unparsed = acc <> payload
 
     case parse_many(unparsed, []) do
-      {:ok, {name, data} = result, rest} ->
-        IO.puts("    Parser sending #{name}")
-        # , {:redemand, :output}
-        {{:ok, buffer: {:output, %Buffer{payload: result}}}, %State{acc: rest}}
+      {:ok, {name, _data} = parsed_element, rest} ->
+        IO.puts("Parser sending #{name}")
+        {{:ok, buffer: {:output, %Buffer{payload: parsed_element}}}, %{acc: rest}}
 
       :need_more_bytes ->
-        {{:ok, redemand: :output}, %State{acc: unparsed}}
+        {{:ok, redemand: :output}, %{acc: unparsed}}
     end
   end
 
-  # if parsing top element and encountered new top element or rest is empty: you done, bro. not necessarily
-
   def parse_many(bytes, acc) do
     case parse_element(bytes) do
-      %{element: {name, _data} = element, rest: rest} ->
+      {{name, _data} = element, rest} ->
         if name in @return_elements do
           {:ok, element, rest}
         else
@@ -88,17 +80,17 @@ defmodule Membrane.WebM.Parser do
     name = Schema.element_id_to_name(id)
     type = Schema.element_type(name)
 
-    # if name == :Unknown do
-    #   IO.warn("unknown element ID: #{id}")
-    # end
+    if name == :Unknown do
+      IO.warn("unknown element ID: #{id}")
+    end
 
     if name == :Segment do
       parse_many(bytes, [])
     else
       case trim_bytes(bytes, data_size) do
-        %{bytes: data, rest: rest} ->
+        {data, rest} ->
           element = {name, parse(data, type, name)}
-          %{element: element, rest: rest}
+          {element, rest}
 
         :need_more_bytes ->
           :need_more_bytes
@@ -106,12 +98,12 @@ defmodule Membrane.WebM.Parser do
     end
   end
 
-  def trim_bytes(bytes, how_many) do
+  defp trim_bytes(bytes, how_many) do
     if how_many > byte_size(bytes) do
       :need_more_bytes
     else
       <<bytes::binary-size(how_many), rest::binary>> = bytes
-      %{bytes: bytes, rest: rest}
+      {bytes, rest}
     end
   end
 
