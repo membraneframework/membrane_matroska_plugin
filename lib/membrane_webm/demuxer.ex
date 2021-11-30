@@ -16,12 +16,12 @@ defmodule Membrane.WebM.Demuxer do
     caps: :any
 
   defmodule State do
-    defstruct todo: nil, track_info: nil
+    defstruct [:tracks, :timecodescale, :cache]
   end
 
   @impl true
   def handle_init(_) do
-    {:ok, %State{}}
+    {:ok, %State{cache: []}}
   end
 
   @impl true
@@ -35,64 +35,121 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   @impl true
-  def handle_demand(Pad.ref(:output, id), _size, :buffers, _context, state) do
-    caps =
-      case state.track_info[id].codec do
-        :opus ->
-          %Opus{channels: state.track_info[id].channels, self_delimiting?: false}
-
-        :vp8 ->
-          %RemoteStream{
-            content_format: VP8,
-            type: :packetized
-          }
-
-        :vp9 ->
-          %RemoteStream{
-            content_format: VP9,
-            type: :packetized
-          }
-      end
-
-    {{:ok,
-      [
-        {:caps, {Pad.ref(:output, id), caps}},
-        state.todo[id],
-        {:end_of_stream, Pad.ref(:output, id)}
-      ]}, state}
+  def handle_demand(Pad.ref(:output, _id), _size, :buffers, _context, %State{cache: _cache} = state) do
+    #! ignore?
+    {:ok, state}
   end
 
   @impl true
-  def handle_process(:input, %Buffer{payload: {name, data} = parsed} = buf, _context, state) do
+  def handle_process(:input, %Buffer{payload: {name, data}}, _context, state) do
     IO.puts("      Demuxer received #{name}")
-    {{:ok, demand: {:input, 1}}, state}
 
-    # track_info = identify_tracks(parsed)
-    # tracks = tracks(parsed)
-    # actions = Enum.map(track_info, &notify_output/1)
-    # sent = for track <- tracks, into: %{}, do: send(track)
-    # newstate = %{state | todo: sent, track_info: track_info}
-    # {{:ok, actions}, newstate}
+    {actions, state} =
+      case name do
+        :Info ->
+          # scale of block timecodes in nanoseconds
+          # should be 1_000_000 i.e. 1 ms
+          {[], %State{state | timecodescale: data[:TimecodeScale]}}
+
+        :Tracks ->
+          tracks = identify_tracks(data, state.timecodescale)
+          actions = send_notify_pads(tracks)
+          {actions, %State{state | tracks: tracks}}
+
+        :Tags ->
+          # :timer.sleep(1000)
+          {[], state}
+
+        :Cluster ->
+          # :timer.sleep(1)
+          buffers = to_buffers(data)
+          actions = Enum.map(active_pads(buffers, state), &output/1)
+          if actions != [] do
+            IO.puts("         Demuxer sending Buffer")
+          end
+          to_cache = inactive_pads(buffers, state)
+          cache = state.cache ++ to_cache
+          {actions, %State{state | cache: cache}}
+
+        _ ->
+          {[], state}
+      end
+
+    actions = [{:demand, {:input, 1}} | actions]
+    # IO.inspect(actions, limit: 10)
+    # IO.inspect(state, limit: 10)
+    {{:ok, actions}, state}
   end
 
-  defp send({track_num, track}) do
-    {track_num, {:buffer, {Pad.ref(:output, track_num), track}}}
+  def active_pads(buffers, state) do
+    Enum.filter(buffers, fn {id, _data} -> state.tracks[id].active_pad end)
   end
 
-  defp notify_output({track_id, details}) do
-    {:notify, {:new_channel, {track_id, details}}}
+  def inactive_pads(buffers, state) do
+    Enum.filter(buffers, fn {id, _data} -> not state.tracks[id].active_pad end)
   end
 
-  defp timecode_scale(parsed_webm) do
-    # scale of block timecodes in nanoseconds
-    # should be 1_000_000 i.e. 1 ms
-    parsed_webm[:Segment][:Info][:TimecodeScale]
+  @impl true
+  def handle_pad_added(Pad.ref(:output, id), _context, %State{tracks: tracks} = state) do
+    track_info = tracks[id]
+
+    caps =
+      case track_info.codec do
+        :opus -> %Opus{channels: 2, self_delimiting?: false}
+        # TODO :opus -> %Opus{channels: track_info.channels, self_delimiting?: false}
+        :vp8 -> %RemoteStream{content_format: VP8, type: :packetized}
+        :vp9 -> %RemoteStream{content_format: VP9, type: :packetized}
+      end
+
+    new_track_info = Map.put(track_info, :active_pad, true)
+    new_tracks = Map.put(tracks, id, new_track_info)
+    new_state = %State{state | tracks: new_tracks}
+
+    ready = active_pads(state.cache, new_state)
+    new_cache = inactive_pads(state.cache, new_state)
+    final_state = %State{new_state | cache: new_cache}
+
+    {{:ok, [{:caps, {Pad.ref(:output, id), caps}}, output_to(ready, id)]}, final_state}
   end
 
-  def identify_tracks(parsed) do
-    tracks = children(parsed[:Segment][:Tracks], :TrackEntry)
+  defp send_notify_pads(tracks) when is_map(tracks) do
+    Enum.map(tracks, &send_notify_pads/1)
+  end
 
-    timecode_scale = timecode_scale(parsed)
+  # sends tuple {track_id, track_info}
+  defp send_notify_pads(track) do
+    {:notify, {:new_track, track}}
+  end
+
+  defp to_buffers(cluster) do
+    cluster
+    |> children(:SimpleBlock)
+    |> Enum.map(&prepare_simple_block(&1, cluster[:Timecode]))
+    |> List.flatten()
+    |> Enum.reverse()
+    |> Enum.group_by(& &1.track_number, &packetize/1)
+  end
+
+  def output_to(buffers, id) when is_list buffers do
+    IO.puts("       Pad #{id} added. Demuxer sending cached Buffers")
+    buffers = Enum.map(buffers, fn {_pad, buffers_list} -> buffers_list end) |> List.flatten()
+    {:buffer, {Pad.ref(:output, id), buffers}}
+  end
+
+  def output({track_id, buffers}) do
+    {:buffer, {Pad.ref(:output, track_id), buffers}}
+  end
+
+  defp prepare_simple_block(block, cluster_timecode) do
+    %{
+      timecode: cluster_timecode + block.timecode,
+      track_number: block.track_number,
+      data: block.data
+    }
+  end
+
+  def identify_tracks(tracks, timecode_scale) do
+    tracks = children(tracks, :TrackEntry)
 
     for track <- tracks, into: %{} do
       if track[:TrackType] == :audio do
@@ -100,6 +157,7 @@ defmodule Membrane.WebM.Demuxer do
           track[:TrackNumber],
           %{
             codec: track[:CodecID],
+            active_pad: false,
             channels: track[:Audio][:Channels]
           }
         }
@@ -108,6 +166,7 @@ defmodule Membrane.WebM.Demuxer do
           track[:TrackNumber],
           %{
             codec: track[:CodecID],
+            active_pad: false,
             height: track[:Video][:PixelHeight],
             width: track[:Video][:PixelWidth],
             rate: Time.second(),
@@ -118,33 +177,7 @@ defmodule Membrane.WebM.Demuxer do
     end
   end
 
-  def tracks(parsed_webm) do
-    clusters = children(parsed_webm[:Segment], :Cluster)
-    cluster_timecodes = Enum.map(clusters, fn c -> c[:Timecode] end)
-
-    augmented_blocks =
-      for {cluster, timecode} <- Enum.zip(clusters, cluster_timecodes) do
-        blocks =
-          cluster
-          |> children(:SimpleBlock)
-          |> Enum.map(fn block ->
-            %{
-              timecode: timecode + block.timecode,
-              track_number: block.track_number,
-              data: block.data
-            }
-          end)
-
-        blocks
-      end
-
-    augmented_blocks
-    |> List.flatten()
-    |> Enum.reverse()
-    |> Enum.group_by(& &1.track_number, &packetize/1)
-  end
-
-  def packetize(%{timecode: timecode, data: data, track_number: _track_number}) do
+  def packetize(%{timecode: timecode, data: data}) do
     %Buffer{payload: data, metadata: %{timestamp: timecode * 1_000_000}}
   end
 

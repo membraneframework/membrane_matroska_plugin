@@ -33,8 +33,8 @@ defmodule Membrane.WebM.DemuxerTest do
     end
 
     @impl true
-    def handle_notification({:new_channel, {track_id, details}}, :demuxer, _context, state) do
-      case details.codec do
+    def handle_notification({:new_track, {track_id, track_info}}, :demuxer, _context, state) do
+      case track_info.codec do
         :opus ->
           children = %{
             #! play audio:
@@ -70,10 +70,10 @@ defmodule Membrane.WebM.DemuxerTest do
         :vp8 ->
           children = %{
             {:serializer, track_id} => %Membrane.Element.IVF.Serializer{
-              width: details.width,
-              height: details.height,
-              rate: details.rate,
-              scale: details.scale
+              width: track_info.width,
+              height: track_info.height,
+              rate: track_info.rate,
+              scale: track_info.scale
             },
             {:sink, track_id} => %Membrane.File.Sink{
               location: state.output_dir <> "#{track_id}_vp8.ivf"
@@ -92,10 +92,10 @@ defmodule Membrane.WebM.DemuxerTest do
         :vp9 ->
           children = %{
             {:serializer, track_id} => %Membrane.Element.IVF.Serializer{
-              width: details.width,
-              height: details.height,
-              rate: details.rate,
-              scale: details.scale
+              width: track_info.width,
+              height: track_info.height,
+              rate: track_info.rate,
+              scale: track_info.scale
             },
             {:sink, track_id} => %Membrane.File.Sink{
               location: state.output_dir <> "#{track_id}_vp9.ivf"
@@ -118,13 +118,13 @@ defmodule Membrane.WebM.DemuxerTest do
     test_stream("opus_audio.webm", ["1.opus"], ["1.opus"])
   end
 
-  # test "demuxing webm containing vp8 + opus" do
-  #   test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.opus"], ["1_vp8.ivf", "2.opus"])
-  # end
+  test "demuxing webm containing vp8 + opus" do
+    test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.opus"], ["1_vp8.ivf", "2.opus"])
+  end
 
-  # test "demuxing webm containing vp9 + opus" do
-  #   test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.opus"], ["1_vp9.ivf", "2.opus"])
-  # end
+  test "demuxing webm containing vp9 + opus" do
+    test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.opus"], ["1_vp9.ivf", "2.opus"])
+  end
 
   defp test_stream(input_file, references, results) do
     args = Enum.zip(references, results)

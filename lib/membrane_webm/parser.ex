@@ -48,7 +48,8 @@ defmodule Membrane.WebM.Parser do
     case parse_many(unparsed, []) do
       {:ok, {name, data} = result, rest} ->
         IO.puts("    Parser sending #{name}")
-        {{:ok, buffer: {:output, %Buffer{payload: result}}}, %State{acc: rest}} # , {:redemand, :output}
+        # , {:redemand, :output}
+        {{:ok, buffer: {:output, %Buffer{payload: result}}}, %State{acc: rest}}
 
       :need_more_bytes ->
         {{:ok, redemand: :output}, %State{acc: unparsed}}
@@ -87,9 +88,9 @@ defmodule Membrane.WebM.Parser do
     name = Schema.element_id_to_name(id)
     type = Schema.element_type(name)
 
-    if name == :Unknown do
-      IO.warn("unknown element ID: #{id}")
-    end
+    # if name == :Unknown do
+    #   IO.warn("unknown element ID: #{id}")
+    # end
 
     if name == :Segment do
       parse_many(bytes, [])
