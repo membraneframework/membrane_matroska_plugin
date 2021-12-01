@@ -37,14 +37,13 @@ defmodule Membrane.WebM.Plugin.Mixfile do
   defp deps do
     [
       {:membrane_core, "~> 0.8.0"},
-      {:membrane_ivf_plugin, "~> 0.3.0"},
-      {:membrane_opus_plugin, "~> 0.8.0"},
-      {:membrane_portaudio_plugin, "~> 0.10.0"},
-      {:membrane_ffmpeg_swresample_plugin, "~> 0.10.0"},
-      {:membrane_file_plugin, "~> 0.7.0"},
       {:bimap, "~> 1.2"},
-      # {:membrane_ogg_plugin, github: "membraneframework/membrane_ogg_plugin", branch: "master", only: :test, runtime: false},
-      {:membrane_ogg_plugin, path: "/Users/maksstachowiak/Projects/membrane_ogg_plugin", only: :test, runtime: false},
+      {:membrane_opus_plugin, "~> 0.8.0"},
+      {:membrane_ivf_plugin, "~> 0.3.0", only: :test, runtime: false},
+      {:membrane_portaudio_plugin, "~> 0.10.0", only: :test, runtime: false},
+      {:membrane_ffmpeg_swresample_plugin, "~> 0.10.0", only: :test, runtime: false},
+      {:membrane_file_plugin, "~> 0.7.0", only: :test, runtime: false},
+      {:membrane_ogg_plugin, github: "membraneframework/membrane_ogg_plugin", branch: "serial-number", only: :test, runtime: false},
       {:ex_doc, "~> 0.26", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
       {:credo, "~> 1.5", only: :dev, runtime: false}

@@ -32,7 +32,7 @@ defmodule Membrane.WebM.Parser do
     mode: :pull,
     caps: :any
 
-  @return_elements [
+  @return_elements [ # TODO more descriptive name...
     :EBML,
     :SeekHead,
     :Info,
@@ -57,42 +57,38 @@ defmodule Membrane.WebM.Parser do
     unparsed = acc <> payload
 
     case parse_many(unparsed, []) do
-      {:ok, {name, _data} = parsed_element, rest} ->
+      {:return, {name, data}, rest} ->
         IO.puts("Parser sending #{name}")
-        {{:ok, buffer: {:output, %Buffer{payload: parsed_element}}}, %{acc: rest}}
+        {{:ok, buffer: {:output, %Buffer{payload: data, metadata: %{name: name}}}}, %{acc: rest}}
 
       :need_more_bytes ->
         {{:ok, redemand: :output}, %{acc: unparsed}}
     end
   end
 
-  def parse_many(bytes, acc) do
+  defp parse_many(bytes, acc) do
     case parse_element(bytes) do
-      {{name, _data} = element, rest} ->
-        if name in @return_elements do
-          {:ok, element, rest}
-        else
-          if rest == <<>> do
-            [element | acc]
-          else
-            parse_many(rest, [element | acc])
-          end
-        end
+      {{name, _data} = element, rest} when name in @return_elements ->
+        {:return, element, rest}
+
+      {:return, element, rest} ->
+        {:return, element, rest}
+
+      {element, <<>>} ->
+          [element | acc]
+
+      {element, rest} ->
+          parse_many(rest, [element | acc])
 
       :need_more_bytes ->
         :need_more_bytes
-
-      {:ok, element, rest} ->
-        {:ok, element, rest}
     end
   end
 
-  def parse_element(bytes) do
-    %{vint: vint, rest: bytes} = Vint.parse(bytes)
-    id = vint.element_id
-    %{vint: vint, rest: bytes} = Vint.parse(bytes)
+  defp parse_element(bytes) do
+    %{vint: %{element_id: id}, rest: bytes} = Vint.parse(bytes)
+    %{vint: %{vint_data: data_size}, rest: bytes} = Vint.parse(bytes)
     # TODO: deal with unknown data size
-    data_size = vint.vint_data
     name = Schema.element_id_to_name(id)
     type = Schema.element_type(name)
 
@@ -103,7 +99,7 @@ defmodule Membrane.WebM.Parser do
     if name == :Segment do
       parse_many(bytes, [])
     else
-      case trim_bytes(bytes, data_size) do
+      case split_bytes(bytes, data_size) do
         {data, rest} ->
           element = {name, parse(data, type, name)}
           {element, rest}
@@ -114,7 +110,7 @@ defmodule Membrane.WebM.Parser do
     end
   end
 
-  defp trim_bytes(bytes, how_many) do
+  defp split_bytes(bytes, how_many) do
     if how_many > byte_size(bytes) do
       :need_more_bytes
     else
@@ -123,7 +119,7 @@ defmodule Membrane.WebM.Parser do
     end
   end
 
-  def parse(bytes, :master, _name) do
+  defp parse(bytes, :master, _name) do
     if byte_size(bytes) == 0 do
       []
     else
@@ -131,7 +127,7 @@ defmodule Membrane.WebM.Parser do
     end
   end
 
-  def parse(<<type::unsigned-integer-size(8)>>, :uint, :TrackType) do
+  defp parse(<<type::unsigned-integer-size(8)>>, :uint, :TrackType) do
     case type do
       1 -> :video
       2 -> :audio
@@ -144,7 +140,7 @@ defmodule Membrane.WebM.Parser do
     end
   end
 
-  def parse(<<type::unsigned-integer-size(8)>>, :uint, :FlagInterlaced) do
+  defp parse(<<type::unsigned-integer-size(8)>>, :uint, :FlagInterlaced) do
     case type do
       # Unknown status.This value SHOULD be avoided.
       0 -> :undetermined
@@ -155,7 +151,7 @@ defmodule Membrane.WebM.Parser do
     end
   end
 
-  def parse(<<type::unsigned-integer-size(8)>>, :uint, :ChromaSitingHorz) do
+  defp parse(<<type::unsigned-integer-size(8)>>, :uint, :ChromaSitingHorz) do
     case type do
       0 -> :unspecified
       1 -> :left_collocated
@@ -163,7 +159,7 @@ defmodule Membrane.WebM.Parser do
     end
   end
 
-  def parse(<<type::unsigned-integer-size(8)>>, :uint, :ChromaSitingVert) do
+  defp parse(<<type::unsigned-integer-size(8)>>, :uint, :ChromaSitingVert) do
     case type do
       0 -> :unspecified
       1 -> :top_collocated
@@ -172,35 +168,35 @@ defmodule Membrane.WebM.Parser do
   end
 
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.1
-  def parse(<<>>, :integer, _name) do
+  defp parse(<<>>, :integer, _name) do
     0
   end
 
-  def parse(bytes, :integer, _name) do
+  defp parse(bytes, :integer, _name) do
     s = byte_size(bytes) * 8
     <<num::signed-big-integer-size(s)>> = bytes
     num
   end
 
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.2
-  def parse(<<>>, :uint, _name) do
+  defp parse(<<>>, :uint, _name) do
     0
   end
 
-  def parse(bytes, :uint, _name) do
+  defp parse(bytes, :uint, _name) do
     :binary.decode_unsigned(bytes, :big)
   end
 
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.3
-  def parse(<<>>, :float, _name) do
+  defp parse(<<>>, :float, _name) do
     0
   end
 
-  def parse(<<num::float-big>>, :float, _name) do
+  defp parse(<<num::float-big>>, :float, _name) do
     num
   end
 
-  def parse(bytes, :string, :CodecID) do
+  defp parse(bytes, :string, :CodecID) do
     codec_string = Enum.join(for <<c::utf8 <- bytes>>, do: <<c::utf8>>)
 
     case codec_string do
@@ -211,12 +207,12 @@ defmodule Membrane.WebM.Parser do
     end
   end
 
-  def parse(bytes, :string, _name) do
+  defp parse(bytes, :string, _name) do
     chars = for <<c::utf8 <- bytes>>, do: <<c::utf8>>
     chars |> Enum.take_while(fn c -> c != <<0>> end) |> Enum.join()
   end
 
-  def parse(bytes, :utf_8, _name) do
+  defp parse(bytes, :utf_8, _name) do
     bytes
     |> String.codepoints()
     |> Enum.reduce("", fn codepoint, result ->
@@ -226,27 +222,21 @@ defmodule Membrane.WebM.Parser do
   end
 
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.6
-  def parse(<<>>, :date, _name) do
+  defp parse(<<>>, :date, _name) do
     {{2001, 1, 1}, {0, 0, 0}}
   end
 
-  def parse(<<nanoseconds::big-signed>>, :date, _name) do
+  defp parse(<<nanoseconds::big-signed>>, :date, _name) do
     seconds_zero = :calendar.datetime_to_gregorian_seconds({{2001, 1, 1}, {0, 0, 0}})
     seconds = div(nanoseconds, Time.nanosecond()) + seconds_zero
     :calendar.gregorian_seconds_to_datetime(seconds)
   end
 
-  def parse(bytes, :binary, :SimpleBlock) do
-    # https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#rfc.section.6.2.4.4
-
+  # https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#rfc.section.6.2.4.4
+  defp parse(bytes, :binary, :SimpleBlock) do
     # track_number is a vint with size 1 or 2 bytes
     %{vint: track_number_vint, rest: body} = Vint.parse(bytes)
-    <<timecode::integer-signed-size(16), flags::bitstring-size(8), data::binary>> = body
-    <<keyframe::1, reserved::3, invisible::1, lacing::2, discardable::1>> = flags
-
-    if reserved != 0 do
-      IO.warn("SimpleBlock reserved bits in header flag should all be 0 but they are #{reserved}")
-    end
+    <<timecode::integer-signed-size(16), keyframe::1, reserved::3, invisible::1, lacing::2, discardable::1, data::binary>> = body
 
     lacing =
       case lacing do
@@ -272,21 +262,19 @@ defmodule Membrane.WebM.Parser do
     }
   end
 
-  def parse(bytes, :binary, _name) do
+  defp parse(bytes, :binary, _name) do
     bytes
-    # Base.encode16(bytes)
   end
 
-  def parse(bytes, :void, _name) do
-    # Base.encode16(bytes)
+  defp parse(bytes, :void, _name) do
     byte_size(bytes)
   end
 
-  def parse(bytes, :unknown, _name) do
+  defp parse(bytes, :unknown, _name) do
     Base.encode16(bytes)
   end
 
-  def parse(bytes, :ignore, _name) do
+  defp parse(bytes, :ignore, _name) do
     Base.encode16(bytes)
   end
 end

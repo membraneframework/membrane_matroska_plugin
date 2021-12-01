@@ -1,3 +1,5 @@
+# TO BE REMOVED - FOR DEBUGGING ONLY
+
 defmodule Membrane.WebM.Debug.PrettySink do
   use Membrane.Bin
 

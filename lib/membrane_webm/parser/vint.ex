@@ -349,7 +349,6 @@ defmodule Membrane.WebM.Parser.Vint do
   end
 
   def encode_number(number) do
-    # TODO should be precomputed? or does the compiler handle it just fine?
     limits = [
       {1, 126},
       {2, 16382},

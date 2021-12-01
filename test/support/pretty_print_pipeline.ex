@@ -1,3 +1,5 @@
+# TO BE REMOVED - FOR DEBUGGING ONLY
+
 defmodule Membrane.WebM.PrettyPrintPipeline do
   use Membrane.Pipeline
 

@@ -46,7 +46,10 @@ defmodule Membrane.WebM.DemuxerTest do
             #   }
             # },
             # {:portaudio, track_id} => Membrane.PortAudio.Sink,
-            {:payloader, track_id} => %Membrane.Ogg.Payloader.Opus{frame_size: 20, random_serial_number?: false},
+            {:payloader, track_id} => %Membrane.Ogg.Payloader.Opus{
+              frame_size: 20,
+              random_serial_number?: false
+            },
             {:sink, track_id} => %Membrane.File.Sink{
               location: state.output_dir <> "#{track_id}.ogg"
             }
@@ -64,7 +67,7 @@ defmodule Membrane.WebM.DemuxerTest do
 
           {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
 
-        :vp8 ->
+        :vp8 -> #! repeating
           children = %{
             {:serializer, track_id} => %Membrane.Element.IVF.Serializer{
               width: track_info.width,
@@ -86,7 +89,7 @@ defmodule Membrane.WebM.DemuxerTest do
 
           {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
 
-        :vp9 ->
+        :vp9 -> #! repeating
           children = %{
             {:serializer, track_id} => %Membrane.Element.IVF.Serializer{
               width: track_info.width,

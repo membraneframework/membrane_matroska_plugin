@@ -1,3 +1,5 @@
+# TO BE REMOVED - FOR DEBUGGING ONLY
+
 defmodule Membrane.WebM.Debug.Element do
   @moduledoc """
   An EBML element consists of
