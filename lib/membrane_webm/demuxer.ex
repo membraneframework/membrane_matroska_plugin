@@ -1,4 +1,16 @@
 defmodule Membrane.WebM.Demuxer do
+  @moduledoc """
+  Module for demuxing WebM files.
+
+  It expects to receive parsed WebM elements provided by `Membrane.WebM.Parser` and outputs the constituent tracks onto separate output pads.
+  Streaming of each track occurs in chunks of up to 5 seconds of data.
+
+  WebM files can contain many:
+    - VP8 or VP9 video tracks
+    - Opus or Vorbis audio tracks
+
+  This module supports all encodings except Vorbis.
+  """
   use Membrane.Filter
 
   alias Membrane.{Buffer, RemoteStream, Time}

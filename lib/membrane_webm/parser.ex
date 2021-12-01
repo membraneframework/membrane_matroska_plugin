@@ -1,4 +1,20 @@
 defmodule Membrane.WebM.Parser do
+  @moduledoc """
+  Module for parsing WebM files used used by `Membrane.WebM.Demuxer`.
+
+  A WebM file is defined as a Matroska file that satisfies strict constraints.
+  A Matroska file is an EBML file (Extendable-Binary-Meta-Language) with one segment and certain other constraints.
+
+  Docs:
+    - EBML https://www.rfc-editor.org/rfc/rfc8794.html
+    - WebM https://www.webmproject.org/docs/container/
+    - Matroska https://matroska.org/technical/basics.html
+
+  The module extracts top level elements of the [WebM Segment](https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-7)
+  and incrementally passes these parsed elements forward.
+  All top level elements other than `Cluster` occur only once and contain metadata whereas a `Cluster` element holds all the tracks'
+  encoded frames grouped by timestamp in increments of up to 5 seconds.
+  """
   use Membrane.Filter
 
   alias Membrane.{Buffer, Time}

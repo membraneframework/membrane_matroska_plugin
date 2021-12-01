@@ -37,7 +37,6 @@ defmodule Membrane.WebM.DemuxerTest do
       case track_info.codec do
         :opus ->
           children = %{
-            #! play audio:
             # {:decoder, track_id} => Membrane.Opus.Decoder,
             # {:converter, track_id} => %Membrane.FFmpeg.SWResample.Converter{
             #   output_caps: %Membrane.Caps.Audio.Raw{
@@ -47,10 +46,9 @@ defmodule Membrane.WebM.DemuxerTest do
             #   }
             # },
             # {:portaudio, track_id} => Membrane.PortAudio.Sink,
-            #! or dump to playable .ogg:
-            # {:payloader, track_id} => %Membrane.Ogg.Payloader.Opus{frame_size: 20},
+            {:payloader, track_id} => %Membrane.Ogg.Payloader.Opus{frame_size: 20, random_serial_number?: false},
             {:sink, track_id} => %Membrane.File.Sink{
-              location: state.output_dir <> "#{track_id}.opus"
+              location: state.output_dir <> "#{track_id}.ogg"
             }
           }
 
@@ -60,8 +58,7 @@ defmodule Membrane.WebM.DemuxerTest do
             # |> to({:decoder, track_id})
             # |> to({:converter, track_id})
             # |> to({:portaudio, track_id})
-            # or
-            # |> to({:payloader, track_id})
+            |> to({:payloader, track_id})
             |> to({:sink, track_id})
           ]
 
@@ -115,15 +112,15 @@ defmodule Membrane.WebM.DemuxerTest do
   end
 
   test "demuxing webm containing opus" do
-    test_stream("opus_audio.webm", ["1.opus"], ["1.opus"])
+    test_stream("opus_audio.webm", ["1.ogg"], ["1.ogg"])
   end
 
   test "demuxing webm containing vp8 + opus" do
-    test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.opus"], ["1_vp8.ivf", "2.opus"])
+    test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.ogg"], ["1_vp8.ivf", "2.ogg"])
   end
 
   test "demuxing webm containing vp9 + opus" do
-    test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.opus"], ["1_vp9.ivf", "2.opus"])
+    test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.ogg"], ["1_vp9.ivf", "2.ogg"])
   end
 
   defp test_stream(input_file, references, results) do
