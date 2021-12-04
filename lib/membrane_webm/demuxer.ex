@@ -131,7 +131,7 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   defp packetize(%{timecode: timecode, data: data}) do
-    %Buffer{payload: data, metadata: %{timestamp: timecode * @time_base}}
+    %Buffer{payload: data, pts: timecode * @time_base}
   end
 
   defp prepare_simple_block(block, cluster_timecode) do
@@ -146,28 +146,27 @@ defmodule Membrane.WebM.Demuxer do
     tracks = Keyword.get_values(tracks, :TrackEntry)
 
     for track <- tracks, into: %{} do
-      if track[:TrackType] == :audio do
-        {
-          track[:TrackNumber],
-          %{
-            codec: track[:CodecID],
-            active: false,
-            channels: track[:Audio][:Channels]
-          }
-        }
-      else
-        {
-          track[:TrackNumber],
-          %{
-            codec: track[:CodecID],
-            active: false,
-            height: track[:Video][:PixelHeight],
-            width: track[:Video][:PixelWidth],
-            rate: Time.second(),
-            scale: timecode_scale
-          }
-        }
-      end
+      info =
+        case track[:TrackType] do
+          :audio ->
+            %{
+              codec: track[:CodecID],
+              active: false,
+              channels: track[:Audio][:Channels]
+            }
+
+          :video ->
+            %{
+              codec: track[:CodecID],
+              active: false,
+              height: track[:Video][:PixelHeight],
+              width: track[:Video][:PixelWidth],
+              rate: Time.second(),
+              scale: timecode_scale
+            }
+        end
+
+      {track[:TrackNumber], info}
     end
   end
 end

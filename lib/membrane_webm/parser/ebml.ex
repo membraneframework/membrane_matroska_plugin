@@ -108,7 +108,7 @@ defmodule Membrane.WebM.Parser.EBML do
     {get_vint_data(vint, vint_width), rest}
   end
 
-  # the numbers are bit masks for extracting the data part of a vint
+  # the numbers are bit masks for extracting the data part of a VINT
   defp get_vint_data(vint, vint_width) do
     case vint_width do
       1 -> vint &&& 18_446_744_073_709_551_743
