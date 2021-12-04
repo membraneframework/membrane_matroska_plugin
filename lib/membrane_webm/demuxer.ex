@@ -27,8 +27,8 @@ defmodule Membrane.WebM.Demuxer do
     mode: :pull,
     caps: :any
 
-    # nanoseconds in milisecond # TODO is this right?
-    @time_base 1_000_000
+  # nanoseconds in milisecond # TODO is this right?
+  @time_base 1_000_000
 
   defmodule State do
     defstruct timecodescale: nil, cache: [], tracks: %{}
@@ -52,7 +52,7 @@ defmodule Membrane.WebM.Demuxer do
 
   @impl true
   def handle_process(:input, %Buffer{payload: data, metadata: %{name: name}}, _context, state) do
-    IO.puts("  Demuxer received #{name}")
+    # IO.puts("  Demuxer received #{name}")
 
     {actions, state} =
       case name do
@@ -72,7 +72,7 @@ defmodule Membrane.WebM.Demuxer do
           actions = Enum.map(active(buffers, state), &output/1)
 
           if actions != [] do
-            IO.puts("    Demuxer sending Buffer")
+            # IO.puts("    Demuxer sending Buffer")
           end
 
           to_cache = inactive(buffers, state)
@@ -94,8 +94,10 @@ defmodule Membrane.WebM.Demuxer do
       case track_info.codec do
         :opus -> %Opus{channels: 2, self_delimiting?: false}
         # TODO :opus -> %Opus{channels: track_info.channels, self_delimiting?: false}
-        :vp8 -> %RemoteStream{content_format: VP8, type: :packetized} # TODO it's not a remote stream
-        :vp9 -> %RemoteStream{content_format: VP9, type: :packetized} # TODO as above
+        # TODO it's not a remote stream
+        :vp8 -> %RemoteStream{content_format: VP8, type: :packetized}
+        # TODO as above
+        :vp9 -> %RemoteStream{content_format: VP9, type: :packetized}
       end
 
     new_track_info = Map.put(track_info, :active, true)
@@ -111,7 +113,7 @@ defmodule Membrane.WebM.Demuxer do
     caps_action = {:caps, {Pad.ref(:output, id), caps}}
     actions = [caps_action | buffer_actions]
 
-    IO.puts("    Pad #{id} added. Demuxer sending cached Buffers")
+    # IO.puts("    Pad #{id} added. Demuxer sending cached Buffers")
     {{:ok, actions}, final_state}
   end
 
@@ -142,7 +144,8 @@ defmodule Membrane.WebM.Demuxer do
     |> Keyword.get_values(:SimpleBlock)
     |> Enum.map(&prepare_simple_block(&1, cluster[:Timecode]))
     |> List.flatten()
-    |> Enum.reverse() # TODO why reverse?
+    # TODO why reverse?
+    |> Enum.reverse()
     |> Enum.group_by(& &1.track_number, &packetize/1)
   end
 

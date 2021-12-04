@@ -34,8 +34,8 @@ defmodule Membrane.WebM.DemuxerTest do
 
     @impl true
     def handle_notification({:new_track, {track_id, track_info}}, :demuxer, _context, state) do
-      case track_info.codec do
-        :opus ->
+      cond do
+        track_info.codec == :opus ->
           children = %{
             # {:decoder, track_id} => Membrane.Opus.Decoder,
             # {:converter, track_id} => %Membrane.FFmpeg.SWResample.Converter{
@@ -67,7 +67,9 @@ defmodule Membrane.WebM.DemuxerTest do
 
           {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
 
-        :vp8 -> #! repeating
+        track_info.codec in [:vp8, :vp9] ->
+          codec = Atom.to_string(track_info.codec)
+
           children = %{
             {:serializer, track_id} => %Membrane.Element.IVF.Serializer{
               width: track_info.width,
@@ -76,29 +78,7 @@ defmodule Membrane.WebM.DemuxerTest do
               scale: track_info.scale
             },
             {:sink, track_id} => %Membrane.File.Sink{
-              location: state.output_dir <> "#{track_id}_vp8.ivf"
-            }
-          }
-
-          links = [
-            link(:demuxer)
-            |> via_out(Pad.ref(:output, track_id))
-            |> to({:serializer, track_id})
-            |> to({:sink, track_id})
-          ]
-
-          {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
-
-        :vp9 -> #! repeating
-          children = %{
-            {:serializer, track_id} => %Membrane.Element.IVF.Serializer{
-              width: track_info.width,
-              height: track_info.height,
-              rate: track_info.rate,
-              scale: track_info.scale
-            },
-            {:sink, track_id} => %Membrane.File.Sink{
-              location: state.output_dir <> "#{track_id}_vp9.ivf"
+              location: state.output_dir <> "#{track_id}_#{codec}.ivf"
             }
           }
 
