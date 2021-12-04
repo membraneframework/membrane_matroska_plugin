@@ -1,12 +1,10 @@
-# Membrane Template Plugin
+# Membrane WebM Plugin
 
 [![Hex.pm](https://img.shields.io/hexpm/v/membrane_webm_plugin.svg)](https://hex.pm/packages/membrane_webm_plugin)
 [![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/membrane_webm_plugin)
 [![CircleCI](https://circleci.com/gh/membraneframework/membrane_webm_plugin.svg?style=svg)](https://circleci.com/gh/membraneframework/membrane_webm_plugin)
 
-This repository contains a template for new elements.
-
-Check out different branches for other flavours of template.
+Membrane plugin for muxing and demuxing files in the [WebM](https://www.webmproject.org/) format
 
 It is part of [Membrane Multimedia Framework](https://membraneframework.org).
 
@@ -24,11 +22,11 @@ end
 
 ## Usage
 
-TODO
+For usage examples please refer to our tests.
 
 ## Copyright and License
 
-Copyright 2020, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_webm_plugin)
+Copyright 2021, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_webm_plugin)
 
 [![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=membrane-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_webm_plugin)
 
