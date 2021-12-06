@@ -12,12 +12,12 @@ defmodule Membrane.WebM.Parser.EBML do
   - VINT_MARKER - the `1` bit immediately following the VINT_WIDTH `0` bits
   - VINT_DATA - the 7*N bits following the VINT_MARKER
 
-  TODO element_id is the only type of VINT for which it is illegal to take up more space than is necessary i.e.
+  TODO: element_id is the only type of VINT for which it is illegal to take up more space than is necessary i.e.
     1 0000001 is legal
     0 1 00000000000001 is illegal because a shorter encoding of VINT_DATA is available
     (it fits in 1 byte but 2 are used)
 
-  TODO deal with unknown element sizes
+  TODO: deal with unknown element sizes
   (these shouldn't be used but can occur only in master elements)
   EBML Element Data Size VINTs with VINT_DATA consisting of only 1's are reserver to mean `unknown` e.g.:
     1 1111111
@@ -64,7 +64,7 @@ defmodule Membrane.WebM.Parser.EBML do
     else
       case split_bytes(bytes, data_size) do
         {data, bytes} ->
-          # TODO remove; only for debugging
+          # TODO: remove; only for debugging
           if name == :Unknown do
             IO.warn("unknown element ID: #{id}")
           end
@@ -132,7 +132,7 @@ defmodule Membrane.WebM.Parser.EBML do
       (byte &&& 0b00001000) == 0b00001000 -> 6
       (byte &&& 0b00000100) == 0b00000100 -> 7
       (byte &&& 0b00000010) == 0b00000010 -> 8
-      # TODO check why this is needed (it is in fact necessary):
+      # TODO: check why this is needed (it is in fact necessary):
       (byte &&& 0b00000001) == 0b00000001 -> 8
     end
   end
@@ -149,7 +149,7 @@ defmodule Membrane.WebM.Parser.EBML do
       72_057_594_037_927_936
     ]
 
-    # TODO does this work for determining octets?
+    # TODO: does this work for determining octets?
     octets = Enum.find_index(limits, fn max_num -> number < max_num end) + 1
     width_bits = octets - 1
     data_bits = octets * 7
@@ -157,7 +157,7 @@ defmodule Membrane.WebM.Parser.EBML do
     <<0::size(width_bits), 1::1, number::big-size(data_bits)>>
   end
 
-  def encode_element_id(id) do
-    id
+  def encode_element_id(name) do
+    name |> Schema.name_to_element_id() |> Base.decode16!()
   end
 end

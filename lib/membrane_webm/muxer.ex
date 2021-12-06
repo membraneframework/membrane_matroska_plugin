@@ -21,8 +21,20 @@ defmodule Membrane.WebM.Muxer do
     mode: :pull,
     caps: :any
 
-  # nanoseconds in milisecond # TODO is this right?
+  # nanoseconds in a milisecond # TODO: is this right?
   @time_base 1_000_000
+
+  @ebml_header {
+    :EBML,[
+      DocTypeReadVersion: 2,
+      DocTypeVersion: 4,
+      DocType: "webm",
+      EBMLMaxSizeLength: 8,
+      EBMLMaxIDLength: 4,
+      EBMLReadVersion: 1,
+      EBMLVersion: 1
+    ]
+  }
 
   defmodule State do
     defstruct timecodescale: nil, cache: [], tracks: %{}
@@ -30,7 +42,7 @@ defmodule Membrane.WebM.Muxer do
 
   @impl true
   def handle_init(_) do
-    {:ok, %State{}}
+    {{:ok, buffer: {:output, %Buffer{payload: construct_EBML_header()}}}, %State{}}
   end
 
   @impl true
@@ -38,9 +50,14 @@ defmodule Membrane.WebM.Muxer do
     {{:ok, demand: :input}, state}
   end
 
-  # FIXME ignoring for now
+  # FIXME: ignoring for now
   @impl true
   def handle_demand(Pad.ref(:output, _id), _size, :buffers, _context, state) do
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_caps(:input, _context, state) do
     {:ok, state}
   end
 
@@ -52,15 +69,6 @@ defmodule Membrane.WebM.Muxer do
   end
 
   defp construct_EBML_header() do
-    header =
-      Serializer.serialize(:EBML,
-        DocTypeReadVersion: 2,
-        DocTypeVersion: 4,
-        DocType: "webm",
-        EBMLMaxSizeLength: 8,
-        EBMLMaxIDLength: 4,
-        EBMLReadVersion: 1,
-        EBMLVersion: 1
-      )
+    Serializer.serialize(@ebml_header)
   end
 end

@@ -27,7 +27,7 @@ defmodule Membrane.WebM.Demuxer do
     mode: :pull,
     caps: :any
 
-  # nanoseconds in milisecond # TODO is this right?
+  # nanoseconds in milisecond # TODO: is this right?
   @time_base 1_000_000
 
   defmodule State do
@@ -44,7 +44,7 @@ defmodule Membrane.WebM.Demuxer do
     {{:ok, demand: :input}, state}
   end
 
-  # FIXME ignoring for now
+  # FIXME: ignoring for now
   @impl true
   def handle_demand(Pad.ref(:output, _id), _size, :buffers, _context, state) do
     {:ok, state}
@@ -84,10 +84,10 @@ defmodule Membrane.WebM.Demuxer do
     caps =
       case tracks[id].codec do
         :opus -> %Opus{channels: 2, self_delimiting?: false}
-        # TODO :opus -> %Opus{channels: track_info.channels, self_delimiting?: false}
-        # TODO it's not a remote stream
+        # TODO: :opus -> %Opus{channels: track_info.channels, self_delimiting?: false}
+        # TODO: it's not a remote stream
         :vp8 -> %RemoteStream{content_format: VP8, type: :packetized}
-        # TODO as above
+        # TODO: as above
         :vp9 -> %RemoteStream{content_format: VP9, type: :packetized}
       end
 
@@ -124,9 +124,9 @@ defmodule Membrane.WebM.Demuxer do
   defp cluster_to_buffers(cluster) do
     cluster
     |> Keyword.get_values(:SimpleBlock)
-    |> Enum.map(&prepare_simple_block(&1, cluster[:Timecode]))
+    # we use reduce instead of map to restore the correct block order (which the parser reversed by prepending elements)
+    |> Enum.reduce([], fn block, acc -> [prepare_simple_block(block, cluster[:Timecode]) | acc] end)
     |> List.flatten()
-    |> Enum.reverse()
     |> Enum.group_by(& &1.track_number, &packetize/1)
   end
 
