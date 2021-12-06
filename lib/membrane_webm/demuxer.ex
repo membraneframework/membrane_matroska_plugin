@@ -13,7 +13,7 @@ defmodule Membrane.WebM.Demuxer do
   """
   use Membrane.Filter
 
-  alias Membrane.{Buffer, RemoteStream, Time}
+  alias Membrane.{Buffer, Time}
   alias Membrane.{Opus, VP8, VP9}
 
   def_input_pad :input,
@@ -27,7 +27,6 @@ defmodule Membrane.WebM.Demuxer do
     mode: :pull,
     caps: :any
 
-  # nanoseconds in milisecond # TODO: is this right?
   @time_base 1_000_000
 
   defmodule State do
@@ -83,16 +82,29 @@ defmodule Membrane.WebM.Demuxer do
   def handle_pad_added(Pad.ref(:output, id), _context, %State{tracks: tracks} = state) do
     caps =
       case tracks[id].codec do
-        :opus -> %Opus{channels: 2, self_delimiting?: false}
         # TODO: :opus -> %Opus{channels: track_info.channels, self_delimiting?: false}
-        # TODO: it's not a remote stream
-        :vp8 -> %RemoteStream{content_format: VP8, type: :packetized}
-        # TODO: as above
-        :vp9 -> %RemoteStream{content_format: VP9, type: :packetized}
+        :opus ->
+          %Opus{channels: 2, self_delimiting?: false}
+
+        :vp8 ->
+          %VP8{
+            width: tracks[id].width,
+            height: tracks[id].height,
+            scale: tracks[id].scale,
+            rate: tracks[id].rate
+          }
+
+        :vp9 ->
+          %VP9{
+            width: tracks[id].width,
+            height: tracks[id].height,
+            scale: tracks[id].scale,
+            rate: tracks[id].rate
+          }
       end
 
     # now that the pad is added all cached buffers destined for this pad can be sent
-    {active, inactive} = Enum.split_with(state.cache, fn {pad_id, _} -> pad_id == id end)
+    {active, inactive} = Enum.split_with(state.cache, fn {pad_id, _buffer} -> pad_id == id end)
     actions = [{:caps, {Pad.ref(:output, id), caps}} | output(active)]
     new_state = %State{state | tracks: activate_track(id, tracks), cache: inactive}
 
@@ -124,8 +136,9 @@ defmodule Membrane.WebM.Demuxer do
   defp cluster_to_buffers(cluster) do
     cluster
     |> Keyword.get_values(:SimpleBlock)
-    # we use reduce instead of map to restore the correct block order (which the parser reversed by prepending elements)
-    |> Enum.reduce([], fn block, acc -> [prepare_simple_block(block, cluster[:Timecode]) | acc] end)
+    |> Enum.reduce([], fn block, acc ->
+      [prepare_simple_block(block, cluster[:Timecode]) | acc]
+    end)
     |> List.flatten()
     |> Enum.group_by(& &1.track_number, &packetize/1)
   end
