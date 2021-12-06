@@ -20,7 +20,7 @@ defmodule Membrane.WebM.MuxerTest do
           location: options.input_file,
           chunk_size: 4096
         },
-        muxer: %Membrane.WebM.Muxer{},
+        muxer: Membrane.WebM.Muxer,
         sink: %Membrane.File.Sink{
           location: "test/debug/muxer_output.webm"
         }
@@ -37,9 +37,9 @@ defmodule Membrane.WebM.MuxerTest do
     end
   end
 
-  test "mux" do
-    test_stream("1_vp8.ivf", ["muxer_output.webm"], ["muxer_output.webm"])
-  end
+  # test "mux" do
+  #   test_stream("1_vp8.ivf", ["muxer_output.webm"], ["muxer_output.webm"])
+  # end
 
   defp test_stream(input_file, references, results) do
     args = Enum.zip(references, results)
