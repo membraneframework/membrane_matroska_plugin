@@ -13,7 +13,7 @@ defmodule Membrane.WebM.Demuxer do
   """
   use Membrane.Filter
 
-  alias Membrane.{Buffer, RemoteStream, Time}
+  alias Membrane.{Buffer, Time}
   alias Membrane.{Opus, VP8, VP9}
 
   def_input_pad :input,
@@ -82,11 +82,25 @@ defmodule Membrane.WebM.Demuxer do
   def handle_pad_added(Pad.ref(:output, id), _context, %State{tracks: tracks} = state) do
     caps =
       case tracks[id].codec do
-        :opus -> %Opus{channels: 2, self_delimiting?: false}
         # TODO: :opus -> %Opus{channels: track_info.channels, self_delimiting?: false}
-        # TODO: it's not a remote stream but ivf_plugin only accepts remote streams
-        :vp8 -> %RemoteStream{content_format: VP8, type: :packetized}
-        :vp9 -> %RemoteStream{content_format: VP9, type: :packetized}
+        :opus ->
+          %Opus{channels: 2, self_delimiting?: false}
+
+        :vp8 ->
+          %VP8{
+            width: tracks[id].width,
+            height: tracks[id].height,
+            scale: tracks[id].scale,
+            rate: tracks[id].rate
+          }
+
+        :vp9 ->
+          %VP9{
+            width: tracks[id].width,
+            height: tracks[id].height,
+            scale: tracks[id].scale,
+            rate: tracks[id].rate
+          }
       end
 
     # now that the pad is added all cached buffers destined for this pad can be sent

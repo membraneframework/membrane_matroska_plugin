@@ -71,12 +71,7 @@ defmodule Membrane.WebM.DemuxerTest do
           codec = Atom.to_string(track_info.codec)
 
           children = %{
-            {:serializer, track_id} => %Membrane.Element.IVF.Serializer{
-              width: track_info.width,
-              height: track_info.height,
-              rate: track_info.rate,
-              scale: track_info.scale
-            },
+            {:serializer, track_id} => Membrane.Element.IVF.Serializer,
             {:sink, track_id} => %Membrane.File.Sink{
               location: state.output_dir <> "#{track_id}_#{codec}.ivf"
             }
