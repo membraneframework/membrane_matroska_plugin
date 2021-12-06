@@ -14,12 +14,34 @@ defmodule Membrane.WebM.Parser do
   and incrementally passes these parsed elements forward.
   All top level elements other than `Cluster` occur only once and contain metadata whereas a `Cluster` element holds all the tracks'
   encoded frames grouped by timestamp in increments of up to 5 seconds.
+
+  An EBML element consists of
+  - element_id - hex representation of a VINT
+  - element_data_size - a VINT
+  - element_data
+
+  The different types of elements are:
+    - signed integer element
+    - unsigned integer element
+    - float element
+    - string element
+    - UTF-8 element
+    - date element
+    - binary element
+      contents should not be interpreted by parser
+    - master element
+      The Master Element contains zero or more other elements. EBML Elements contained within a
+      Master Element have the EBMLParentPath of their Element Path equal to the
+      EBMLFullPath of the Master Element Element Path (see Section 11.1.6.2). Element Data stored
+      within Master Elements only consist of EBML Elements and contain any
+      data that is not part of an EBML Element. The EBML Schema identifies what Element IDs are
+      valid within the Master Elements for that version of the EBML Document Type. Any data
+      contained within a Master Element that is not part of a Child Element be ignored.
   """
   use Membrane.Filter
 
   alias Membrane.{Buffer, Time}
-  alias Membrane.WebM.Parser.Vint
-  alias Membrane.WebM.Schema
+  alias Membrane.WebM.Parser.EBML
 
   def_input_pad :input,
     availability: :always,
@@ -32,7 +54,8 @@ defmodule Membrane.WebM.Parser do
     mode: :pull,
     caps: :any
 
-  @return_elements [ # TODO more descriptive name...
+  # TODO: more descriptive name...
+  @return_elements [
     :EBML,
     :SeekHead,
     :Info,
@@ -58,7 +81,7 @@ defmodule Membrane.WebM.Parser do
 
     case parse_many(unparsed, []) do
       {:return, {name, data}, rest} ->
-        IO.puts("Parser sending #{name}")
+        # IO.puts("Parser sending #{name}")
         {{:ok, buffer: {:output, %Buffer{payload: data, metadata: %{name: name}}}}, %{acc: rest}}
 
       :need_more_bytes ->
@@ -75,10 +98,10 @@ defmodule Membrane.WebM.Parser do
         {:return, element, rest}
 
       {element, <<>>} ->
-          [element | acc]
+        [element | acc]
 
       {element, rest} ->
-          parse_many(rest, [element | acc])
+        parse_many(rest, [element | acc])
 
       :need_more_bytes ->
         :need_more_bytes
@@ -86,36 +109,16 @@ defmodule Membrane.WebM.Parser do
   end
 
   defp parse_element(bytes) do
-    %{vint: %{element_id: id}, rest: bytes} = Vint.parse(bytes)
-    %{vint: %{vint_data: data_size}, rest: bytes} = Vint.parse(bytes)
-    # TODO: deal with unknown data size
-    name = Schema.element_id_to_name(id)
-    type = Schema.element_type(name)
+    case EBML.decode_element(bytes) do
+      {:ignore_element_header, element_data} ->
+        parse_many(element_data, [])
 
-    if name == :Unknown do
-      IO.warn("unknown element ID: #{id}")
-    end
+      {name, type, data, rest} ->
+        element = {name, parse(data, type, name)}
+        {element, rest}
 
-    if name == :Segment do
-      parse_many(bytes, [])
-    else
-      case split_bytes(bytes, data_size) do
-        {data, rest} ->
-          element = {name, parse(data, type, name)}
-          {element, rest}
-
-        :need_more_bytes ->
-          :need_more_bytes
-      end
-    end
-  end
-
-  defp split_bytes(bytes, how_many) do
-    if how_many > byte_size(bytes) do
-      :need_more_bytes
-    else
-      <<bytes::binary-size(how_many), rest::binary>> = bytes
-      {bytes, rest}
+      :need_more_bytes ->
+        :need_more_bytes
     end
   end
 
@@ -235,8 +238,10 @@ defmodule Membrane.WebM.Parser do
   # https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#rfc.section.6.2.4.4
   defp parse(bytes, :binary, :SimpleBlock) do
     # track_number is a vint with size 1 or 2 bytes
-    %{vint: track_number_vint, rest: body} = Vint.parse(bytes)
-    <<timecode::integer-signed-size(16), keyframe::1, reserved::3, invisible::1, lacing::2, discardable::1, data::binary>> = body
+    {track_number, body} = EBML.decode_vint(bytes)
+
+    <<timecode::integer-signed-big-size(16), keyframe::1, reserved::3, invisible::1, lacing::2,
+      discardable::1, data::binary>> = body
 
     lacing =
       case lacing do
@@ -246,10 +251,10 @@ defmodule Membrane.WebM.Parser do
         0b10 -> :fixed_size_lacing
       end
 
-    # TODO deal with lacing != 00 https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#laced-data-1
+    # TODO: deal with lacing != 00 https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#laced-data-1
 
     %{
-      track_number: track_number_vint.vint_data,
+      track_number: track_number,
       timecode: timecode,
       header_flags: %{
         keyframe: keyframe == 1,
