@@ -55,7 +55,7 @@ defmodule Membrane.WebM.Parser do
     caps: :any
 
   # TODO: more descriptive name...
-  @return_elements [
+  @top_level_elements [
     :EBML,
     :SeekHead,
     :Info,
@@ -91,7 +91,7 @@ defmodule Membrane.WebM.Parser do
 
   defp parse_many(bytes, acc) do
     case parse_element(bytes) do
-      {{name, _data} = element, rest} when name in @return_elements ->
+      {{name, _data} = element, rest} when name in @top_level_elements ->
         {:return, element, rest}
 
       {:return, element, rest} ->
