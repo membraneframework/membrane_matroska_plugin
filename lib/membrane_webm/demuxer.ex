@@ -27,8 +27,6 @@ defmodule Membrane.WebM.Demuxer do
     mode: :pull,
     caps: :any
 
-  @time_base 1_000_000
-
   defmodule State do
     defstruct timecodescale: nil, cache: [], tracks: %{}
   end
@@ -71,7 +69,7 @@ defmodule Membrane.WebM.Demuxer do
         :Cluster ->
           {active, inactive} =
             data
-            |> cluster_to_buffers()
+            |> cluster_to_buffers(state.timecodescale)
             |> Enum.split_with(fn {id, _buffer} -> state.tracks[id].active end)
 
           {prepare_output_buffers(active), %State{state | cache: state.cache ++ inactive}}
@@ -132,7 +130,7 @@ defmodule Membrane.WebM.Demuxer do
     {:notify, {:new_track, track}}
   end
 
-  defp cluster_to_buffers(cluster) do
+  defp cluster_to_buffers(cluster, timecode_scale) do
     timecode = cluster[:Timecode]
 
     cluster
@@ -140,11 +138,11 @@ defmodule Membrane.WebM.Demuxer do
     |> Enum.reduce([], fn block, acc ->
       [prepare_simple_block(block, timecode) | acc]
     end)
-    |> Enum.group_by(& &1.track_number, &packetize/1)
+    |> Enum.group_by(& &1.track_number, &packetize(&1, timecode_scale))
   end
 
-  defp packetize(%{timecode: timecode, data: data}) do
-    %Buffer{payload: data, pts: timecode * @time_base}
+  defp packetize(%{timecode: timecode, data: data}, timecode_scale) do
+    %Buffer{payload: data, pts: timecode * timecode_scale}
   end
 
   defp prepare_simple_block(block, cluster_timecode) do
