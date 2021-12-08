@@ -196,10 +196,17 @@ defmodule Membrane.WebM.Parser do
     num
   end
 
-  defp parse(bytes, :string, :CodecID) do
-    codec_string = Enum.join(for <<c::utf8 <- bytes>>, do: <<c::utf8>>)
+  # The demuxer MUST only open webm DocType files.
+  # per demuxer guidelines https://www.webmproject.org/docs/container/
+  defp parse(bytes, :string, :DocType) do
+    case parse(bytes, :string, nil) do
+      "webm" -> "webm"
+      type -> raise "The file DocType is '#{type}' but it MUST be 'webm'"
+    end
+  end
 
-    case codec_string do
+  defp parse(bytes, :string, :CodecID) do
+    case parse(bytes, :string, nil) do
       "A_OPUS" -> :opus
       "A_VORBIS" -> :vorbis
       "V_VP8" -> :vp8
@@ -231,6 +238,8 @@ defmodule Membrane.WebM.Parser do
     seconds = div(nanoseconds, Time.nanosecond()) + seconds_zero
     :calendar.gregorian_seconds_to_datetime(seconds)
   end
+
+  # TODO: handle Block, BlockGroup
 
   # https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#rfc.section.6.2.4.4
   defp parse(bytes, :binary, :SimpleBlock) do
