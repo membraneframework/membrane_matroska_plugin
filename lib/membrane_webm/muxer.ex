@@ -14,7 +14,7 @@ defmodule Membrane.WebM.Muxer do
     availability: :always,
     mode: :pull,
     demand_unit: :buffers,
-    caps: :any
+    caps: [Opus, VP8, VP9]
 
   def_output_pad :output,
     availability: :on_request,
@@ -37,7 +37,23 @@ defmodule Membrane.WebM.Muxer do
   }
 
   defmodule State do
-    defstruct timecodescale: nil, cache: [], tracks: %{}
+    defstruct [cache: [], caps: nil]
+  end
+
+  @impl true
+  def handle_caps(:input, %Opus{channels: channels} = caps, _context, state) do
+    IO.inspect(caps)
+    {:ok, %State{state | caps: caps}}
+  end
+
+  @impl true
+  def handle_caps(:input, %VP8{width: width, height: height, scale: scale, rate: rate} = caps, _context, state) do
+    {:ok, %State{state | caps: caps}}
+  end
+
+  @impl true
+  def handle_caps(:input, %VP8{width: width, height: height, scale: scale, rate: rate} = caps, _context, state) do
+    {:ok, %State{state | caps: caps}}
   end
 
   @impl true
@@ -57,18 +73,14 @@ defmodule Membrane.WebM.Muxer do
   end
 
   @impl true
-  def handle_caps(:input, _context, state) do
-    {:ok, state}
-  end
-
-  @impl true
-  def handle_process(:input, %Buffer{payload: _data}, _context, state) do
+  def handle_process(:input, %Buffer{payload: data}, _context, state) do
     IO.puts("        Muxer got buffer")
 
     {:ok, state}
   end
 
   defp construct_EBML_header() do
-    Serializer.serialize(@ebml_header)
+    ebml = Serializer.serialize(@ebml_header)
+    segment_start = nil
   end
 end

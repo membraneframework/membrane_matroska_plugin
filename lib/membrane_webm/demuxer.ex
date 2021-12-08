@@ -90,16 +90,12 @@ defmodule Membrane.WebM.Demuxer do
           %VP8{
             width: tracks[id].width,
             height: tracks[id].height,
-            scale: tracks[id].scale,
-            rate: tracks[id].rate
           }
 
         :vp9 ->
           %VP9{
             width: tracks[id].width,
             height: tracks[id].height,
-            scale: tracks[id].scale,
-            rate: tracks[id].rate
           }
       end
 
