@@ -1,9 +1,9 @@
 defmodule Membrane.WebM.Parser do
   @moduledoc """
-  Module for parsing WebM files used used by `Membrane.WebM.Demuxer`.
+  Module for parsing a WebM binary stream (such as from a files) used by `Membrane.WebM.Demuxer`.
 
-  A WebM file is defined as a Matroska file that satisfies strict constraints.
-  A Matroska file is an EBML file (Extendable-Binary-Meta-Language) with one segment and certain other constraints.
+  A WebM file is defined as a Matroska file that contains one segment and satisfies strict constraints.
+  A Matroska file is an EBML file (Extendable-Binary-Meta-Language) satisfying certain other constraints.
 
   Docs:
     - EBML https://www.rfc-editor.org/rfc/rfc8794.html
@@ -13,30 +13,27 @@ defmodule Membrane.WebM.Parser do
   The module extracts top level elements of the [WebM Segment](https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-7)
   and incrementally passes these parsed elements forward.
   All top level elements other than `Cluster` occur only once and contain metadata whereas a `Cluster` element holds all the tracks'
-  encoded frames grouped by timestamp in increments of up to 5 seconds.
+  encoded frames grouped by timestamp. It is RECOMMENDED that the size of each individual Cluster Element be limited to store no more than
+  5 seconds or 5 megabytes.
+
 
   An EBML element consists of
-  - element_id - hex representation of a VINT
+  - element_id - the hexadecimal representation of a VINT i.e. "1A45DFA3"
   - element_data_size - a VINT
-  - element_data
+  - element_data - occupying as many bytes as element_data_size specifies
 
   The different types of elements are:
-    - signed integer element
-    - unsigned integer element
-    - float element
-    - string element
-    - UTF-8 element
-    - date element
-    - binary element
+    - signed integer
+    - unsigned integer
+    - float
+    - string
+    - UTF-8
+    - date
+    - binary
       contents should not be interpreted by parser
-    - master element
-      The Master Element contains zero or more other elements. EBML Elements contained within a
-      Master Element have the EBMLParentPath of their Element Path equal to the
-      EBMLFullPath of the Master Element Element Path (see Section 11.1.6.2). Element Data stored
-      within Master Elements only consist of EBML Elements and contain any
-      data that is not part of an EBML Element. The EBML Schema identifies what Element IDs are
-      valid within the Master Elements for that version of the EBML Document Type. Any data
-      contained within a Master Element that is not part of a Child Element be ignored.
+    - master
+      The Master Element contains zero or more other elements. Any data
+      contained within a Master Element that is not part of a Child Element MUST be ignored.
   """
   use Membrane.Filter
 
@@ -54,7 +51,6 @@ defmodule Membrane.WebM.Parser do
     mode: :pull,
     caps: :any
 
-  # TODO: more descriptive name...
   @top_level_elements [
     :EBML,
     :SeekHead,
@@ -81,8 +77,9 @@ defmodule Membrane.WebM.Parser do
 
     case parse_many(unparsed, []) do
       {:return, {name, data}, rest} ->
-        # IO.puts("Parser sending #{name}")
-        {{:ok, buffer: {:output, %Buffer{payload: data, metadata: %{name: name}}}}, %{acc: rest}}
+        {{:ok,
+          buffer: {:output, %Buffer{payload: data, metadata: %{webm: %{element_name: name}}}}},
+         %{acc: rest}}
 
       :need_more_bytes ->
         {{:ok, redemand: :output}, %{acc: unparsed}}
@@ -176,7 +173,7 @@ defmodule Membrane.WebM.Parser do
   end
 
   defp parse(bytes, :integer, _name) do
-    s = byte_size(bytes) * 8
+    s = bit_size(bytes)
     <<num::signed-big-integer-size(s)>> = bytes
     num
   end
@@ -199,10 +196,17 @@ defmodule Membrane.WebM.Parser do
     num
   end
 
-  defp parse(bytes, :string, :CodecID) do
-    codec_string = Enum.join(for <<c::utf8 <- bytes>>, do: <<c::utf8>>)
+  # The demuxer MUST only open webm DocType files.
+  # per demuxer guidelines https://www.webmproject.org/docs/container/
+  defp parse(bytes, :string, :DocType) do
+    case parse(bytes, :string, nil) do
+      "webm" -> "webm"
+      type -> raise "The file DocType is '#{type}' but it MUST be 'webm'"
+    end
+  end
 
-    case codec_string do
+  defp parse(bytes, :string, :CodecID) do
+    case parse(bytes, :string, nil) do
       "A_OPUS" -> :opus
       "A_VORBIS" -> :vorbis
       "V_VP8" -> :vp8
@@ -234,6 +238,8 @@ defmodule Membrane.WebM.Parser do
     seconds = div(nanoseconds, Time.nanosecond()) + seconds_zero
     :calendar.gregorian_seconds_to_datetime(seconds)
   end
+
+  # TODO: handle Block, BlockGroup
 
   # https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#rfc.section.6.2.4.4
   defp parse(bytes, :binary, :SimpleBlock) do

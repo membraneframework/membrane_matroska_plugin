@@ -91,9 +91,6 @@ defmodule Membrane.WebM.Schema do
            {"9B", :BlockDuration},
            {"FB", :ReferenceBlock},
            {"75A2", :DiscardPadding},
-           # Deprecated	BlockVirtual
-           # Deprecated	TimeSlice
-           # Deprecated	LaceNumber
            {"1254C367", :Tags},
            # \Segment\Tags
            {"7373", :Tag},
