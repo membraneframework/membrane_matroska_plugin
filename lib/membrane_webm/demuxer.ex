@@ -50,9 +50,14 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   @impl true
-  def handle_process(:input, %Buffer{payload: data, metadata: %{name: name}}, _context, state) do
+  def handle_process(
+        :input,
+        %Buffer{payload: data, metadata: %{webm: %{element_name: element_name}}},
+        _context,
+        state
+      ) do
     {actions, state} =
-      case name do
+      case element_name do
         :Info ->
           # scale of block timecodes in nanoseconds
           # should be 1_000_000 i.e. 1 ms
@@ -60,16 +65,16 @@ defmodule Membrane.WebM.Demuxer do
 
         :Tracks ->
           tracks = identify_tracks(data, state.timecodescale)
-          actions = send_notify_pads(tracks)
+          actions = notify_new_track(tracks)
           {actions, %State{state | tracks: tracks}}
 
         :Cluster ->
           {active, inactive} =
             data
-            |> cluster_to_buffers
+            |> cluster_to_buffers()
             |> Enum.split_with(fn {id, _buffer} -> state.tracks[id].active end)
 
-          {output(active), %State{state | cache: state.cache ++ inactive}}
+          {prepare_output_buffers(active), %State{state | cache: state.cache ++ inactive}}
 
         _ ->
           {[], state}
@@ -80,66 +85,61 @@ defmodule Membrane.WebM.Demuxer do
 
   @impl true
   def handle_pad_added(Pad.ref(:output, id), _context, %State{tracks: tracks} = state) do
+    track = tracks[id]
+
     caps =
-      case tracks[id].codec do
+      case track.codec do
         # TODO: :opus -> %Opus{channels: track_info.channels, self_delimiting?: false}
         :opus ->
           %Opus{channels: 2, self_delimiting?: false}
 
         :vp8 ->
-          %VP8{
-            width: tracks[id].width,
-            height: tracks[id].height,
-            scale: tracks[id].scale,
-            rate: tracks[id].rate
-          }
+          %VP8{width: track.width, height: track.height}
 
         :vp9 ->
-          %VP9{
-            width: tracks[id].width,
-            height: tracks[id].height,
-            scale: tracks[id].scale,
-            rate: tracks[id].rate
-          }
+          %VP9{width: track.width, height: track.height}
       end
 
     # now that the pad is added all cached buffers destined for this pad can be sent
-    {active, inactive} = Enum.split_with(state.cache, fn {pad_id, _buffer} -> pad_id == id end)
-    actions = [{:caps, {Pad.ref(:output, id), caps}} | output(active)]
-    new_state = %State{state | tracks: activate_track(id, tracks), cache: inactive}
+    {track_buffers, other_buffers} =
+      Enum.split_with(state.cache, fn {pad_id, _buffer} -> pad_id == id end)
+
+    actions = [{:caps, {Pad.ref(:output, id), caps}} | prepare_output_buffers(track_buffers)]
+
+    new_state = %State{
+      state
+      | tracks: update_in(tracks[id].active, fn _ -> true end),
+        cache: other_buffers
+    }
 
     {{:ok, actions}, new_state}
   end
 
-  defp activate_track(id, tracks) do
-    new_track_info = Map.put(tracks[id], :active, true)
-    Map.put(tracks, id, new_track_info)
+  defp prepare_output_buffers(buffers_list) when is_list(buffers_list) do
+    Enum.map(buffers_list, &prepare_output_buffers/1)
   end
 
-  defp output(buffers_list) when is_list(buffers_list) do
-    Enum.map(buffers_list, &output/1)
-  end
-
-  defp output({track_id, buffers}) do
+  defp prepare_output_buffers({track_id, buffers}) do
     {:buffer, {Pad.ref(:output, track_id), buffers}}
   end
 
-  defp send_notify_pads(tracks) when is_map(tracks) do
-    Enum.map(tracks, &send_notify_pads/1)
+  defp notify_new_track(tracks) when is_map(tracks) do
+    Enum.map(tracks, &notify_new_track/1)
   end
 
   # sends tuple `{track_id, track_info} = track`
-  defp send_notify_pads(track) do
+  defp notify_new_track(track) do
     {:notify, {:new_track, track}}
   end
 
   defp cluster_to_buffers(cluster) do
+    timecode = cluster[:Timecode]
+
     cluster
     |> Keyword.get_values(:SimpleBlock)
     |> Enum.reduce([], fn block, acc ->
-      [prepare_simple_block(block, cluster[:Timecode]) | acc]
+      [prepare_simple_block(block, timecode) | acc]
     end)
-    |> List.flatten()
     |> Enum.group_by(& &1.track_number, &packetize/1)
   end
 

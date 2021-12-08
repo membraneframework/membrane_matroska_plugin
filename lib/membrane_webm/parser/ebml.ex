@@ -12,13 +12,8 @@ defmodule Membrane.WebM.Parser.EBML do
   - VINT_MARKER - the `1` bit immediately following the VINT_WIDTH `0` bits
   - VINT_DATA - the 7*N bits following the VINT_MARKER
 
-  TODO: element_id is the only type of VINT for which it is illegal to take up more space than is necessary i.e.
-    1 0000001 is legal
-    0 1 00000000000001 is illegal because a shorter encoding of VINT_DATA is available
-    (it fits in 1 byte but 2 are used)
-
   TODO: deal with unknown element sizes
-  (these shouldn't be used but can occur only in master elements)
+  (these shouldn't be used but can occur (only) in master elements)
   EBML Element Data Size VINTs with VINT_DATA consisting of only 1's are reserver to mean `unknown` e.g.:
     1 1111111
     0 1 11111111111111
@@ -124,16 +119,16 @@ defmodule Membrane.WebM.Parser.EBML do
 
   defp get_vint_width(byte) do
     cond do
-      (byte &&& 0b10000000) == 0b10000000 -> 1
-      (byte &&& 0b01000000) == 0b01000000 -> 2
-      (byte &&& 0b00100000) == 0b00100000 -> 3
-      (byte &&& 0b00010000) == 0b00010000 -> 4
-      (byte &&& 0b00010000) == 0b00010000 -> 5
-      (byte &&& 0b00001000) == 0b00001000 -> 6
-      (byte &&& 0b00000100) == 0b00000100 -> 7
-      (byte &&& 0b00000010) == 0b00000010 -> 8
+      (byte &&& 0b10000000) > 0 -> 1
+      (byte &&& 0b01000000) > 0 -> 2
+      (byte &&& 0b00100000) > 0 -> 3
+      (byte &&& 0b00010000) > 0 -> 4
+      (byte &&& 0b00010000) > 0 -> 5
+      (byte &&& 0b00001000) > 0 -> 6
+      (byte &&& 0b00000100) > 0 -> 7
+      (byte &&& 0b00000010) > 0 -> 8
       # TODO: check why this is needed (it is in fact necessary):
-      (byte &&& 0b00000001) == 0b00000001 -> 8
+      (byte &&& 0b00000001) > 0 -> 8
     end
   end
 
