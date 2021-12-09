@@ -7,22 +7,34 @@ defmodule Membrane.WebM.MuxerTest do
 
   alias Membrane.Testing
 
+  alias Membrane.Opus
+
   @input_dir "./test/fixtures/"
-  @output_dir "./test/debug/"
+  @output_dir "./test/results/"
 
   defmodule TestPipeline do
     use Membrane.Pipeline
 
     @impl true
     def handle_init(options) do
+      source =
+        if options.from_dump? do
+          %Testing.Source{
+            output: Testing.Source.output_from_buffers(options.buffers),
+            caps: %Opus{channels: 2, self_delimiting?: false}
+          }
+        else
+          %Membrane.File.Source{
+            location: options.input_file,
+            chunk_size: 1_000_000_000
+          }
+        end
+
       children = [
-        source: %Membrane.File.Source{
-          location: options.input_file,
-          chunk_size: 4096
-        },
+        source: source,
         muxer: Membrane.WebM.Muxer,
         sink: %Membrane.File.Sink{
-          location: "test/debug/muxer_output.webm"
+          location: options.output_dir <> "muxer_output.webm"
         }
       ]
 
@@ -41,6 +53,40 @@ defmodule Membrane.WebM.MuxerTest do
   #   test_stream("1_vp8.ivf", ["muxer_output.webm"], ["muxer_output.webm"])
   # end
 
+  test "mux opus from buffers" do
+    buffers =
+      (@input_dir <> "buffers_dump.opus")
+      |> File.read!()
+      |> :erlang.binary_to_term()
+      |> Enum.reverse()
+
+    # IO.inspect(buffers)
+
+    {:ok, pipeline} =
+      %Testing.Pipeline.Options{
+        module: TestPipeline,
+        custom_args: %{
+          output_dir: @output_dir,
+          from_dump?: true,
+          # result_file: @results_dir <> @result_file,
+          buffers: buffers
+        }
+      }
+      |> Testing.Pipeline.start_link()
+
+    Testing.Pipeline.play(pipeline)
+    # assert_pipeline_playback_changed(pipeline, _, :playing)
+
+    # assert_start_of_stream(pipeline, :sink)
+
+    assert_end_of_stream(pipeline, :muxer, :input, 10_000)
+
+    # assert File.read!(@results_dir <> @result_file) ==
+    #          File.read!(@fixtures_dir <> @input_file)
+
+    Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
+  end
+
   defp test_stream(input_file, references, results) do
     args = Enum.zip(references, results)
 
@@ -53,7 +99,8 @@ defmodule Membrane.WebM.MuxerTest do
         module: TestPipeline,
         custom_args: %{
           input_file: @input_dir <> input_file,
-          output_dir: @output_dir
+          output_dir: @output_dir,
+          from_dump?: false
         }
       }
       |> Testing.Pipeline.start_link()

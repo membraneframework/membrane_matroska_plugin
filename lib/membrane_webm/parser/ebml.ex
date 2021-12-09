@@ -106,14 +106,14 @@ defmodule Membrane.WebM.Parser.EBML do
   # the numbers are bit masks for extracting the data part of a VINT
   defp get_vint_data(vint, vint_width) do
     case vint_width do
-      1 -> vint &&& 18_446_744_073_709_551_743
-      2 -> vint &&& 18_446_744_073_709_567_999
-      3 -> vint &&& 18_446_744_073_711_648_767
-      4 -> vint &&& 18_446_744_073_977_987_071
-      5 -> vint &&& 18_446_744_108_069_289_983
-      6 -> vint &&& 18_446_748_471_756_062_719
-      7 -> vint &&& 18_447_307_023_662_972_927
-      8 -> vint &&& 18_518_801_667_747_479_551
+      1 -> vint &&& 0x1000000000000007F
+      2 -> vint &&& 0x10000000000003FFF
+      3 -> vint &&& 0x100000000001FFFFF
+      4 -> vint &&& 0x1000000000FFFFFFF
+      5 -> vint &&& 0x100000007FFFFFFFF
+      6 -> vint &&& 0x1000003FFFFFFFFFF
+      7 -> vint &&& 0x10001FFFFFFFFFFFF
+      8 -> vint &&& 0x100FFFFFFFFFFFFFF
     end
   end
 
@@ -133,6 +133,13 @@ defmodule Membrane.WebM.Parser.EBML do
   end
 
   def encode_vint(number) do
+    # FIXME:
+    # https://www.rfc-editor.org/rfc/rfc8794.pdf
+    # uint should work for up to (1 <<< 64) = 18,446,744,073,709,551,615.
+    # int should work for range -9,223,372,036,854,775,808 to 9_223_372_036_854_775_807
+    # -(1 <<< 63) to (1 <<< 63) - 1
+    # current limits:
+    # https://www.rfc-editor.org/rfc/rfc8794.pdf
     limits = [
       126,
       16382,
