@@ -7,7 +7,9 @@ defmodule Membrane.WebM.MuxerTest do
 
   alias Membrane.Testing
 
-  alias Membrane.Opus
+  alias Membrane.{Buffer, Opus}
+
+  import MyData
 
   @input_dir "./test/fixtures/"
   @output_dir "./test/results/"
@@ -17,11 +19,15 @@ defmodule Membrane.WebM.MuxerTest do
 
     @impl true
     def handle_init(options) do
+      # parsed = File.read!("test/debug/opus_1_parsed.raw")
+      parsed = MyData.give()
+      input = %Buffer{payload: parsed}
+
       source =
         if options.from_dump? do
           %Testing.Source{
-            output: Testing.Source.output_from_buffers(options.buffers),
-            caps: %Opus{channels: 2, self_delimiting?: false}
+            output: Testing.Source.output_from_buffers([input])
+            # caps: %Opus{channels: 2, self_delimiting?: false}
           }
         else
           %Membrane.File.Source{
@@ -54,11 +60,11 @@ defmodule Membrane.WebM.MuxerTest do
   # end
 
   test "mux opus from buffers" do
-    buffers =
-      (@input_dir <> "buffers_dump.opus")
-      |> File.read!()
-      |> :erlang.binary_to_term()
-      |> Enum.reverse()
+    # buffers =
+    #   (@input_dir <> "buffers_dump.opus")
+    #   |> File.read!()
+    #   |> :erlang.binary_to_term()
+    #   |> Enum.reverse()
 
     # IO.inspect(buffers)
 
@@ -69,7 +75,7 @@ defmodule Membrane.WebM.MuxerTest do
           output_dir: @output_dir,
           from_dump?: true,
           # result_file: @results_dir <> @result_file,
-          buffers: buffers
+          # buffers: buffers
         }
       }
       |> Testing.Pipeline.start_link()

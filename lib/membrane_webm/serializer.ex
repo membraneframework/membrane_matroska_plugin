@@ -25,16 +25,34 @@ defmodule Membrane.WebM.Serializer do
     IO.inspect(element_id <> element_data_size <> element_data)
   end
 
-  # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.2
-  def serialize(0, :uint, name) do
-    IO.puts("serialize uint #{name}")
-    <<>>
+  # FIXME:
+  def serialize(atom, :uint, :TrackType) do
+    dictionary = %{video: 1, audio: 2}
+    uint = dictionary[atom]
+
+    IO.puts("serialize uint TrackType")
+    element_id = EBML.encode_element_id(:TrackType)
+    element_data = :binary.encode_unsigned(uint, :big)
+    element_data_size = byte_size(element_data) |> EBML.encode_vint()
+
+    element_id <> element_data_size <> element_data
   end
+
+  # # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.2
+  # def serialize(0, :uint, name) do
+  #   IO.puts("serialize uint #{name}")
+  #   element_id = EBML.encode_element_id(name)
+  #   element_data = <<>>
+  #   element_data_size = EBML.encode_vint(0)
+
+  #   element_id <> element_data_size <> element_data
+  #   <<>>
+  # end
 
   def serialize(uint, :uint, name) do
     IO.puts("serialize uint #{name}")
     element_id = EBML.encode_element_id(name)
-    element_data = EBML.encode_vint(uint)
+    element_data = :binary.encode_unsigned(uint, :big)
     element_data_size = byte_size(element_data) |> EBML.encode_vint()
 
     element_id <> element_data_size <> element_data
@@ -58,14 +76,14 @@ defmodule Membrane.WebM.Serializer do
     element_id <> element_data_size <> element_data
   end
 
-  def serialize(0, :float, name) do
-    IO.puts("serialize float #{name}")
-    element_id = EBML.encode_element_id(name)
-    element_data = <<>>
-    element_data_size = byte_size(element_data) |> EBML.encode_vint()
+  # def serialize(0, :float, name) do
+  #   IO.puts("serialize float #{name}")
+  #   element_id = EBML.encode_element_id(name)
+  #   element_data = <<>>
+  #   element_data_size = EBML.encode_vint(0)
 
-    element_id <> element_data_size <> element_data
-  end
+  #   element_id <> element_data_size <> element_data
+  # end
 
   def serialize(num, :float, name) do
     IO.puts("serialize float #{name}")
@@ -76,58 +94,61 @@ defmodule Membrane.WebM.Serializer do
     element_id <> element_data_size <> element_data
   end
 
-  # #FIXME:delete
+  # def serialize({timestamp, data}, :binary, :SimpleBlock) do
+  #   IO.puts("serialize simpleblock")
 
-  # defp parse(bytes, :binary, :SimpleBlock) do
-  #   # track_number is a vint with size 1 or 2 bytes
-  #   {track_number, body} = EBML.decode_vint(bytes)
+  #   track_number = 1
+  #   keyframe = 1
+  #   reserved = 0
+  #   invisible = 0
+  #   lacing = 0
+  #   discardable = 0
 
-  #   <<timecode::integer-signed-big-size(16), keyframe::1, reserved::3, invisible::1, lacing::2,
-  #     discardable::1, data::binary>> = body
-
-  #   lacing =
-  #     case lacing do
-  #       0b00 -> :no_lacing
-  #       0b01 -> :Xiph_lacing
-  #       0b11 -> :EBML_lacing
-  #       0b10 -> :fixed_size_lacing
-  #     end
-
-  #   %{
-  #     track_number: track_number,
-  #     timecode: timecode,
-  #     header_flags: %{
-  #       keyframe: keyframe == 1,
-  #       reserved: reserved,
-  #       invisible: invisible == 1,
-  #       lacing: lacing,
-  #       discardable: discardable == 1
-  #     },
-  #     data: data
-  #   }
+  #   EBML.encode_vint(track_number) <>
+  #     <<timestamp::integer-signed-big-size(16), keyframe::1, reserved::3, invisible::1, lacing::2,
+  #       discardable::1, data::binary>>
   # end
 
-  # #FIXME:delete
+  # FIXME:
+  def n(x) do
+    if x do
+      1
+    else
+      0
+    end
+  end
 
-  def serialize({timestamp, data}, :binary, :SimpleBlock) do
+  # FIXME:
+  def serialize(s, :binary, :SimpleBlock) do
     IO.puts("serialize simpleblock")
 
-    track_number = 1
-    keyframe = 1
-    reserved = 0
-    invisible = 0
-    lacing = 0
-    discardable = 0
+    f = s.header_flags
+    # IO.inspect(s)
+    # IO.inspect(s.track_number)
+    # IO.inspect(f)
+    element_id = EBML.encode_element_id(:SimpleBlock)
+    element_data = EBML.encode_vint(s.track_number) <>
+      <<s.timecode::integer-signed-big-size(16), n(f.keyframe)::1, f.reserved::3, n(f.invisible)::1, f.lacing::2,
+        n(f.discardable)::1, s.data::binary>>
+    element_data_size = byte_size(element_data) |> EBML.encode_vint()
 
-    EBML.encode_vint(track_number) <>
-      <<timestamp::integer-signed-big-size(16), keyframe::1, reserved::3, invisible::1, lacing::2,
-        discardable::1, data::binary>>
+    element_id <> element_data_size <> element_data
   end
 
   def serialize(bytes, :binary, name) do
     IO.puts("serialize binary #{name}")
     element_id = EBML.encode_element_id(name)
     element_data = bytes
+    element_data_size = byte_size(element_data) |> EBML.encode_vint()
+
+    element_id <> element_data_size <> element_data
+  end
+
+  # FIXME:
+  def serialize(length, :void, name) do
+    IO.puts("serialize #{name}")
+    element_id = EBML.encode_element_id(name)
+    element_data = <<0::size(length)>>
     element_data_size = byte_size(element_data) |> EBML.encode_vint()
 
     element_id <> element_data_size <> element_data

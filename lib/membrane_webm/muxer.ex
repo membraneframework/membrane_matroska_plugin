@@ -15,7 +15,7 @@ defmodule Membrane.WebM.Muxer do
     availability: :always,
     mode: :pull,
     demand_unit: :buffers,
-    caps: [Opus, VP8, VP9]
+    caps: :any#[Opus, VP8, VP9]
 
   def_output_pad :output,
     availability: :always,
@@ -38,7 +38,7 @@ defmodule Membrane.WebM.Muxer do
   @mock_info {
     :Info,
     [
-      Duration: 2137,
+      Duration: 27201.0,
       WritingApp: "Membrane WritingApp",
       MuxingApp: "Membrane MuxingApp",
       Title: "Test title string",
@@ -149,7 +149,7 @@ defmodule Membrane.WebM.Muxer do
        # additional delay (up to 1.5 ms) may be required for sampling rate
        # conversion.
        # gstreamer has codecdelay set to 0 so TODO: try 0
-       CodecDelay: 6_500_000,
+       CodecDelay: 3_250_000,
        CodecID: "A_OPUS",
        # I didn't find information about lacing in the Opus RFC so I assume it's always unlaced
        FlagLacing: 0,
@@ -166,6 +166,11 @@ defmodule Membrane.WebM.Muxer do
               current_cluster_timecode: 0,
               current_block_timecode: nil,
               first_frame: true
+  end
+
+  @impl true
+  def handle_caps(:input, _, _context, state) do
+    {:ok, state}
   end
 
   @impl true
@@ -196,25 +201,34 @@ defmodule Membrane.WebM.Muxer do
   end
 
   @impl true
+  def handle_process(:input, %Buffer{payload: file}, _context, state) do
+    header = Serializer.serialize({:EBML, file[:EBML]})
+    segment = Serializer.serialize({:Segment, file[:Segment]})
+
+    output = %Buffer{payload: header <> segment}
+    {{:ok, buffer: {:output, output}}, state}
+  end
+
+  @impl true
   def handle_process(:input, %Buffer{payload: data, pts: timestamp}, _context, state) do
     {{:ok, redemand: :output}, %State{state | cache: [{timestamp, data} | state.cache]}}
   end
 
-  @impl true
-  def handle_end_of_stream(:input, _context, state) do
-    seek = @mock_seek
-    info = @mock_info
-    track_entry = construct_track_entry(state.caps, :audio)
-    tracks = {:Tracks, [track_entry]}
-    cluster = construct_cluster(state.cache)
+  # @impl true
+  # def handle_end_of_stream(:input, _context, state) do
+  #   seek = @mock_seek
+  #   info = @mock_info
+  #   track_entry = construct_track_entry(state.caps, :audio)
+  #   tracks = {:Tracks, [track_entry]}
+  #   cluster = construct_cluster(state.cache)
 
-    ebml_header = Serializer.serialize(@ebml_header)
-    segment = Serializer.serialize({:Segment, [seek, info, tracks, cluster]})
+  #   ebml_header = Serializer.serialize(@ebml_header)
+  #   segment = Serializer.serialize({:Segment, [seek, info, tracks, cluster]})
 
-    webm_bytes = ebml_header <> segment
+  #   webm_bytes = ebml_header <> segment
 
-    {{:ok, buffer: {:output, %Buffer{payload: webm_bytes}}}, %State{first_frame: false}}
-  end
+  #   {{:ok, buffer: {:output, %Buffer{payload: webm_bytes}}}, %State{first_frame: false}}
+  # end
 
   def construct_cluster(cache) do
     # TODO: pass additional data (timestamp, tracknumber) by appending it to `frame`
