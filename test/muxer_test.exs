@@ -1,5 +1,3 @@
-# TODO: delete. this 'test' is for development and debugging, not testing
-
 defmodule Membrane.WebM.MuxerTest do
   use ExUnit.Case
 
