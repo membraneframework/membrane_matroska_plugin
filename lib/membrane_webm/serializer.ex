@@ -18,6 +18,15 @@ defmodule Membrane.WebM.Serializer do
     Enum.reduce(elements, <<>>, fn {name, data}, acc -> serialize({name, data}) <> acc end)
   end
 
+  def serialize(data, :master, :Segment) do
+    IO.puts("serialize master Segment")
+    element_id = EBML.encode_element_id(:Segment)
+    element_data = serialize_many(data)
+    element_data_size = byte_size(element_data) |> EBML.encode_max_width_vint()
+
+    IO.inspect(element_id <> element_data_size <> element_data)
+  end
+
   def serialize(data, :master, name) do
     IO.puts("serialize master #{name}")
     element_id = EBML.encode_element_id(name)
@@ -94,14 +103,20 @@ defmodule Membrane.WebM.Serializer do
     element_id <> element_data_size <> element_data
   end
 
-  # FIXME:
   def serialize(length, :void, name) do
+    # FIXME: i don't see how to avoid funny business on 2^(7*n) +- 1 lengths
+    n = trunc(:math.log2(length - 1) / 7) + 1
+    length = (length - n - 1) * 8
     IO.puts("serialize #{name}")
     element_id = EBML.encode_element_id(name)
     element_data = <<0::size(length)>>
     element_data_size = byte_size(element_data) |> EBML.encode_vint()
 
-    element_id <> element_data_size <> element_data
+    result = element_id <> element_data_size <> element_data
+
+    IO.inspect(byte_size(result))
+
+    result
   end
 
   def serialize_opus_frame(data, timecode, track_number) do

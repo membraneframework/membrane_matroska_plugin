@@ -10,6 +10,7 @@ defmodule Membrane.WebM.Muxer do
   alias Membrane.{Buffer}
   alias Membrane.{Opus, VP8, VP9}
   alias Membrane.WebM.Serializer
+  alias Membrane.WebM.Plugin.Mixfile
 
   def_input_pad :input,
     availability: :always,
@@ -23,9 +24,14 @@ defmodule Membrane.WebM.Muxer do
     mode: :pull,
     caps: :any
 
-  # TODO: this param needs to always equal the mix.exs @version
-  @version "0.1.0"
+  @version Mixfile.project()[:version]
   @timestamp_scale 1_000_000
+  @seekable_elements [
+    :Info,
+    :Tracks,
+    :Tags
+    # :Cues, # TODO: implement; insert before first :Cluster
+  ]
 
   @ebml_header {
     :EBML,
@@ -69,15 +75,19 @@ defmodule Membrane.WebM.Muxer do
   @mock_seek {
     :SeekHead,
     [
-      Seek: [SeekPosition: 431_238, SeekID: <<28, 83, 187, 107>>],
+      # :Cues
+      # Seek: [SeekPosition: 431_238, SeekID: <<28, 83, 187, 107>>],
+      # :Tags
       Seek: [SeekPosition: 337, SeekID: <<18, 84, 195, 103>>],
+      # :Tracks
       Seek: [SeekPosition: 3335, SeekID: <<22, 84, 174, 107>>],
+      # :Info
       Seek: [SeekPosition: 161, SeekID: <<21, 73, 169, 102>>]
     ]
   }
 
   # TODO: There's no way of extracting this metadata from raw streams so a callback or option should be implemented to supply these values
-  # Though they do not appear essential (possible exception: VLC)
+  # Though they do not appear essential for achieving playable files (possible exception: VLC)
   defp construct_tags() do
     {:Tags,
      [
@@ -212,6 +222,7 @@ defmodule Membrane.WebM.Muxer do
       raise "Handling Opus channel counts of #{channels} is not supported. Cannot mux into a playable form."
     end
 
+    # option descriptions copied over from ogg_plugin:
     # original_sample_rate: [
     #   type: :non_neg_integer,
     #   default: 0,
@@ -302,22 +313,65 @@ defmodule Membrane.WebM.Muxer do
 
   @impl true
   def handle_end_of_stream(:input, _context, state) do
-    seek = @mock_seek
+    # seek_head = @mock_seek
+    # void = {:Void, 160}
     info = @mock_info
     track_entry = construct_track_entry(state.caps)
     tracks = {:Tracks, [track_entry]}
     tags = construct_tags()
     cluster = construct_cluster(state.cache)
 
+    seek_head = construct_seek_head([info, tracks, tags])
+    void = {:Void, 148 - byte_size(Serializer.serialize(seek_head))}
+
     ebml_header = Serializer.serialize(@ebml_header)
-    segment = Serializer.serialize({:Segment, Enum.reverse([seek, info, tracks, tags, cluster])})
+
+    segment =
+      Serializer.serialize(
+        {:Segment, Enum.reverse([seek_head, void, info, tracks, tags, cluster])}
+      )
+
+    # TODO: MAKS:
+    # The :Segment element's data_size must always be encoded by an 8-octet length vint
+
+    # segment_id <> <<segment_rest::binary>> = segment
+    # segment_data_size = nil
+    # <<segment_data_size, _void::size(160), segment_data::binary>> = segment_rest
+
+    # seeks = [{id, position+160} | seeks]
+    # seek_head = Serializer.serialize({:SeekHead, [seeks]})
+    # new_void = Serializer.serialize({:Void, 160-byte_size(seek_head)})
+
+    # segment = segment_id <> segment_data_size <> seek_head <> new_void <> segment_data
 
     webm_bytes = ebml_header <> segment
 
     {{:ok, buffer: {:output, %Buffer{payload: webm_bytes}}}, %State{first_frame: false}}
   end
 
-  def construct_cluster(cache) do
+  defp construct_seek_head(elements) do
+    seeks =
+      elements
+      |> Enum.reduce({[], 161}, fn element, acc ->
+        {name, data} = element
+        {results, offset} = acc
+        new_acc = [{name, offset} | results]
+        new_offset = offset + byte_size(Serializer.serialize({name, data}))
+        {new_acc, new_offset}
+      end)
+      |> elem(0)
+      |> Enum.map(fn {name, offset} ->
+        {:Seek,
+         [
+           {:SeekPosition, offset},
+           {:SeekID, Base.decode16!(Membrane.WebM.Schema.name_to_element_id(name))}
+         ]}
+      end)
+
+    {:Seek, seeks}
+  end
+
+  defp construct_cluster(cache) do
     subelements = Enum.map(cache, fn data -> {:SimpleBlock, data} end)
     subelements = [{:Timecode, 0} | subelements]
 

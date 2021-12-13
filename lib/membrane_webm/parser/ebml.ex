@@ -140,6 +140,28 @@ defmodule Membrane.WebM.Parser.EBML do
     # -(1 <<< 63) to (1 <<< 63) - 1
     # current limits:
     # https://www.rfc-editor.org/rfc/rfc8794.pdf
+    # FIXME: also isn't the max 1-byte num 127? so shouldn't the limit be just 128? soo all of these += 2??
+
+    # +==============+======================+
+    # | Octet Length | Possible Value Range |
+    # +==============+======================+
+    # | 1            | 0 to 2^(7) - 2       |
+    # +--------------+----------------------+
+    # | 2            | 0 to 2^(14) - 2      |
+    # +--------------+----------------------+
+    # | 3            | 0 to 2^(21) - 2      |
+    # +--------------+----------------------+
+    # | 4            | 0 to 2^(28) - 2      |
+    # +--------------+----------------------+
+    # | 5            | 0 to 2^(35) - 2      |
+    # +--------------+----------------------+
+    # | 6            | 0 to 2^(42) - 2      |
+    # +--------------+----------------------+
+    # | 7            | 0 to 2^(49) - 2      |
+    # +--------------+----------------------+
+    # | 8            | 0 to 2^(56) - 2      |
+    # +--------------+----------------------+
+
     limits = [
       126,
       16382,
@@ -157,6 +179,10 @@ defmodule Membrane.WebM.Parser.EBML do
     data_bits = octets * 7
 
     <<0::size(width_bits), 1::1, number::big-size(data_bits)>>
+  end
+
+  def encode_max_width_vint(number) do
+    <<0::size(7), 1::1, number::big-size(56)>>
   end
 
   def encode_element_id(name) do
