@@ -6,6 +6,8 @@ defmodule Membrane.WebM.Serializer do
   alias Membrane.WebM.Parser.EBML
   alias Membrane.WebM.Schema
 
+  use Bitwise
+
   def serialize({name, data}) do
     # IO.puts("serialize #{name}")
     type = Schema.element_type(name)
@@ -25,18 +27,14 @@ defmodule Membrane.WebM.Serializer do
     IO.inspect(element_id <> element_data_size <> element_data)
   end
 
-  # FIXME:
-  def serialize(atom, :uint, :TrackType) do
-    dictionary = %{video: 1, audio: 2}
-    uint = dictionary[atom]
+  # def serialize(uint, :uint, :TrackType) do
+  #   IO.puts("serialize uint TrackType")
+  #   element_id = EBML.encode_element_id(:TrackType)
+  #   element_data = :binary.encode_unsigned(uint, :big)
+  #   element_data_size = byte_size(element_data) |> EBML.encode_vint()
 
-    IO.puts("serialize uint TrackType")
-    element_id = EBML.encode_element_id(:TrackType)
-    element_data = :binary.encode_unsigned(uint, :big)
-    element_data_size = byte_size(element_data) |> EBML.encode_vint()
-
-    element_id <> element_data_size <> element_data
-  end
+  #   element_id <> element_data_size <> element_data
+  # end
 
   # # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.2
   # def serialize(0, :uint, name) do
@@ -110,29 +108,16 @@ defmodule Membrane.WebM.Serializer do
   # end
 
   # FIXME:
-  def n(x) do
-    if x do
-      1
-    else
-      0
+  def serialize({timecode, data, track_number, type}, :binary, :SimpleBlock) do
+    # IO.puts("serialize simpleblock")
+
+    cond do
+      type == :opus ->
+        serialize_opus_frame(data, timecode, track_number)
+
+      type == :vp8 or type == :vp9 ->
+        serialize_vpx_frame(data, timecode, track_number)
     end
-  end
-
-  # FIXME:
-  def serialize(s, :binary, :SimpleBlock) do
-    IO.puts("serialize simpleblock")
-
-    f = s.header_flags
-    # IO.inspect(s)
-    # IO.inspect(s.track_number)
-    # IO.inspect(f)
-    element_id = EBML.encode_element_id(:SimpleBlock)
-    element_data = EBML.encode_vint(s.track_number) <>
-      <<s.timecode::integer-signed-big-size(16), n(f.keyframe)::1, f.reserved::3, n(f.invisible)::1, f.lacing::2,
-        n(f.discardable)::1, s.data::binary>>
-    element_data_size = byte_size(element_data) |> EBML.encode_vint()
-
-    element_id <> element_data_size <> element_data
   end
 
   def serialize(bytes, :binary, name) do
@@ -149,6 +134,42 @@ defmodule Membrane.WebM.Serializer do
     IO.puts("serialize #{name}")
     element_id = EBML.encode_element_id(name)
     element_data = <<0::size(length)>>
+    element_data_size = byte_size(element_data) |> EBML.encode_vint()
+
+    element_id <> element_data_size <> element_data
+  end
+
+  def serialize_opus_frame(data, timecode, track_number) do
+    timecode = <<timecode::integer-signed-big-size(16)>>
+    # header_field: value::number_of_bits
+    # keyframe: 1::0
+    # reserved: 0::3
+    # invisible: 0::1
+    # lacing: 0::2
+    # discardable: 0::1
+    header_flags = <<0b1000000>>
+
+    element_id = EBML.encode_element_id(:SimpleBlock)
+    element_data = EBML.encode_vint(track_number) <> timecode <> header_flags <> data
+    element_data_size = byte_size(element_data) |> EBML.encode_vint()
+
+    element_id <> element_data_size <> element_data
+  end
+
+  def serialize_vpx_frame(
+        <<first_byte::unsigned-size(8), _rest::binary>> = data,
+        timecode,
+        track_number
+      ) do
+    timecode = <<timecode::integer-signed-big-size(16)>>
+    # header_field: value::number_of_bits
+    keyframe = 0b1000000 &&& first_byte
+    _reserved = 0b01110000 &&& first_byte
+    invisible = 0b00001000 &&& first_byte
+    header_flags = <<keyframe ||| invisible>>
+
+    element_id = EBML.encode_element_id(:SimpleBlock)
+    element_data = EBML.encode_vint(track_number) <> timecode <> header_flags <> data
     element_data_size = byte_size(element_data) |> EBML.encode_vint()
 
     element_id <> element_data_size <> element_data

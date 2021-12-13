@@ -214,7 +214,7 @@ defmodule Membrane.WebM.Schema do
            # ChapCountry
            {"1549A966", :Info},
            # \Segment\Info
-           {"2AD7B1", :TimecodeScale},
+           {"2AD7B1", :TimestampScale},
            {"7BA9", :Title},
            {"4D80", :MuxingApp},
            {"5741", :WritingApp},
@@ -306,7 +306,7 @@ defmodule Membrane.WebM.Schema do
     ChromaSitingHorz: %{type: :uint},
     ChromaSitingVert: %{type: :uint},
     Info: %{type: :master},
-    TimecodeScale: %{type: :uint},
+    TimestampScale: %{type: :uint},
     Title: %{type: :utf_8},
     MuxingApp: %{type: :utf_8},
     WritingApp: %{type: :utf_8},
