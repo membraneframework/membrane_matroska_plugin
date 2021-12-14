@@ -2,6 +2,28 @@ defmodule Membrane.WebM.Muxer do
   @moduledoc """
   Module for muxing WebM files.
 
+
+  Muxer guidelines
+  https://www.webmproject.org/docs/container/
+
+  Muxers should treat all guidelines marked SHOULD in this section as MUST.
+  This will foster consistency across WebM files in the real world.
+
+  - WebM SHOULD contain the SeekHead element.
+      - Reason: Allows the client to know if the file contains a Cues element.
+  - WebM files SHOULD include a keyframe-only Cues element.
+      - The Cues element SHOULD contain only video key frames, to decrease the size of the file header.
+      - It is recommended that the Cues element be before any clusters, so that the client can seek to a point
+        in the data that has not yet been downloaded in a single seek operation. Ref: a tool that will put the Cues at the front.
+  - All absolute (block + cluster) timecodes MUST be monotonically increasing.
+      - All timecodes are associated with the start time of the block.
+  - The TimecodeScale element SHOULD be set to a default of 1.000.000 nanoseconds.
+      - Reason: Allows every cluster to have blocks with positive values up to 32.767 seconds.
+  - Key frames SHOULD be placed at the beginning of clusters.
+      - Having key frames at the beginning of clusters should make seeking faster and easier for the client.
+  - Audio blocks that contain the video key frame's timecode SHOULD be in the same cluster as the video key frame block.
+  - Audio blocks that have same absolute timecode as video blocks SHOULD be written before the video blocks.
+  - WebM files MUST only support pixels for the DisplayUnit element.
   """
   use Bitwise
 
@@ -25,6 +47,7 @@ defmodule Membrane.WebM.Muxer do
     caps: :any
 
   @version Mixfile.project()[:version]
+  @bytes_reserved_for_seekhead 160
   @timestamp_scale 1_000_000
   @seekable_elements [
     :Info,
@@ -322,7 +345,8 @@ defmodule Membrane.WebM.Muxer do
     cluster = construct_cluster(state.cache)
 
     seek_head = construct_seek_head([info, tracks, tags])
-    void = {:Void, 148 - byte_size(Serializer.serialize(seek_head))}
+    void_width = @bytes_reserved_for_seekhead - byte_size(Serializer.serialize(seek_head))
+    void = {:Void, void_width}
 
     ebml_header = Serializer.serialize(@ebml_header)
 
@@ -331,28 +355,19 @@ defmodule Membrane.WebM.Muxer do
         {:Segment, Enum.reverse([seek_head, void, info, tracks, tags, cluster])}
       )
 
-    # TODO: MAKS:
-    # The :Segment element's data_size must always be encoded by an 8-octet length vint
-
-    # segment_id <> <<segment_rest::binary>> = segment
-    # segment_data_size = nil
-    # <<segment_data_size, _void::size(160), segment_data::binary>> = segment_rest
-
-    # seeks = [{id, position+160} | seeks]
-    # seek_head = Serializer.serialize({:SeekHead, [seeks]})
-    # new_void = Serializer.serialize({:Void, 160-byte_size(seek_head)})
-
-    # segment = segment_id <> segment_data_size <> seek_head <> new_void <> segment_data
-
     webm_bytes = ebml_header <> segment
 
     {{:ok, buffer: {:output, %Buffer{payload: webm_bytes}}}, %State{first_frame: false}}
   end
 
+  @doc """
+  segment position:
+  https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#name-segment-position
+  """
   defp construct_seek_head(elements) do
     seeks =
       elements
-      |> Enum.reduce({[], 161}, fn element, acc ->
+      |> Enum.reduce({[], @bytes_reserved_for_seekhead + 1}, fn element, acc ->
         {name, data} = element
         {results, offset} = acc
         new_acc = [{name, offset} | results]
@@ -368,13 +383,23 @@ defmodule Membrane.WebM.Muxer do
          ]}
       end)
 
-    {:Seek, seeks}
+    {:SeekHead, seeks}
   end
+
+  # defp construct_clusters(cache) do
+  #   Enum.sort_by
+  #   {timecode, data, track_number, type}
+  # end
 
   defp construct_cluster(cache) do
     subelements = Enum.map(cache, fn data -> {:SimpleBlock, data} end)
     subelements = [{:Timecode, 0} | subelements]
 
     {:Cluster, subelements}
+  end
+
+  # https://www.matroska.org/technical/cues.html
+  defp construct_cues() do
+    nil
   end
 end
