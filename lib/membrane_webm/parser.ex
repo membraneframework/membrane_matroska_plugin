@@ -75,7 +75,7 @@ defmodule Membrane.WebM.Parser do
   def handle_process(:input, %Buffer{payload: payload}, _context, %{acc: acc}) do
     unparsed = acc <> payload
 
-    #FIXME: should call parse again if has enough data to parse next element
+    # FIXME: should call parse again if has enough data to parse next element
     case parse_many(unparsed, []) do
       {:return, {name, data}, rest} ->
         {{:ok,

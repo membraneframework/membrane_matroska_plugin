@@ -3,7 +3,7 @@ defmodule Membrane.WebM.MuxerTest do
 
   import Membrane.Testing.Assertions
   alias Membrane.Testing
-  alias Membrane.{Buffer, Opus}
+  alias Membrane.Opus
 
   @fixtures_dir "./test/fixtures/"
   @output_dir "./test/results/"
@@ -124,7 +124,7 @@ defmodule Membrane.WebM.MuxerTest do
     Testing.Pipeline.play(pipeline)
     assert_pipeline_playback_changed(pipeline, _, :playing)
 
-    assert_start_of_stream(pipeline, :sink, :timeout, 2_000)
+    assert_start_of_stream(pipeline, :sink, :input)
 
     assert_end_of_stream(pipeline, :sink)
 

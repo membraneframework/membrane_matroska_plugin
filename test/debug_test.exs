@@ -44,7 +44,6 @@ defmodule Membrane.WebM.PrettyPrint do
           _context,
           state
         ) do
-
       {{:ok, demand: {:input, 1}}, %{state | cache: [{element_name, data} | state.cache]}}
     end
   end
@@ -57,7 +56,7 @@ defmodule Membrane.WebM.PrettyPrint do
       children = [
         source: %Membrane.File.Source{
           location: options.input,
-          #FIXME: if this is set to 1_000_000 then parser sends only first element
+          # FIXME: if this is set to 1_000_000 then parser sends only first element
           chunk_size: 300
         },
         parser: Membrane.WebM.Parser,
@@ -78,9 +77,9 @@ defmodule Membrane.WebM.PrettyPrint do
     end
   end
 
-  test "parse and pretty print a webm file" do
-    run("test/results/muxed_vp9.webm", "test/results/demuxed_vp9.pretty")
-  end
+  # test "parse and pretty print a webm file" do
+  #   run("test/results/muxed_vp9.webm", "test/results/demuxed_vp9.pretty")
+  # end
 
   defp run(input, output) do
     {:ok, pipeline} =
