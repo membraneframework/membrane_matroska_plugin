@@ -26,6 +26,7 @@ defmodule Membrane.WebM.Muxer do
   - WebM files MUST only support pixels for the DisplayUnit element.
   """
   use Bitwise
+  use Bunch
 
   use Membrane.Filter
 
@@ -38,17 +39,20 @@ defmodule Membrane.WebM.Muxer do
     availability: :always,
     mode: :pull,
     demand_unit: :buffers,
-    # [Opus, VP8, VP9]
-    caps: :any
+    caps: [Opus, VP8, VP9]
 
   def_output_pad :output,
     availability: :always,
     mode: :pull,
     caps: :any
 
+  # 5 mb
+  @cluster_bytes_limit 5_242_880
+  @cluster_time_limit Membrane.Time.seconds(5)
+  @timestamp_scale Membrane.Time.millisecond()
   @version Mixfile.project()[:version]
   @bytes_reserved_for_seekhead 160
-  @timestamp_scale 1_000_000
+
   @seekable_elements [
     :Info,
     :Tracks,
@@ -69,6 +73,7 @@ defmodule Membrane.WebM.Muxer do
     ]
   }
 
+  # this element MUST exist - because of TimestampScale
   @mock_info {
     :Info,
     [
@@ -87,25 +92,6 @@ defmodule Membrane.WebM.Muxer do
       # Yet the WebM documentation appears to still be using `TimecodeScale`
       # See https://www.webmproject.org/docs/container/#TimecodeScale
       TimestampScale: @timestamp_scale
-    ]
-  }
-
-  # also known as MetaSeek
-  # TODO: generate dynamically. quite challenging
-  # note that the SeekPosition represents the byte offset from the beginning of the Segment of the top-level element with ID == SeekID
-  # to recover the element_name:
-  #   Membrane.WebM.Schema.element_id_to_name(Base.encode16(seek_id))
-  @mock_seek {
-    :SeekHead,
-    [
-      # :Cues
-      # Seek: [SeekPosition: 431_238, SeekID: <<28, 83, 187, 107>>],
-      # :Tags
-      Seek: [SeekPosition: 337, SeekID: <<18, 84, 195, 103>>],
-      # :Tracks
-      Seek: [SeekPosition: 3335, SeekID: <<22, 84, 174, 107>>],
-      # :Info
-      Seek: [SeekPosition: 161, SeekID: <<21, 73, 169, 102>>]
     ]
   }
 
@@ -214,6 +200,7 @@ defmodule Membrane.WebM.Muxer do
      [
        Video: [
          Colour: [
+           # TODO: how do I know how to set these fields?
            # :half,
            ChromaSitingVert: 2,
            # :left_coallocated
@@ -224,6 +211,7 @@ defmodule Membrane.WebM.Muxer do
          PixelHeight: width,
          PixelWidth: height
        ],
+       # TODO: where did this come from?
        DefaultDuration: 16_666_666,
        # :video,
        TrackType: 1,
@@ -336,13 +324,11 @@ defmodule Membrane.WebM.Muxer do
 
   @impl true
   def handle_end_of_stream(:input, _context, state) do
-    # seek_head = @mock_seek
-    # void = {:Void, 160}
     info = @mock_info
     track_entry = construct_track_entry(state.caps)
     tracks = {:Tracks, [track_entry]}
     tags = construct_tags()
-    cluster = construct_cluster(state.cache)
+    clusters = construct_clusters(state.cache, state.caps_type)
 
     seek_head = construct_seek_head([info, tracks, tags])
     void_width = @bytes_reserved_for_seekhead - byte_size(Serializer.serialize(seek_head))
@@ -352,7 +338,7 @@ defmodule Membrane.WebM.Muxer do
 
     segment =
       Serializer.serialize(
-        {:Segment, Enum.reverse([seek_head, void, info, tracks, tags, cluster])}
+        {:Segment, Enum.reverse([seek_head, void, info, tracks, tags] ++ clusters)}
       )
 
     webm_bytes = ebml_header <> segment
@@ -386,16 +372,135 @@ defmodule Membrane.WebM.Muxer do
     {:SeekHead, seeks}
   end
 
-  # defp construct_clusters(cache) do
-  #   Enum.sort_by
-  #   {timecode, data, track_number, type}
+  @doc """
+  Pack accumulated frames into Blocks and group them into Clusters.
+
+  A Matroska file SHOULD contain at least one Cluster Element.
+  Cluster Elements contain frames of every track sorted by timestamp in monotonically increasing order.
+  It is RECOMMENDED that the size of each individual Cluster Element be limited to store no more than 5 seconds or 5 megabytes (but 32.767 is possible).
+
+  Every Cluster Element MUST contain a Timestamp Element - occuring once per cluster placed at the very beginning.
+  All Block timestamps inside the Cluster are relative to that Cluster's Timestamp:
+  Absolute Timestamp = Block+Cluster
+  Relative Timestamp = Block
+  Raw Timestamp = (Block+Cluster)*TimestampScale
+  Matroska RFC https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-7-18
+
+  Clusters MUST begin with a keyframe.
+  Audio blocks that contain the video key frame's timecode MUST be in the same cluster as the video key frame block.
+  Audio blocks that have the same absolute timecode as video blocks SHOULD be written before the video blocks.
+  This implementation simply splits the stream on every video keyframe if a video track is present. Otherwise the 5mb/5s limits are used.
+
+  WebM Muxer Guidelines https://www.webmproject.org/docs/container/
+  """
+  defp construct_clusters(cache, caps_type) do
+    fragments = reduce_with_limits(cache)
+    # Enum.reduce(fragments, {[]}, step_fragments_to_clusters)
+
+    Enum.map(fragments, fn {blocks, timecode} -> {:Cluster, blocks ++ [{:Timecode, timecode}]} end)
+    # clusters = Enum.reduce(blocks, {[], 0, 0, [], []}, &step_blocks_to_clusters()/2)
+    # cluster_data = [{:Timecode, 0} | blocks]
+
+    # {:Cluster, cluster_data}
+  end
+
+  # def step_blocks_to_clusters(fragment, acc) do
+  #   {:SimpleBlock, {timecode, _data, _caps_type}} = fragment # FIXME:
+  #   {result_clusters, cluster_time, cluster_bytes, valid_cluster_blocks, rest_processed_blocks} = acc
+  #   case
+  #   if
   # end
 
-  defp construct_cluster(cache) do
-    subelements = Enum.map(cache, fn data -> {:SimpleBlock, data} end)
-    subelements = [{:Timecode, 0} | subelements]
+  def reduce_with_limits(blocks) do
+    IO.puts("reduce")
+    acc = %{
+      chunks: [], # list of valid clusters to return
+      current_chunk: {[], 999_999_999},
+      current_bytes: 0,
+      current_time: 0,
+      previous_timecode: 0
+    }
+    # File.write!("dumpsko", inspect(blocks, limit: :infinity, pretty: true))
+    %{
+      chunks: chunks,
+      current_chunk: current_chunk,
+    } = Enum.reduce(Enum.reverse(blocks), acc, fn block, acc -> step_reduce(block, acc) end)
+    Enum.reverse([current_chunk | chunks])
+  end
 
-    {:Cluster, subelements}
+  def step_reduce(
+    {timecode, data, track_number, type} = block, %{
+      chunks: chunks,
+      current_chunk: {current_chunk, chunk_timecode},
+      current_bytes: current_bytes,
+      current_time: current_time,
+      previous_timecode: previous_timecode,
+    } = _acc) do
+
+    block_bytes = byte_size(data) + 7 #TODO: maybe don't add 7?
+    # this is only an approximation because VINTs are used
+    # 2 + # timecode
+    # 1 + # header_flags
+    # 1 + # track_number - only correct as long as less than 128 tracks in file
+    # 1 + # element_id
+    # 2 + # element_size - should be correct in most cases (122 to 16378 byte frames)
+
+    chunk_timecode = min(chunk_timecode, timecode)
+    current_bytes = current_bytes + block_bytes
+    current_time = current_time + Membrane.Time.milliseconds(timecode - previous_timecode)
+
+    # IO.inspect(acc)
+
+    if current_bytes >= @cluster_bytes_limit or current_time >= @cluster_time_limit or video_keyframe(block) and current_chunk != [] do
+      block = {:SimpleBlock, {0, data, track_number, type}}
+      %{
+        chunks: [{current_chunk, chunk_timecode} | chunks],
+        current_chunk: {[block], timecode},
+        current_bytes: 0,
+        current_time: 0,
+        previous_timecode: timecode
+      }
+    else
+      block = {:SimpleBlock, {timecode - chunk_timecode, data, track_number, type}}
+      %{
+        chunks: chunks,
+        current_chunk: {[block | current_chunk], chunk_timecode},
+        current_bytes: current_bytes,
+        current_time: current_time,
+        previous_timecode: timecode
+      }
+    end
+  end
+
+  # TODO: does not take audio into account
+  def video_fragments(blocks) do
+    # blocks |> Enum.filter(&keyframe/1) |> Enum.map(&elem(&1, 0)) |> IO.inspect()
+    # if there is some video track:
+      # split on video keyframes
+    blocks |> Bunch.Enum.chunk_by_prev(fn _x, y -> not video_keyframe(y) end)
+      # TODO: now if we have bad clusters: 5s/5mb print warnings but nothing can be done
+      # if some cluster exceeds 32.67 seconds that's unplayable TODO: check inside simpleblock? less expensive to check here
+      # I guess this can still be serialized and it should work for 30 seconds
+    # else if there is only audio
+      # reduce with 5s 5mb limit
+  end
+
+  def video_keyframe({_timecode, _data, _track_number, type} = block) do
+    if type == :vp8 or type == :vp9 do
+      keyframe(block)
+    else
+      false
+    end
+  end
+
+  def keyframe({_timecode, data, _track_number, type} = _block) do
+    case type do
+      :opus -> true
+      :vorbis -> true
+      :vp8 -> Serializer.vp8_frame_type(data) == 0
+      :vp9 -> Serializer.vp9_frame_type(data) == 0
+      _ -> raise "unknown codec #{type}"
+    end
   end
 
   # https://www.matroska.org/technical/cues.html

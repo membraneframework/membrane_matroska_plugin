@@ -124,9 +124,9 @@ defmodule Membrane.WebM.MuxerTest do
     Testing.Pipeline.play(pipeline)
     assert_pipeline_playback_changed(pipeline, _, :playing)
 
-    assert_start_of_stream(pipeline, :sink)
+    assert_start_of_stream(pipeline, :sink, :timeout, 2_000)
 
-    assert_end_of_stream(pipeline, :muxer, :input)
+    assert_end_of_stream(pipeline, :sink)
 
     Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
     assert_pipeline_playback_changed(pipeline, _, :stopped)
