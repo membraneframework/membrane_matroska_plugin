@@ -32,7 +32,7 @@ defmodule Membrane.WebM.PrettyPrint do
 
     @impl true
     def handle_end_of_stream(:input, _ctx, state) do
-      IO.puts("Don't kill me - working. May take 20 seconds or so")
+      IO.puts("Don't kill me - working. May take 10 seconds or so")
       output = inspect(state.cache, limit: :infinity, pretty: true)
       {{:ok, buffer: {:output, %Buffer{payload: output}}}, state}
     end
@@ -56,8 +56,7 @@ defmodule Membrane.WebM.PrettyPrint do
       children = [
         source: %Membrane.File.Source{
           location: options.input,
-          # FIXME: if this is set to 1_000_000 then parser sends only first element
-          chunk_size: 300
+          chunk_size: 1_000_000
         },
         parser: Membrane.WebM.Parser,
         printer: Printer,
@@ -77,9 +76,9 @@ defmodule Membrane.WebM.PrettyPrint do
     end
   end
 
-  # test "parse and pretty print a webm file" do
-  #   run("test/results/muxed_vp9.webm", "test/results/demuxed_vp9.pretty")
-  # end
+  test "parse and pretty print a webm file" do
+    run("test/results/muxed_opus.webm", "test/results/demuxed_opus_pretty.raw")
+  end
 
   defp run(input, output) do
     {:ok, pipeline} =
@@ -95,7 +94,7 @@ defmodule Membrane.WebM.PrettyPrint do
     Testing.Pipeline.play(pipeline)
 
     # needs to be a long timeout to write everything to file
-    assert_end_of_stream(pipeline, :sink, :timeout, 100_000)
+    assert_end_of_stream(pipeline, :printer, :input, 100_000)
 
     Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
   end

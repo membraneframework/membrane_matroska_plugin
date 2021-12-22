@@ -28,7 +28,7 @@ defmodule Membrane.WebM.Demuxer do
     caps: :any
 
   defmodule State do
-    defstruct timecodescale: nil, cache: [], tracks: %{}
+    defstruct timestamp_scale: nil, cache: [], tracks: %{}
   end
 
   @impl true
@@ -59,17 +59,17 @@ defmodule Membrane.WebM.Demuxer do
         :Info ->
           # scale of block timecodes in nanoseconds
           # should be 1_000_000 i.e. 1 ms
-          {[], %State{state | timecodescale: data[:TimecodeScale]}}
+          {[], %State{state | timestamp_scale: data[:TimestampScale]}}
 
         :Tracks ->
-          tracks = identify_tracks(data, state.timecodescale)
+          tracks = identify_tracks(data, state.timestamp_scale)
           actions = notify_new_track(tracks)
           {actions, %State{state | tracks: tracks}}
 
         :Cluster ->
           {active, inactive} =
             data
-            |> cluster_to_buffers(state.timecodescale)
+            |> cluster_to_buffers(state.timestamp_scale)
             |> Enum.split_with(fn {id, _buffer} -> state.tracks[id].active end)
 
           {prepare_output_buffers(active), %State{state | cache: state.cache ++ inactive}}

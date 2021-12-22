@@ -24,60 +24,60 @@ defmodule Membrane.WebM.Parser.EBML do
 
   alias Membrane.WebM.Schema
 
-  @doc "left for reference but shouldn't be used"
-  def parse_vint(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
+  @doc "left for reference but shouldn't be used. unsafe - doesn't check if first byte or `vint_width` + 1 bytes are available"
+  def parse_vint!(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
     vint_width = get_vint_width(first_byte)
     <<vint_bytes::binary-size(vint_width), rest::binary>> = bytes
     <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
     vint_data = get_vint_data(vint, vint_width)
     element_id = Integer.to_string(vint, 16)
 
-    %{
-      vint: %{
-        vint: vint,
-        vint_width: vint_width,
-        vint_data: vint_data,
-        element_id: element_id
-      },
-      rest: rest
-    }
+     %{
+       vint: %{
+         vint: vint,
+         vint_width: vint_width,
+         vint_data: vint_data,
+         element_id: element_id
+       },
+       rest: rest
+     }
   end
 
   @doc """
   Returns an EBML element's name, type and data
   """
   def decode_element(bytes) do
-    {id, bytes} = decode_element_id(bytes)
-    {data_size, bytes} = decode_vint(bytes)
-    name = Schema.element_id_to_name(id)
-    type = Schema.element_type(name)
-
-    # `Segment` is a special element requiring different behaviour of the parser
-    # the parser should only wait for more bytes in case of top-level children elements of `Segment`, not the `Segment` itself
-    if name == :Segment do
-      {:ignore_element_header, bytes}
-    else
-      case split_bytes(bytes, data_size) do
-        {data, bytes} ->
+    with {:ok, {id, bytes}} <- decode_element_id(bytes),
+         {:ok, {data_size, bytes}} <- decode_vint(bytes) do
+      name = Schema.element_id_to_name(id)
+      type = Schema.element_type(name)
+      # `Segment` is a special element requiring different behaviour of the parser
+      # the parser should only wait for more bytes in case of top-level children elements of `Segment`, not the `Segment` itself
+      if name == :Segment do
+        {:ignore_element_header, bytes}
+      else
+        with {:ok, {data, bytes}} <- split_bytes(bytes, data_size) do
           # TODO: remove; only for debugging
           if name == :Unknown do
-            IO.warn("unknown element ID: #{id}")
+            IO.warn("Unknown element ID: #{id}")
           end
 
-          {name, type, data, bytes}
-
-        :need_more_bytes ->
-          :need_more_bytes
+          {:ok, {name, type, data, bytes}}
+        else
+          {:error, reason} -> {:error, reason}
+        end
       end
+    else
+      {:error, reason} -> {:error, reason}
     end
   end
 
   defp split_bytes(bytes, how_many) do
     if how_many > byte_size(bytes) do
-      :need_more_bytes
+      {:error, :need_more_bytes}
     else
       <<bytes::binary-size(how_many), rest::binary>> = bytes
-      {bytes, rest}
+      {:ok, {bytes, rest}}
     end
   end
 
@@ -88,19 +88,33 @@ defmodule Membrane.WebM.Parser.EBML do
   """
   def decode_element_id(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
     vint_width = get_vint_width(first_byte)
-    <<vint_bytes::binary-size(vint_width), rest::binary>> = bytes
-    <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
+    case bytes do
+      <<vint_bytes::binary-size(vint_width), rest::binary>> ->
+        <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
+        {:ok, {Integer.to_string(vint, 16), rest}}
+      _too_short ->
+        {:error, :need_more_bytes}
+    end
+  end
 
-    {Integer.to_string(vint, 16), rest}
+  def decode_element_id(_too_short) do
+    {:error, :need_more_bytes}
   end
 
   @doc "Returns the number encoded in the VINT_DATA field of the VINT"
   def decode_vint(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
     vint_width = get_vint_width(first_byte)
-    <<vint_bytes::binary-size(vint_width), rest::binary>> = bytes
-    <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
+    case bytes do
+      <<vint_bytes::binary-size(vint_width), rest::binary>> ->
+        <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
+        {:ok, {get_vint_data(vint, vint_width), rest}}
+      _too_short ->
+        {:error, :need_more_bytes}
+    end
+  end
 
-    {get_vint_data(vint, vint_width), rest}
+  def decode_vint(_too_short) do
+    {:error, :need_more_bytes}
   end
 
   # the numbers are bit masks for extracting the data part of a VINT

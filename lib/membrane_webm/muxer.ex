@@ -163,7 +163,7 @@ defmodule Membrane.WebM.Muxer do
     |> Enum.map(fn {blocks, timecode} -> {:Cluster, blocks ++ [{:Timecode, timecode}]} end)
   end
 
-def step_reduce_with_limits(
+  def step_reduce_with_limits(
         {absolute_time, data, track_number, type} = block,
         %{
           clusters: clusters,
@@ -184,6 +184,7 @@ def step_reduce_with_limits(
     cluster_time = min(cluster_time, absolute_time)
     current_bytes = current_bytes + byte_size(data) + 7
     current_time = current_time + Membrane.Time.milliseconds(absolute_time - previous_time)
+
     if current_time > Membrane.Time.milliseconds(32768) do
       IO.warn("Simpleblock timecode overflow. Still writing but some data will be lost.")
     end

@@ -74,35 +74,46 @@ defmodule Membrane.WebM.Parser do
   @impl true
   def handle_process(:input, %Buffer{payload: payload}, _context, %{acc: acc}) do
     unparsed = acc <> payload
+    {parsed, unparsed} = parse_many_many([], unparsed)
 
-    # FIXME: should call parse again if has enough data to parse next element
+    case parsed do
+      [] -> {{:ok, redemand: :output}, %{acc: unparsed}}
+      _ -> {{:ok, to_buffers(parsed)}, %{acc: unparsed}}
+    end
+  end
+
+  defp to_buffers(elements) do
+    Enum.reduce(elements, [], fn x, acc -> [to_buffer(x) | acc] end)
+  end
+
+  defp to_buffer({name, data}) do
+    {:buffer, {:output, %Buffer{payload: data, metadata: %{webm: %{element_name: name}}}}}
+  end
+
+  # FIXME: great name
+  defp parse_many_many(parsed, unparsed) do
     case parse_many(unparsed, []) do
-      {:return, {name, data}, rest} ->
-        {{:ok,
-          buffer: {:output, %Buffer{payload: data, metadata: %{webm: %{element_name: name}}}}},
-         %{acc: rest}}
-
-      :need_more_bytes ->
-        {{:ok, redemand: :output}, %{acc: unparsed}}
+      {:ok, {name, data}, rest} -> parse_many_many([{name, data} | parsed], rest)
+      {:error, :need_more_bytes} -> {parsed, unparsed}
     end
   end
 
   defp parse_many(bytes, acc) do
     case parse_element(bytes) do
       {{name, _data} = element, rest} when name in @top_level_elements ->
-        {:return, element, rest}
+        {:ok, element, rest}
 
-      {:return, element, rest} ->
-        {:return, element, rest}
+      {:ok, element, rest} ->
+        {:ok, element, rest}
+
+      {:error, :need_more_bytes} ->
+        {:error, :need_more_bytes}
 
       {element, <<>>} ->
         [element | acc]
 
       {element, rest} ->
         parse_many(rest, [element | acc])
-
-      :need_more_bytes ->
-        :need_more_bytes
     end
   end
 
@@ -111,12 +122,12 @@ defmodule Membrane.WebM.Parser do
       {:ignore_element_header, element_data} ->
         parse_many(element_data, [])
 
-      {name, type, data, rest} ->
+      {:ok, {name, type, data, rest}} ->
         element = {name, parse(data, type, name)}
         {element, rest}
 
-      :need_more_bytes ->
-        :need_more_bytes
+      {:error, :need_more_bytes} ->
+        {:error, :need_more_bytes}
     end
   end
 
@@ -245,7 +256,7 @@ defmodule Membrane.WebM.Parser do
   # https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#rfc.section.6.2.4.4
   defp parse(bytes, :binary, :SimpleBlock) do
     # track_number is a vint with size 1 or 2 bytes
-    {track_number, body} = EBML.decode_vint(bytes)
+    {:ok, {track_number, body}} = EBML.decode_vint(bytes)
 
     <<timecode::integer-signed-big-size(16), keyframe::1, reserved::3, invisible::1, lacing::2,
       discardable::1, data::binary>> = body
