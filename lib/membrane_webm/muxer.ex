@@ -147,7 +147,7 @@ defmodule Membrane.WebM.Muxer do
       current_cluster: {[], 999_999_999},
       current_bytes: 0,
       current_time: 0,
-      previous_timecode: 0
+      previous_time: 0
     }
 
     %{
@@ -163,49 +163,51 @@ defmodule Membrane.WebM.Muxer do
     |> Enum.map(fn {blocks, timecode} -> {:Cluster, blocks ++ [{:Timecode, timecode}]} end)
   end
 
-  def step_reduce_with_limits(
-        {timecode, data, track_number, type} = block,
+def step_reduce_with_limits(
+        {absolute_time, data, track_number, type} = block,
         %{
           clusters: clusters,
-          current_cluster: {current_cluster, cluster_timecode},
+          current_cluster: {current_cluster, cluster_time},
           current_bytes: current_bytes,
           current_time: current_time,
-          previous_timecode: previous_timecode
+          previous_time: previous_time
         } = _acc
       ) do
-    # TODO: maybe don't add 7?
-    block_bytes = byte_size(data) + 7
-    # this is only an approximation because VINTs are used
-    # 2 + # timecode
-    # 1 + # header_flags
-    # 1 + # track_number - only correct as long as less than 128 tracks in file
-    # 1 + # element_id
-    # 2 + # element_size - should be correct in most cases (122 to 16378 byte frames)
+    # TODO: maybe don't add 7? doesn't make much of a difference
+    # 7 is only an approximation because VINTs (variable-length ints) are used
+    # +2 # timecode
+    # +1 # header_flags
+    # +1 # track_number - only correct as long as less than 128 tracks in file
+    # +1 # element_id
+    # +2 # element_size - should be correct in most cases (122 to 16378 byte frames)
 
-    cluster_timecode = min(cluster_timecode, timecode)
-    current_bytes = current_bytes + block_bytes
-    current_time = current_time + Membrane.Time.milliseconds(timecode - previous_timecode)
+    cluster_time = min(cluster_time, absolute_time)
+    current_bytes = current_bytes + byte_size(data) + 7
+    current_time = current_time + Membrane.Time.milliseconds(absolute_time - previous_time)
+    if current_time > Membrane.Time.milliseconds(32768) do
+      IO.warn("Simpleblock timecode overflow. Still writing but some data will be lost.")
+    end
 
     if current_bytes >= @cluster_bytes_limit or current_time >= @cluster_time_limit or
          (Codecs.video_keyframe(block) and current_cluster != []) do
       block = {:SimpleBlock, {0, data, track_number, type}}
 
       %{
-        clusters: [{current_cluster, cluster_timecode} | clusters],
-        current_cluster: {[block], timecode},
+        clusters: [{current_cluster, cluster_time} | clusters],
+        current_cluster: {[block], absolute_time},
         current_bytes: 0,
         current_time: 0,
-        previous_timecode: timecode
+        previous_time: absolute_time
       }
     else
-      block = {:SimpleBlock, {timecode - cluster_timecode, data, track_number, type}}
+      block = {:SimpleBlock, {absolute_time - cluster_time, data, track_number, type}}
 
       %{
         clusters: clusters,
-        current_cluster: {[block | current_cluster], cluster_timecode},
+        current_cluster: {[block | current_cluster], cluster_time},
         current_bytes: current_bytes,
         current_time: current_time,
-        previous_timecode: timecode
+        previous_time: absolute_time
       }
     end
   end

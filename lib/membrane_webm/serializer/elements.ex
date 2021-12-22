@@ -1,4 +1,7 @@
 defmodule Membrane.WebM.Serializer.Elements do
+  @moduledoc """
+  Module for constructing the top-level elements constituting a WebM file
+  """
   alias Membrane.WebM.Parser.Codecs
 
   alias Membrane.WebM.Serializer
