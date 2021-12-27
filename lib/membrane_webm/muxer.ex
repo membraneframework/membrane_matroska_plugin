@@ -38,7 +38,7 @@ defmodule Membrane.WebM.Muxer do
   alias Membrane.WebM.Serializer.Elements
 
   def_input_pad :input,
-    availability: :always,
+    availability: :on_request,
     mode: :pull,
     demand_unit: :buffers,
     caps: [Opus, VP8, VP9]
@@ -55,26 +55,38 @@ defmodule Membrane.WebM.Muxer do
 
   defmodule State do
     defstruct cache: [],
+              pads: %{},
+              tracks: %{},
+              active: 0,
               caps: nil,
               current_cluster_timecode: 0,
               current_block_timecode: nil,
               first_frame: true,
-              caps_type: nil
+              contains_video: false
   end
 
   @impl true
-  def handle_caps(:input, %Opus{} = caps, _context, state) do
-    {:ok, %State{state | caps: caps, caps_type: :opus}}
+  def handle_caps(Pad.ref(:input, id), %Opus{} = caps, _context, state) do
+    pads = Map.put(state.pads, id, caps)
+    track_num = length(Map.keys(state.tracks)) + 1
+    tracks = Map.put(state.tracks, id, track_num)
+    {{:ok, demand: Pad.ref(:input, id)}, %State{state | pads: pads, tracks: tracks, active: state.active + 1}}
   end
 
   @impl true
-  def handle_caps(:input, %VP8{width: _width, height: _height} = caps, _context, state) do
-    {:ok, %State{state | caps: caps, caps_type: :vp8}}
+  def handle_caps(Pad.ref(:input, id), %VP8{} = caps, _context, state) do
+    pads = Map.put(state.pads, id, caps)
+    track_num = length(Map.keys(state.tracks)) + 1
+    tracks = Map.put(state.tracks, id, track_num)
+    {{:ok, demand: Pad.ref(:input, id)},%State{state | contains_video: true, pads: pads, tracks: tracks, active: state.active + 1}}
   end
 
   @impl true
-  def handle_caps(:input, %VP9{width: _width, height: _height} = caps, _context, state) do
-    {:ok, %State{state | caps: caps, caps_type: :vp9}}
+  def handle_caps(Pad.ref(:input, id), %VP9{} = caps, _context, state) do
+    pads = Map.put(state.pads, id, caps)
+    track_num = length(Map.keys(state.tracks)) + 1
+    tracks = Map.put(state.tracks, id, track_num)
+    {{:ok, demand: Pad.ref(:input, id)},%State{state | contains_video: true, pads: pads, tracks: tracks, active: state.active + 1}}
   end
 
   @impl true
@@ -84,41 +96,51 @@ defmodule Membrane.WebM.Muxer do
 
   @impl true
   def handle_demand(:output, _size, :buffers, _context, state) do
-    {{:ok, demand: :input}, state}
+    {{:ok, Enum.map(state.pads, fn {id, _type} -> {:demand, Pad.ref(:input, id)} end)}, state}
   end
 
   # TODO: for now accumulates everything in cache and serializes at end of the input stream which is suboptimal
   # TODO: ivf sends pts while muxer needs dts
   @impl true
-  def handle_process(:input, %Buffer{payload: data, pts: timestamp}, _context, state) do
+  def handle_process(Pad.ref(:input, id), %Buffer{payload: data, pts: timestamp}, _context, state) do
     {{:ok, redemand: :output},
      %State{
        state
-       | cache: [{div(timestamp, @timestamp_scale), data, 1, state.caps_type} | state.cache]
+       | cache: [{div(timestamp, @timestamp_scale), data, state.tracks[id], state.pads[id]} | state.cache]
      }}
   end
 
   @impl true
-  def handle_end_of_stream(:input, _context, state) do
-    info = Elements.construct_info()
-    tracks = Elements.construct_tracks(state.caps)
-    tags = Elements.construct_tags()
-    seek_head = Elements.construct_seek_head([info, tracks, tags])
-    void = Elements.construct_void(seek_head)
-    clusters = construct_clusters(state.cache)
+  def handle_end_of_stream(Pad.ref(:input, id), _context, state) do
+    if state.active == 1 do
+      info = Elements.construct_info()
+      tracks = Elements.construct_tracks(state.pads, state.tracks)
+      tags = Elements.construct_tags()
+      seek_head = Elements.construct_seek_head([info, tracks, tags])
+      void = Elements.construct_void(seek_head)
+      blocks = Enum.sort(state.cache, fn b1, b2 -> elem(b1, 0) >= elem(b2, 0) end)
+      # blocks = state.cache
+      clusters = construct_clusters(blocks)
 
-    ebml_header = Serializer.serialize(Elements.construct_ebml_header())
+      ebml_header = Serializer.serialize(Elements.construct_ebml_header())
 
-    segment =
-      Serializer.serialize(
-        {:Segment, Enum.reverse([seek_head, void, info, tracks, tags] ++ clusters)}
-      )
+      segment =
+        Serializer.serialize(
+          {:Segment, Enum.reverse([seek_head, void, info, tracks, tags] ++ clusters)}
+        )
 
-    webm_bytes = ebml_header <> segment
+      webm_bytes = ebml_header <> segment
 
-    {{:ok, buffer: {:output, %Buffer{payload: webm_bytes}}, end_of_stream: :output},
-     %State{first_frame: false}}
+      {{:ok, buffer: {:output, %Buffer{payload: webm_bytes}}, end_of_stream: :output},
+      %State{first_frame: false}}
+    else
+      {:ok, %State{ state | active: state.active - 1}}
+    end
   end
+
+  # defp block_sorter({time1, _d1, _tr1, type1}, {time2, _d2, _tr2, type2}) do
+  #   time1 < time2
+  # end
 
   @doc """
   Pack accumulated frames into Blocks and group them into Clusters.
@@ -185,12 +207,12 @@ defmodule Membrane.WebM.Muxer do
     current_bytes = current_bytes + byte_size(data) + 7
     current_time = current_time + Membrane.Time.milliseconds(absolute_time - previous_time)
 
-    if current_time > Membrane.Time.milliseconds(32768) do
+    # 32767 is max valid value of a simpleblock timecode (max signed_int16)
+    if current_time > Membrane.Time.milliseconds(32767) do
       IO.warn("Simpleblock timecode overflow. Still writing but some data will be lost.")
     end
 
-    if current_bytes >= @cluster_bytes_limit or current_time >= @cluster_time_limit or
-         (Codecs.video_keyframe(block) and current_cluster != []) do
+    if current_bytes >= @cluster_bytes_limit or current_time >= @cluster_time_limit or Codecs.video_keyframe(block) do
       block = {:SimpleBlock, {0, data, track_number, type}}
 
       %{

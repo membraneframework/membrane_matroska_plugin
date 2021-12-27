@@ -9,7 +9,7 @@ defmodule Membrane.WebM.Serializer do
   use Bitwise
 
   @print_blocks false
-  @print_elements true
+  @print_elements false
 
   def serialize({name, data}) do
     type = Schema.element_type(name)

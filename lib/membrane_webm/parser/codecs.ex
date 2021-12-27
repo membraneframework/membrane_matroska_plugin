@@ -35,19 +35,23 @@ defmodule Membrane.WebM.Parser.Codecs do
   end
 
   def video_keyframe({_timecode, _data, _track_number, type} = block) do
-    if type == :vp8 or type == :vp9 do
+    case type do
+      %Membrane.VP8{} ->
       is_keyframe(block)
-    else
+      %Membrane.VP9{} ->
+      is_keyframe(block)
+      _ ->
       false
     end
   end
 
   def is_keyframe({_timecode, data, _track_number, type} = _block) do
     case type do
-      :opus -> true
+      %Membrane.Opus{} -> true
+      # FIXME: placeholder -> Membrane doesn't support Vorbis audio
       :vorbis -> true
-      :vp8 -> vp8_frame_type(data) == 0
-      :vp9 -> vp9_frame_type(data) == 0
+      %Membrane.VP8{} -> vp8_frame_type(data) == 0
+      %Membrane.VP9{} -> vp9_frame_type(data) == 0
       _ -> raise "unknown codec #{type}"
     end
   end

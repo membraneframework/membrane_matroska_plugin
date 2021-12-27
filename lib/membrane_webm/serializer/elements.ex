@@ -26,13 +26,11 @@ defmodule Membrane.WebM.Serializer.Elements do
     }
   end
 
-  def construct_tracks(caps) do
-    {:Tracks, [construct_track_entry(caps)]}
+  def construct_tracks(pads, tracks) do
+    {:Tracks, Enum.map(Enum.zip(pads, tracks), &construct_track_entry/1)}
   end
 
-  defp construct_track_entry(%Opus{channels: channels} = _caps) do
-    track_number = 1
-
+  defp construct_track_entry({{id, %Opus{channels: channels}}, {_id, track_number}}) do
     {:TrackEntry,
      [
        # CodecPrivate is identical to the ogg ID header specified here:
@@ -73,15 +71,13 @@ defmodule Membrane.WebM.Serializer.Elements do
        #  TrackUID is an 8 byte number that MUST NOT be 0
        #  FIXME: :rand.uniform((1 <<< 56) - 2) works for now but :rand.uniform((1 <<< 64) - 2) should be used instead
        # Probably a problem with Membrane.WebM.EBML encoding of 8-byte numbers
-       TrackUID: 6_979_663_406_594_824_908,
+       TrackUID: id,
        # The track number as used in the Block Header (using more than 127 tracks is not encouraged, though the design allows an unlimited number).
        TrackNumber: track_number
      ]}
   end
 
-  defp construct_track_entry(%VP8{width: width, height: height}) do
-    track_number = 1
-
+  defp construct_track_entry({{id, %VP8{width: width, height: height}}, {_id, track_number}}) do
     {:TrackEntry,
      [
        Video: [
@@ -103,14 +99,12 @@ defmodule Membrane.WebM.Serializer.Elements do
        CodecID: "V_VP8",
        Language: "und",
        FlagLacing: 0,
-       TrackUID: 13_024_037_295_712_538_108,
+       TrackUID: id,
        TrackNumber: track_number
      ]}
   end
 
-  defp construct_track_entry(%VP9{width: width, height: height}) do
-    track_number = 1
-
+  defp construct_track_entry({{id, %VP9{width: width, height: height}}, {_id, track_number}}) do
     {:TrackEntry,
      [
        Video: [
@@ -138,7 +132,7 @@ defmodule Membrane.WebM.Serializer.Elements do
        CodecID: "V_VP9",
        Language: "und",
        FlagLacing: 0,
-       TrackUID: 13_024_037_295_712_538_108,
+       TrackUID: id,
        TrackNumber: track_number
      ]}
   end

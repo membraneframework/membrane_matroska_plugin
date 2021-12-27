@@ -32,15 +32,15 @@ defmodule Membrane.WebM.Parser.EBML do
     vint_data = get_vint_data(vint, vint_width)
     element_id = Integer.to_string(vint, 16)
 
-     %{
-       vint: %{
-         vint: vint,
-         vint_width: vint_width,
-         vint_data: vint_data,
-         element_id: element_id
-       },
-       rest: rest
-     }
+    %{
+      vint: %{
+        vint: vint,
+        vint_width: vint_width,
+        vint_data: vint_data,
+        element_id: element_id
+      },
+      rest: rest
+    }
   end
 
   @doc """
@@ -88,10 +88,12 @@ defmodule Membrane.WebM.Parser.EBML do
   """
   def decode_element_id(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
     vint_width = get_vint_width(first_byte)
+
     case bytes do
       <<vint_bytes::binary-size(vint_width), rest::binary>> ->
         <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
         {:ok, {Integer.to_string(vint, 16), rest}}
+
       _too_short ->
         {:error, :need_more_bytes}
     end
@@ -104,10 +106,12 @@ defmodule Membrane.WebM.Parser.EBML do
   @doc "Returns the number encoded in the VINT_DATA field of the VINT"
   def decode_vint(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
     vint_width = get_vint_width(first_byte)
+
     case bytes do
       <<vint_bytes::binary-size(vint_width), rest::binary>> ->
         <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
         {:ok, {get_vint_data(vint, vint_width), rest}}
+
       _too_short ->
         {:error, :need_more_bytes}
     end
