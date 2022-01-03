@@ -66,33 +66,22 @@ defmodule Membrane.WebM.Muxer do
   end
 
   @impl true
-  def handle_caps(Pad.ref(:input, id), %Opus{} = caps, _context, state) do
+  def handle_caps(Pad.ref(:input, id), caps, _context, state) do
     pads = Map.put(state.pads, id, caps)
     track_num = length(Map.keys(state.tracks)) + 1
     tracks = Map.put(state.tracks, id, track_num)
 
-    {{:ok, demand: Pad.ref(:input, id)},
-     %State{state | pads: pads, tracks: tracks, active: state.active + 1}}
-  end
-
-  @impl true
-  def handle_caps(Pad.ref(:input, id), %VP8{} = caps, _context, state) do
-    pads = Map.put(state.pads, id, caps)
-    track_num = length(Map.keys(state.tracks)) + 1
-    tracks = Map.put(state.tracks, id, track_num)
-
-    {{:ok, demand: Pad.ref(:input, id)},
-     %State{state | contains_video: true, pads: pads, tracks: tracks, active: state.active + 1}}
-  end
-
-  @impl true
-  def handle_caps(Pad.ref(:input, id), %VP9{} = caps, _context, state) do
-    pads = Map.put(state.pads, id, caps)
-    track_num = length(Map.keys(state.tracks)) + 1
-    tracks = Map.put(state.tracks, id, track_num)
-
-    {{:ok, demand: Pad.ref(:input, id)},
-     %State{state | contains_video: true, pads: pads, tracks: tracks, active: state.active + 1}}
+    case caps do
+      %Opus{} ->
+        {{:ok, demand: Pad.ref(:input, id)},
+         %State{state | pads: pads, tracks: tracks, active: state.active + 1}}
+      %VP8{} ->
+        {{:ok, demand: Pad.ref(:input, id)},
+          %State{state | contains_video: true, pads: pads, tracks: tracks, active: state.active + 1}}
+      %VP9{} ->
+        {{:ok, demand: Pad.ref(:input, id)},
+          %State{state | contains_video: true, pads: pads, tracks: tracks, active: state.active + 1}}
+    end
   end
 
   @impl true
@@ -105,7 +94,7 @@ defmodule Membrane.WebM.Muxer do
     {{:ok, Enum.map(state.pads, fn {id, _type} -> {:demand, Pad.ref(:input, id)} end)}, state}
   end
 
-  # TODO: for now accumulates everything in cache and serializes at end of the input stream which is suboptimal
+  # TODO: for now accumulates everything in cache and serializes at end of input stream which is suboptimal
   # TODO: ivf sends pts while muxer needs dts
   @impl true
   def handle_process(Pad.ref(:input, id), %Buffer{payload: data, pts: timestamp}, _context, state) do
@@ -146,7 +135,7 @@ defmodule Membrane.WebM.Muxer do
     end
   end
 
-  defp block_sorter({time1, _d1, _tr1, codec1}, {time2, _d2, _tr2, codec2}) do
+  defp block_sorter({time1, _data1, _track1, codec1}, {time2, _data2, _track2, codec2}) do
     if time1 < time2 do
       true
     else
@@ -159,7 +148,7 @@ defmodule Membrane.WebM.Muxer do
 
   A Matroska file SHOULD contain at least one Cluster Element.
   Cluster Elements contain frames of every track sorted by timestamp in monotonically increasing order.
-  It is RECOMMENDED that the size of each individual Cluster Element be limited to store no more than 5 seconds or 5 megabytes (but 32.767 is possible).
+  It is RECOMMENDED that the size of each individual Cluster Element be limited to store no more than 5 seconds or 5 megabytes (but 32.767 seconds is possible).
 
   Every Cluster Element MUST contain a Timestamp Element - occuring once per cluster placed at the very beginning.
   All Block timestamps inside the Cluster are relative to that Cluster's Timestamp:
