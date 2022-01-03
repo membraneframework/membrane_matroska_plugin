@@ -73,7 +73,6 @@ defmodule Membrane.WebM.Schema do
            {"F7", :CueTrack},
            {"B2", :CueDuration},
            {"5378", :CueBlockNumber},
-           # data is stored here:
            {"1F43B675", :Cluster},
            # \Segment\Cluster
            {"A3", :SimpleBlock},
@@ -136,14 +135,13 @@ defmodule Membrane.WebM.Schema do
            {"B0", :PixelWidth},
            {"BA", :PixelHeight},
            {"9A", :FlagInterlaced},
-           # StereoMode
+           {"53B8", :StereoMode},
            #     Supported Modes: 0: mono, 1: side by side (left eye is first), 2: top-bottom (right eye is first), 3: top-bottom (left eye is first), 11: side by side (right eye is first)
            #     Unsupported Modes: 4: checkboard (right is first), 5: checkboard (left is first), 6: row interleaved (right is first), 7: row interleaved (left is first), 8: column interleaved (right is first), 9: column interleaved (left is first), 10: anaglyph (cyan/red)
            {"55B0", :Colour},
            # \Segment\Tracks\TrackEntry\Video\Colour
            {"55B7", :ChromaSitingHorz},
            {"55B8", :ChromaSitingVert},
-           # FIXME: start of new
            {"53C0", :AlphaMode},
            {"54AA", :PixelCropBottom},
            {"54BB", :PixelCropTop},
@@ -167,44 +165,40 @@ defmodule Membrane.WebM.Schema do
            {"47E2", :ContentEncKeyID},
            {"47E7", :ContentEncAESSettings},
            {"47E8", :AESSettingsCipherMode},
-           # changing location of the colour element in file https://www.webmproject.org/docs/container/#LuminanceMin
-           # Colour
-           # MatrixCoefficients
-           # BitsPerChannel
-           # ChromaSubsamplingHorz
-           # ChromaSubsamplingVert
-           # CbSubsamplingHorz
-           # CbSubsamplingVert
-           ### ChromaSitingHorz
-           ### ChromaSitingVert
-           # Range
-           # TransferCharacteristics
-           # Primaries
-           # MaxCLL
-           # MaxFALL
-           # MasteringMetadata
-           # PrimaryRChromaticityX
-           # PrimaryRChromaticityY
-           # PrimaryGChromaticityX
-           # PrimaryGChromaticityY
-           # PrimaryBChromaticityX
-           # PrimaryBChromaticityY
-           # WhitePointChromaticityX
-           # WhitePointChromaticityY
-           # LuminanceMax
-           # LuminanceMin
-           #         # Chapters
+           {"55B1", :MatrixCoefficients},
+           {"55B2", :BitsPerChannel},
+           {"55B3", :ChromaSubsamplingHorz},
+           {"55B4", :ChromaSubsamplingVert},
+           {"55B5", :CbSubsamplingHorz},
+           {"55B6", :CbSubsamplingVert},
+           {"55B9", :Range},
+           {"55BA", :TransferCharacteristics},
+           {"55BB", :Primaries},
+           {"55BC", :MaxCLL},
+           {"55BD", :MaxFALL},
+           {"55D0", :MasteringMetadata},
+           {"55D1", :PrimaryRChromaticityX},
+           {"55D2", :PrimaryRChromaticityY},
+           {"55D3", :PrimaryGChromaticityX},
+           {"55D4", :PrimaryGChromaticityY},
+           {"55D5", :PrimaryBChromaticityX},
+           {"55D6", :PrimaryBChromaticityY},
+           {"55D7", :WhitePointChromaticityX},
+           {"55D8", :WhitePointChromaticityY},
+           {"55D9", :LuminanceMax},
+           {"55DA", :LuminanceMin},
            # Chapters
-           # EditionEntry
-           # ChapterAtom
-           # ChapterUID
-           # ChapterStringUID
-           # ChapterTimeStart
-           # ChapterTimeEnd
-           # ChapterDisplay
-           # ChapString
-           # ChapLanguage
-           # ChapCountry
+           {"1043A770", :Chapters},
+           {"45B9", :EditionEntry},
+           {"B6", :ChapterAtom},
+           {"73C4", :ChapterUID},
+           {"5654", :ChapterStringUID},
+           {"91", :ChapterTimeStart},
+           {"92", :ChapterTimeEnd},
+           {"80", :ChapterDisplay},
+           {"85", :ChapString},
+           {"437C", :ChapLanguage},
+           {"437E", :ChapCountry},
            {"1549A966", :Info},
            # \Segment\Info
            {"2AD7B1", :TimestampScale},
@@ -295,6 +289,7 @@ defmodule Membrane.WebM.Schema do
     PixelWidth: %{type: :uint},
     PixelHeight: %{type: :uint},
     FlagInterlaced: %{type: :uint},
+    StereoMode: %{type: :uint},
     Colour: %{type: :master},
     ChromaSitingHorz: %{type: :uint},
     ChromaSitingVert: %{type: :uint},
@@ -319,7 +314,39 @@ defmodule Membrane.WebM.Schema do
     ContentEncAlgo: %{type: :uint},
     ContentEncKeyID: %{type: :binary},
     ContentEncAESSettings: %{type: :master},
-    # FIXME: end
+    MatrixCoefficients: %{type: :uint},
+    BitsPerChannel: %{type: :uint},
+    ChromaSubsamplingHorz: %{type: :uint},
+    ChromaSubsamplingVert: %{type: :uint},
+    CbSubsamplingHorz: %{type: :uint},
+    CbSubsamplingVert: %{type: :uint},
+    Range: %{type: :uint},
+    TransferCharacteristics: %{type: :uint},
+    Primaries: %{type: :uint},
+    MaxCLL: %{type: :uint},
+    MaxFALL: %{type: :uint},
+    MasteringMetadata: %{type: :master},
+    PrimaryRChromaticityX: %{type: :float},
+    PrimaryRChromaticityY: %{type: :float},
+    PrimaryGChromaticityX: %{type: :float},
+    PrimaryGChromaticityY: %{type: :float},
+    PrimaryBChromaticityX: %{type: :float},
+    PrimaryBChromaticityY: %{type: :float},
+    WhitePointChromaticityX: %{type: :float},
+    WhitePointChromaticityY: %{type: :float},
+    LuminanceMax: %{type: :float},
+    LuminanceMin: %{type: :float},
+    Chapters: %{type: :master},
+    EditionEntry: %{type: :master},
+    ChapterAtom: %{type: :master},
+    ChapterUID: %{type: :uint},
+    ChapterStringUID: %{type: :utf_8},
+    ChapterTimeStart: %{type: :uint},
+    ChapterTimeEnd: %{type: :uint},
+    ChapterDisplay: %{type: :master},
+    ChapString: %{type: :utf_8},
+    ChapLanguage: %{type: :string},
+    ChapCountry: %{type: :string},
     AESSettingsCipherMode: %{type: :uint},
     Info: %{type: :master},
     TimestampScale: %{type: :uint},
