@@ -128,7 +128,6 @@ defmodule Membrane.WebM.Muxer do
       seek_head = Elements.construct_seek_head([info, tracks, tags])
       void = Elements.construct_void(seek_head)
       blocks = Enum.sort(state.cache, &block_sorter/2)
-      # blocks = state.cache
       clusters = construct_clusters(blocks)
 
       ebml_header = Serializer.serialize(Elements.construct_ebml_header())
@@ -148,10 +147,10 @@ defmodule Membrane.WebM.Muxer do
   end
 
   defp block_sorter({time1, _d1, _tr1, codec1}, {time2, _d2, _tr2, codec2}) do
-    if time1 > time2 do
+    if time1 < time2 do
       true
     else
-      not (Codecs.is_audio(codec1) and Codecs.is_video(codec2))
+      (Codecs.is_audio(codec1) and Codecs.is_video(codec2))
     end
   end
 
@@ -189,7 +188,7 @@ defmodule Membrane.WebM.Muxer do
       clusters: clusters,
       current_cluster: current_cluster
     } =
-      Enum.reduce(Enum.reverse(blocks), acc, fn block, acc ->
+      Enum.reduce(blocks, acc, fn block, acc ->
         step_reduce_with_limits(block, acc)
       end)
 
@@ -224,8 +223,6 @@ defmodule Membrane.WebM.Muxer do
     if current_time > Membrane.Time.milliseconds(32767) do
       IO.warn("Simpleblock timecode overflow. Still writing but some data will be lost.")
     end
-
-    IO.puts("current #{inspect(current_time)} limit #{inspect(@cluster_time_limit)}")
 
     if current_bytes >= @cluster_bytes_limit or current_time >= @cluster_time_limit or
          Codecs.video_keyframe(block) do
