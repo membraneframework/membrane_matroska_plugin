@@ -141,8 +141,8 @@ defmodule Membrane.WebM.MuxerTest do
         |> via_in(Pad.ref(:input, :random.uniform(1 <<< 64)))
         |> to(:muxer),
         link(:muxer)
-        # |> to(:parser)
-        # |> to(:printer)
+        |> to(:parser)
+        |> to(:printer)
         |> to(:sink)
       ]
 
@@ -224,7 +224,7 @@ defmodule Membrane.WebM.MuxerTest do
       %Testing.Pipeline.Options{
         module: TestPipelineMany,
         custom_args: %{
-          input_file: @fixtures_dir <> "1_vp9.ivf",
+          input_file: @fixtures_dir <> "1_vp8.ivf",
           output_file: @output_dir <> "combined.webm",
           buffers: buffers
         }
@@ -257,5 +257,4 @@ defmodule Membrane.WebM.MuxerTest do
   test "mux two streams into one file, then parse it for debugging" do
     test_many()
   end
-
 end

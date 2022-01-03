@@ -143,37 +143,30 @@ defmodule Membrane.WebM.Schema do
            # \Segment\Tracks\TrackEntry\Video\Colour
            {"55B7", :ChromaSitingHorz},
            {"55B8", :ChromaSitingVert},
-           #               # Video Start
-           # AlphaMode
-           # PixelCropBottom
-           # PixelCropTop
-           # PixelCropLeft
-           # PixelCropRight
-           # DisplayWidth
-           # DisplayHeight
-           # DisplayUnit
-           # AspectRatioType
-           # Deprecated	FrameRate
-           #               # Video End
-           #               # Audio Start
-           # Audio
-           # SamplingFrequency
-           # OutputSamplingFrequency
-           # Channels
-           # BitDepth
-           #               # Audio End
-           #               # Content Encoding Start
-           # ContentEncoding
-           # ContentEncodingOrder
-           # ContentEncodingScope
-           # ContentEncodingType
-           # ContentEncryption
-           # ContentEncAlgo
-           # ContentEncKeyID
-           # ContentEncAESSettings
-           # AESSettingsCipherMode
-           #               # Content Encoding End
-           #               # Colour
+           # FIXME: start of new
+           {"53C0", :AlphaMode},
+           {"54AA", :PixelCropBottom},
+           {"54BB", :PixelCropTop},
+           {"54CC", :PixelCropLeft},
+           {"54DD", :PixelCropRight},
+           {"54B0", :DisplayWidth},
+           {"54BA", :DisplayHeight},
+           {"54B2", :DisplayUnit},
+           {"54B3", :AspectRatioType},
+           {"E1", :Audio},
+           {"B5", :SamplingFrequency},
+           {"78B5", :OutputSamplingFrequency},
+           {"9F", :Channels},
+           {"6264", :BitDepth},
+           {"6240", :ContentEncoding},
+           {"5031", :ContentEncodingOrder},
+           {"5032", :ContentEncodingScope},
+           {"5033", :ContentEncodingType},
+           {"5035", :ContentEncryption},
+           {"47E1", :ContentEncAlgo},
+           {"47E2", :ContentEncKeyID},
+           {"47E7", :ContentEncAESSettings},
+           {"47E8", :AESSettingsCipherMode},
            # changing location of the colour element in file https://www.webmproject.org/docs/container/#LuminanceMin
            # Colour
            # MatrixCoefficients
@@ -305,6 +298,29 @@ defmodule Membrane.WebM.Schema do
     Colour: %{type: :master},
     ChromaSitingHorz: %{type: :uint},
     ChromaSitingVert: %{type: :uint},
+    AlphaMode: %{type: :uint},
+    PixelCropBottom: %{type: :uint},
+    PixelCropTop: %{type: :uint},
+    PixelCropLeft: %{type: :uint},
+    PixelCropRight: %{type: :uint},
+    DisplayWidth: %{type: :uint},
+    DisplayHeight: %{type: :uint},
+    DisplayUnit: %{type: :uint},
+    AspectRatioType: %{type: :uint},
+    SamplingFrequency: %{type: :float},
+    OutputSamplingFrequency: %{type: :float},
+    Channels: %{type: :uint},
+    BitDepth: %{type: :uint},
+    ContentEncoding: %{type: :master},
+    ContentEncodingOrder: %{type: :uint},
+    ContentEncodingScope: %{type: :uint},
+    ContentEncodingType: %{type: :uint},
+    ContentEncryption: %{type: :master},
+    ContentEncAlgo: %{type: :uint},
+    ContentEncKeyID: %{type: :binary},
+    ContentEncAESSettings: %{type: :master},
+    # FIXME: end
+    AESSettingsCipherMode: %{type: :uint},
     Info: %{type: :master},
     TimestampScale: %{type: :uint},
     Title: %{type: :utf_8},

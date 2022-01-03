@@ -1,4 +1,6 @@
 defmodule Membrane.WebM.Parser.Codecs do
+  alias Membrane.{Opus, VP8, VP9}
+
   def vp8_frame_type(<<frame_tag::binary-size(3), _rest::bitstring>>) do
     <<size_0::3, _show_frame::1, _version::3, keyframe::1, size_1, size_2>> = frame_tag
     <<_size::19>> = <<size_2, size_1, size_0::3>>
@@ -34,34 +36,36 @@ defmodule Membrane.WebM.Parser.Codecs do
     end
   end
 
-  def video_keyframe({_timecode, _data, _track_number, type} = block) do
-    case type do
-      %Membrane.VP8{} ->
-      is_keyframe(block)
-      %Membrane.VP9{} ->
-      is_keyframe(block)
-      _ ->
-      false
+  def video_keyframe({_timecode, _data, _track_number, codec} = block) do
+    is_video(codec) and keyframe_bit(block) == 1
+  end
+
+  def is_audio(codec) do
+    case codec do
+      %Opus{} -> true
+      _ -> false
     end
   end
 
-  def is_keyframe({_timecode, data, _track_number, type} = _block) do
-    case type do
-      %Membrane.Opus{} -> true
-      # FIXME: placeholder -> Membrane doesn't support Vorbis audio
-      :vorbis -> true
-      %Membrane.VP8{} -> vp8_frame_type(data) == 0
-      %Membrane.VP9{} -> vp9_frame_type(data) == 0
-      _ -> raise "unknown codec #{type}"
+  def is_video(codec) do
+    case codec do
+      %VP8{} -> true
+      %VP9{} -> true
+      _ -> false
     end
   end
 
-  def keyframe_bit(block) do
-    if is_keyframe(block) do
-      1
-    else
-      0
+  def keyframe_bit({_timecode, data, _track_number, codec} = _block) do
+    case codec do
+      %VP8{} -> boolean_to_integer(vp8_frame_type(data) == 0)
+      %VP9{} -> boolean_to_integer(vp9_frame_type(data) == 0)
+      %Opus{} -> 1
+      _ -> 0
     end
+  end
+
+  def boolean_to_integer(bool) do
+    if bool, do: 1, else: 0
   end
 
   # ID header of the Ogg Encapsulation for the Opus Audio Codec

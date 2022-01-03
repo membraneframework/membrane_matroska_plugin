@@ -70,7 +70,9 @@ defmodule Membrane.WebM.Muxer do
     pads = Map.put(state.pads, id, caps)
     track_num = length(Map.keys(state.tracks)) + 1
     tracks = Map.put(state.tracks, id, track_num)
-    {{:ok, demand: Pad.ref(:input, id)}, %State{state | pads: pads, tracks: tracks, active: state.active + 1}}
+
+    {{:ok, demand: Pad.ref(:input, id)},
+     %State{state | pads: pads, tracks: tracks, active: state.active + 1}}
   end
 
   @impl true
@@ -78,7 +80,9 @@ defmodule Membrane.WebM.Muxer do
     pads = Map.put(state.pads, id, caps)
     track_num = length(Map.keys(state.tracks)) + 1
     tracks = Map.put(state.tracks, id, track_num)
-    {{:ok, demand: Pad.ref(:input, id)},%State{state | contains_video: true, pads: pads, tracks: tracks, active: state.active + 1}}
+
+    {{:ok, demand: Pad.ref(:input, id)},
+     %State{state | contains_video: true, pads: pads, tracks: tracks, active: state.active + 1}}
   end
 
   @impl true
@@ -86,7 +90,9 @@ defmodule Membrane.WebM.Muxer do
     pads = Map.put(state.pads, id, caps)
     track_num = length(Map.keys(state.tracks)) + 1
     tracks = Map.put(state.tracks, id, track_num)
-    {{:ok, demand: Pad.ref(:input, id)},%State{state | contains_video: true, pads: pads, tracks: tracks, active: state.active + 1}}
+
+    {{:ok, demand: Pad.ref(:input, id)},
+     %State{state | contains_video: true, pads: pads, tracks: tracks, active: state.active + 1}}
   end
 
   @impl true
@@ -106,19 +112,22 @@ defmodule Membrane.WebM.Muxer do
     {{:ok, redemand: :output},
      %State{
        state
-       | cache: [{div(timestamp, @timestamp_scale), data, state.tracks[id], state.pads[id]} | state.cache]
+       | cache: [
+           {div(timestamp, @timestamp_scale), data, state.tracks[id], state.pads[id]}
+           | state.cache
+         ]
      }}
   end
 
   @impl true
-  def handle_end_of_stream(Pad.ref(:input, id), _context, state) do
+  def handle_end_of_stream(Pad.ref(:input, _id), _context, state) do
     if state.active == 1 do
       info = Elements.construct_info()
       tracks = Elements.construct_tracks(state.pads, state.tracks)
       tags = Elements.construct_tags()
       seek_head = Elements.construct_seek_head([info, tracks, tags])
       void = Elements.construct_void(seek_head)
-      blocks = Enum.sort(state.cache, fn b1, b2 -> elem(b1, 0) >= elem(b2, 0) end)
+      blocks = Enum.sort(state.cache, &block_sorter/2)
       # blocks = state.cache
       clusters = construct_clusters(blocks)
 
@@ -132,15 +141,19 @@ defmodule Membrane.WebM.Muxer do
       webm_bytes = ebml_header <> segment
 
       {{:ok, buffer: {:output, %Buffer{payload: webm_bytes}}, end_of_stream: :output},
-      %State{first_frame: false}}
+       %State{first_frame: false}}
     else
-      {:ok, %State{ state | active: state.active - 1}}
+      {:ok, %State{state | active: state.active - 1}}
     end
   end
 
-  # defp block_sorter({time1, _d1, _tr1, type1}, {time2, _d2, _tr2, type2}) do
-  #   time1 < time2
-  # end
+  defp block_sorter({time1, _d1, _tr1, codec1}, {time2, _d2, _tr2, codec2}) do
+    if time1 > time2 do
+      true
+    else
+      not (Codecs.is_audio(codec1) and Codecs.is_video(codec2))
+    end
+  end
 
   @doc """
   Pack accumulated frames into Blocks and group them into Clusters.
@@ -195,7 +208,7 @@ defmodule Membrane.WebM.Muxer do
           previous_time: previous_time
         } = _acc
       ) do
-    # TODO: maybe don't add 7? doesn't make much of a difference
+    # TODO: maybe don't add 7? doesn't make much difference
     # 7 is only an approximation because VINTs (variable-length ints) are used
     # +2 # timecode
     # +1 # header_flags
@@ -212,7 +225,10 @@ defmodule Membrane.WebM.Muxer do
       IO.warn("Simpleblock timecode overflow. Still writing but some data will be lost.")
     end
 
-    if current_bytes >= @cluster_bytes_limit or current_time >= @cluster_time_limit or Codecs.video_keyframe(block) do
+    IO.puts("current #{inspect(current_time)} limit #{inspect(@cluster_time_limit)}")
+
+    if current_bytes >= @cluster_bytes_limit or current_time >= @cluster_time_limit or
+         Codecs.video_keyframe(block) do
       block = {:SimpleBlock, {0, data, track_number, type}}
 
       %{
