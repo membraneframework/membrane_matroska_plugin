@@ -51,19 +51,9 @@ defmodule Membrane.WebM.Parser do
     mode: :pull,
     caps: :any
 
-  @top_level_elements [
-    :EBML,
-    :SeekHead,
-    :Info,
-    :Tracks,
-    :Tags,
-    :Cues,
-    :Cluster
-  ]
-
   @impl true
   def handle_init(_) do
-    {:ok, %{acc: <<>>}}
+    {:ok, %{acc: <<>>, header: False}}
   end
 
   @impl true
@@ -72,62 +62,80 @@ defmodule Membrane.WebM.Parser do
   end
 
   @impl true
-  def handle_process(:input, %Buffer{payload: payload}, _context, %{acc: acc}) do
+  def handle_process(:input, %Buffer{payload: payload}, _context, %{
+        acc: acc,
+        header: False
+      }) do
     unparsed = acc <> payload
-    {parsed, unparsed} = parse_many_many([], unparsed)
 
+    case consume_webm_header(unparsed) do
+      {:ok, rest} ->
+        {{:ok, redemand: :output}, %{acc: rest, header: True}}
+
+      {:error, :need_more_bytes} ->
+        {{:ok, redemand: :output}, %{acc: unparsed, header: False}}
+    end
+  end
+
+  @impl true
+  def handle_process(:input, %Buffer{payload: payload}, _context, %{acc: acc, header: True}) do
+    unparsed = acc <> payload
+    {:ok, {parsed, unparsed}} = parse_many([], unparsed)
     case parsed do
-      [] -> {{:ok, redemand: :output}, %{acc: unparsed}}
-      _ -> {{:ok, to_buffers(parsed)}, %{acc: unparsed}}
+      [] -> {{:ok, redemand: :output}, %{acc: unparsed, header: True}}
+      _ ->
+        # FIXME: what would be a better finality test? now it can get triggered accidentally
+        case unparsed do
+          <<>> -> {{:ok, to_buffers(parsed)}, %{acc: unparsed, header: True}}
+          _ -> {{:ok, to_buffers(parsed) ++ [{:redemand, :output}]}, %{acc: unparsed, header: True}}
+        end
+    end
+  end
+
+  defp consume_webm_header(bytes) do
+    # consume the EBML header
+    with {:ok, {_ebml, rest}} <- parse_element(bytes) do
+      # consume Segment's element_id and element_data_size, return only element_data
+      EBML.consume_element_header(rest)
     end
   end
 
   defp to_buffers(elements) do
-    Enum.reduce(elements, [], fn x, acc -> [to_buffer(x) | acc] end)
+    buffers = Enum.reduce(elements, [], fn x, acc -> [to_buffer(x) | acc] end)
+    [{:buffer, {:output, buffers}}]
   end
 
   defp to_buffer({name, data}) do
-    {:buffer, {:output, %Buffer{payload: data, metadata: %{webm: %{element_name: name}}}}}
+    %Buffer{payload: data, metadata: %{webm: %{element_name: name}}}
   end
 
-  # FIXME: great name
-  defp parse_many_many(parsed, unparsed) do
-    case parse_many(unparsed, []) do
-      {:ok, {name, data}, rest} -> parse_many_many([{name, data} | parsed], rest)
-      {:error, :need_more_bytes} -> {parsed, unparsed}
+  defp parse_many(acc, bytes) do
+    case parse_element(bytes) do
+      {:error, :need_more_bytes} ->
+        {:ok, {acc, bytes}}
+
+      {:ok, {element, <<>>}} ->
+        {:ok, {[element | acc], <<>>}}
+
+      {:ok, {element, rest}} ->
+        parse_many([element | acc], rest)
     end
   end
 
-  defp parse_many(bytes, acc) do
+  defp parse_many!(acc, bytes) do
     case parse_element(bytes) do
-      {{name, _data} = element, rest} when name in @top_level_elements ->
-        {:ok, element, rest}
-
-      {:ok, element, rest} ->
-        {:ok, element, rest}
-
-      {:error, :need_more_bytes} ->
-        {:error, :need_more_bytes}
-
-      {element, <<>>} ->
+      {:ok, {element, <<>>}} ->
         [element | acc]
 
-      {element, rest} ->
-        parse_many(rest, [element | acc])
+      {:ok, {element, rest}} ->
+        parse_many!([element | acc], rest)
     end
   end
 
   defp parse_element(bytes) do
-    case EBML.decode_element(bytes) do
-      {:ignore_element_header, element_data} ->
-        parse_many(element_data, [])
-
-      {:ok, {name, type, data, rest}} ->
+    with {:ok, {name, type, data, rest}} <- EBML.decode_element(bytes) do
         element = {name, parse(data, type, name)}
-        {element, rest}
-
-      {:error, :need_more_bytes} ->
-        {:error, :need_more_bytes}
+        {:ok, {element, rest}}
     end
   end
 
@@ -135,7 +143,7 @@ defmodule Membrane.WebM.Parser do
     if byte_size(bytes) == 0 do
       []
     else
-      parse_many(bytes, [])
+      parse_many!([], bytes)
     end
   end
 

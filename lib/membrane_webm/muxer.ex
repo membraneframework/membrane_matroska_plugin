@@ -75,12 +75,26 @@ defmodule Membrane.WebM.Muxer do
       %Opus{} ->
         {{:ok, demand: Pad.ref(:input, id)},
          %State{state | pads: pads, tracks: tracks, active: state.active + 1}}
+
       %VP8{} ->
         {{:ok, demand: Pad.ref(:input, id)},
-          %State{state | contains_video: true, pads: pads, tracks: tracks, active: state.active + 1}}
+         %State{
+           state
+           | contains_video: true,
+             pads: pads,
+             tracks: tracks,
+             active: state.active + 1
+         }}
+
       %VP9{} ->
         {{:ok, demand: Pad.ref(:input, id)},
-          %State{state | contains_video: true, pads: pads, tracks: tracks, active: state.active + 1}}
+         %State{
+           state
+           | contains_video: true,
+             pads: pads,
+             tracks: tracks,
+             active: state.active + 1
+         }}
     end
   end
 
@@ -139,7 +153,7 @@ defmodule Membrane.WebM.Muxer do
     if time1 < time2 do
       true
     else
-      (Codecs.is_audio(codec1) and Codecs.is_video(codec2))
+      Codecs.is_audio(codec1) and Codecs.is_video(codec2)
     end
   end
 
@@ -214,7 +228,7 @@ defmodule Membrane.WebM.Muxer do
     end
 
     if current_bytes >= @cluster_bytes_limit or current_time >= @cluster_time_limit or
-         Codecs.video_keyframe(block) do
+         Codecs.is_video_keyframe(block) do
       block = {:SimpleBlock, {0, data, track_number, type}}
 
       %{

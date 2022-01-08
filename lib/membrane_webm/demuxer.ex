@@ -54,6 +54,7 @@ defmodule Membrane.WebM.Demuxer do
         _context,
         state
       ) do
+    IO.inspect(element_name)
     {actions, state} =
       case element_name do
         :Info ->
@@ -142,7 +143,7 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   defp packetize(%{timecode: timecode, data: data}, timecode_scale) do
-    %Buffer{payload: data, pts: timecode * timecode_scale}
+    %Buffer{payload: data, dts: timecode * timecode_scale}
   end
 
   defp prepare_simple_block(block, cluster_timecode) do

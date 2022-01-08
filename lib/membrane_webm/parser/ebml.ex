@@ -44,6 +44,29 @@ defmodule Membrane.WebM.Parser.EBML do
   end
 
   @doc """
+  Discards `element_id`, `element_data_size` and returns the available portion of `element_data`.
+  """
+  def consume_element_header(bytes) do
+    with {:ok, {_id, bytes}} <- decode_element_id(bytes) do
+      case bytes do
+        <<first_byte::unsigned-size(8), _rest::binary>> ->
+          vint_width = get_vint_width(first_byte)
+
+          case bytes do
+            <<_vint_bytes::binary-size(vint_width), rest::binary>> ->
+              {:ok, rest}
+
+            _too_short ->
+              {:error, :need_more_bytes}
+          end
+
+        _too_short ->
+              {:error, :need_more_bytes}
+      end
+    end
+  end
+
+  @doc """
   Returns an EBML element's name, type and data
   """
   def decode_element(bytes) do
@@ -51,24 +74,14 @@ defmodule Membrane.WebM.Parser.EBML do
          {:ok, {data_size, bytes}} <- decode_vint(bytes) do
       name = Schema.element_id_to_name(id)
       type = Schema.element_type(name)
-      # `Segment` is a special element requiring different behaviour of the parser
-      # the parser should only wait for more bytes in case of top-level children elements of `Segment`, not the `Segment` itself
-      if name == :Segment do
-        {:ignore_element_header, bytes}
-      else
-        with {:ok, {data, bytes}} <- split_bytes(bytes, data_size) do
-          # TODO: remove; only for debugging
-          if name == :Unknown do
-            IO.warn("Unknown element ID: #{id}")
-          end
-
-          {:ok, {name, type, data, bytes}}
-        else
-          {:error, reason} -> {:error, reason}
+      with {:ok, {data, bytes}} <- split_bytes(bytes, data_size) do
+        # TODO: remove; only for debugging
+        if name == :Unknown do
+          IO.warn("Unknown element ID: #{id}")
         end
+
+        {:ok, {name, type, data, bytes}}
       end
-    else
-      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -88,7 +101,6 @@ defmodule Membrane.WebM.Parser.EBML do
   """
   def decode_element_id(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
     vint_width = get_vint_width(first_byte)
-
     case bytes do
       <<vint_bytes::binary-size(vint_width), rest::binary>> ->
         <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
@@ -99,7 +111,8 @@ defmodule Membrane.WebM.Parser.EBML do
     end
   end
 
-  def decode_element_id(_too_short) do
+  def decode_element_id(too_short) do
+    # IO.inspect(too_short)
     {:error, :need_more_bytes}
   end
 

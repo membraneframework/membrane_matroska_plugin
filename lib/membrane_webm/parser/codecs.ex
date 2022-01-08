@@ -1,11 +1,11 @@
 defmodule Membrane.WebM.Parser.Codecs do
   alias Membrane.{Opus, VP8, VP9}
 
-  def vp8_frame_type(<<frame_tag::binary-size(3), _rest::bitstring>>) do
-    <<size_0::3, _show_frame::1, _version::3, keyframe::1, size_1, size_2>> = frame_tag
+  def vp8_frame_is_keyframe(<<frame_tag::binary-size(3), _rest::bitstring>>) do
+    <<size_0::3, _show_frame::1, _version::3, frame_type::1, size_1, size_2>> = frame_tag
     <<_size::19>> = <<size_2, size_1, size_0::3>>
 
-    keyframe
+    frame_type == 0
   end
 
   # this assumes a simple frame and not a superframe
@@ -13,30 +13,31 @@ defmodule Membrane.WebM.Parser.Codecs do
   # page 25 for frame structure
   # page 28 for uncompressed header structure
   # TODO: possible headache: VP9 supports superframes which glue several frames together (simple concatenation, page 26)
-  # frame_type = 0 means keyframe
-  # frame_type = 1 means interframe
-  def vp9_frame_type(frame) do
-    case frame do
-      <<_frame_marker::2, 1::1, 1::1, 0::1, 1::1, _frame_to_show_map_idx::3, frame_type::1,
-        _rest::bitstring>> ->
-        frame_type
+  def vp9_frame_is_keyframe(frame) do
+    frame_type =
+      case frame do
+        <<_frame_marker::2, 1::1, 1::1, 0::1, 1::1, _frame_to_show_map_idx::3, frame_type::1,
+          _rest::bitstring>> ->
+          frame_type
 
-      <<_frame_marker::2, 1::1, 1::1, 0::1, 0::1, frame_type::1, _rest::bitstring>> ->
-        frame_type
+        <<_frame_marker::2, 1::1, 1::1, 0::1, 0::1, frame_type::1, _rest::bitstring>> ->
+          frame_type
 
-      <<_frame_marker::2, _low::1, _high::1, 1::1, _frame_to_show_map_idx::3, frame_type::1,
-        _rest::bitstring>> ->
-        frame_type
+        <<_frame_marker::2, _low::1, _high::1, 1::1, _frame_to_show_map_idx::3, frame_type::1,
+          _rest::bitstring>> ->
+          frame_type
 
-      <<_frame_marker::2, _low::1, _high::1, 0::1, frame_type::1, _rest::bitstring>> ->
-        frame_type
+        <<_frame_marker::2, _low::1, _high::1, 0::1, frame_type::1, _rest::bitstring>> ->
+          frame_type
 
-      _ ->
-        raise "Invalid vp9 header"
-    end
+        _ ->
+          raise "Invalid vp9 header"
+      end
+
+    frame_type == 0
   end
 
-  def video_keyframe({_timecode, _data, _track_number, codec} = block) do
+  def is_video_keyframe({_timecode, _data, _track_number, codec} = block) do
     is_video(codec) and keyframe_bit(block) == 1
   end
 
@@ -57,8 +58,8 @@ defmodule Membrane.WebM.Parser.Codecs do
 
   def keyframe_bit({_timecode, data, _track_number, codec} = _block) do
     case codec do
-      %VP8{} -> boolean_to_integer(vp8_frame_type(data) == 0)
-      %VP9{} -> boolean_to_integer(vp9_frame_type(data) == 0)
+      %VP8{} -> vp8_frame_is_keyframe(data) |> boolean_to_integer
+      %VP9{} -> vp9_frame_is_keyframe(data) |> boolean_to_integer
       %Opus{} -> 1
       _ -> 0
     end
