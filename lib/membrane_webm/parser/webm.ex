@@ -39,7 +39,7 @@ defmodule Membrane.WebM.Parser.WebM do
   alias Membrane.WebM.Parser.Matroska
 
   # take unparsed bytes and info if header is consumed and attempt to parse it
-  def process(unparsed, False) do
+  def parse(unparsed, False) do
     case consume_webm_header(unparsed) do
       {:ok, rest} ->
         {parsed, unparsed} = parse_many([], rest)
@@ -50,7 +50,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
-  def process(unparsed, True) do
+  def parse(unparsed, True) do
     {parsed, unparsed} = parse_many([], unparsed)
     {parsed, unparsed, True}
   end

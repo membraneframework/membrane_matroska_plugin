@@ -24,7 +24,7 @@ defmodule Membrane.WebM.DemuxerTest do
 
       links = [
         link(:source)
-        |> to(:parser)
+        # |> to(:parser)
         |> to(:demuxer)
       ]
 
@@ -89,17 +89,17 @@ defmodule Membrane.WebM.DemuxerTest do
     end
   end
 
-  # test "demuxing webm containing opus" do
-  #   test_stream("opus_audio.webm", ["1.ogg"], ["1.ogg"])
-  # end
+  test "demuxing webm containing opus" do
+    test_stream("opus_audio.webm", ["1.ogg"], ["1.ogg"])
+  end
 
-  # test "demuxing webm containing vp8 + opus" do
-  #   test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.ogg"], ["1_vp8.ivf", "2.ogg"])
-  # end
+  test "demuxing webm containing vp8 + opus" do
+    test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.ogg"], ["1_vp8.ivf", "2.ogg"])
+  end
 
-  # test "demuxing webm containing vp9 + opus" do
-  #   test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.ogg"], ["1_vp9.ivf", "2.ogg"])
-  # end
+  test "demuxing webm containing vp9 + opus" do
+    test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.ogg"], ["1_vp9.ivf", "2.ogg"])
+  end
 
   defp test_stream(input_file, references, results) do
     args = Enum.zip(references, results)

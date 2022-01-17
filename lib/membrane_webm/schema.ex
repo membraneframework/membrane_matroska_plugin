@@ -136,8 +136,6 @@ defmodule Membrane.WebM.Schema do
            {"BA", :PixelHeight},
            {"9A", :FlagInterlaced},
            {"53B8", :StereoMode},
-           #     Supported Modes: 0: mono, 1: side by side (left eye is first), 2: top-bottom (right eye is first), 3: top-bottom (left eye is first), 11: side by side (right eye is first)
-           #     Unsupported Modes: 4: checkboard (right is first), 5: checkboard (left is first), 6: row interleaved (right is first), 7: row interleaved (left is first), 8: column interleaved (right is first), 9: column interleaved (left is first), 10: anaglyph (cyan/red)
            {"55B0", :Colour},
            # \Segment\Tracks\TrackEntry\Video\Colour
            {"55B7", :ChromaSitingHorz},

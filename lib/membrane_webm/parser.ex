@@ -1,6 +1,6 @@
 defmodule Membrane.WebM.Parser do
   @moduledoc """
-  Implementation of a standalone parser of a webm bytestream (you shouldn't need to use this).
+  Implementation of a standalone parser of a webm bytestream (you shouldn't need to use this, no other element uses this).
   """
   use Membrane.Filter
 
@@ -29,19 +29,20 @@ defmodule Membrane.WebM.Parser do
   end
 
   @impl true
-  def handle_process(:input, %Buffer{payload: payload}, _context, %{acc: acc, header_consumed: header_consumed}) do
+  def handle_process(:input, %Buffer{payload: payload}, _context, %{
+        acc: acc,
+        header_consumed: header_consumed
+      }) do
     unparsed = payload <> acc
-    {parsed, unparsed, header_consumed} = WebM.process(unparsed, header_consumed)
-    {{:ok, to_buffers(parsed) ++ [{:demand, {:input, 1}}]}, %{acc: unparsed, header_consumed: header_consumed}}
+    {parsed, unparsed, header_consumed} = WebM.parse(unparsed, header_consumed)
+
+    {{:ok, [{:buffer, {:output, to_buffers(parsed)}}, {:demand, {:input, 1}}]},
+     %{acc: unparsed, header_consumed: header_consumed}}
   end
 
   defp to_buffers(elements) do
-    buffers =
-      Enum.reduce(elements, [], fn {name, data}, acc ->
-        [%Buffer{payload: data, metadata: %{webm: %{element_name: name}}} | acc]
-      end)
-
-    [{:buffer, {:output, buffers}}]
+    Enum.reduce(elements, [], fn {name, data}, acc ->
+      [%Buffer{payload: data, metadata: %{webm: %{element_name: name}}} | acc]
+    end)
   end
-
 end

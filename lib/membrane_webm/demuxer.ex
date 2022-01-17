@@ -2,14 +2,14 @@ defmodule Membrane.WebM.Demuxer do
   @moduledoc """
   Module for demuxing WebM files.
 
-  It expects to receive parsed WebM elements provided by `Membrane.WebM.Parser` and outputs the constituent tracks onto separate output pads.
+  It receives a bytestream containing a WebM file and outputs the constituent tracks onto separate output pads.
   Streaming of each track occurs in chunks of up to 5 seconds of data.
 
   WebM files can contain many:
     - VP8 or VP9 video tracks
     - Opus or Vorbis audio tracks
 
-  This module supports all encodings except Vorbis.
+  This module doesn't support Vorbis encoding.
   """
   use Membrane.Filter
 
@@ -28,7 +28,10 @@ defmodule Membrane.WebM.Demuxer do
     caps: :any
 
   defmodule State do
-    defstruct timestamp_scale: nil, cache: [], tracks: %{}
+    defstruct timestamp_scale: nil,
+              cache: [],
+              tracks: %{},
+              parser: %{acc: <<>>, header_consumed: False}
   end
 
   @impl true
@@ -49,37 +52,55 @@ defmodule Membrane.WebM.Demuxer do
   @impl true
   def handle_process(
         :input,
-        %Buffer{payload: data, metadata: %{webm: %{element_name: element_name}}},
+        %Buffer{payload: payload},
         _context,
-        state
+        state = %State{parser: %{acc: acc, header_consumed: header_consumed}}
       ) do
+    unparsed = acc <> payload
+
+    {parsed, unparsed, header_consumed} =
+      Membrane.WebM.Parser.WebM.parse(unparsed, header_consumed)
+
+    {actions, state} = process_element(parsed, state)
+
+    {{:ok, [{:demand, {:input, 1}} | actions]},
+     %State{state | parser: %{acc: unparsed, header_consumed: header_consumed}}}
+  end
+
+  def process_element(elements_list, state) when is_list(elements_list) do
+    elements_list
+    |> Enum.reverse()
+    |> Enum.reduce({[], state}, fn {element_name, data}, {actions, state} ->
+      {new_actions, new_state} = process_element(element_name, data, state)
+      {actions ++ new_actions, new_state}
+    end)
+  end
+
+  def process_element(element_name, data, state) do
     IO.inspect(element_name)
 
-    {actions, state} =
-      case element_name do
-        :Info ->
-          # scale of block timecodes in nanoseconds
-          # should be 1_000_000 i.e. 1 ms
-          {[], %State{state | timestamp_scale: data[:TimestampScale]}}
+    case element_name do
+      :Info ->
+        # scale of block timecodes in nanoseconds
+        # should be 1_000_000 i.e. 1 ms
+        {[], %State{state | timestamp_scale: data[:TimestampScale]}}
 
-        :Tracks ->
-          tracks = identify_tracks(data, state.timestamp_scale)
-          actions = notify_new_track(tracks)
-          {actions, %State{state | tracks: tracks}}
+      :Tracks ->
+        tracks = identify_tracks(data, state.timestamp_scale)
+        actions = notify_new_track(tracks)
+        {actions, %State{state | tracks: tracks}}
 
-        :Cluster ->
-          {active, inactive} =
-            data
-            |> cluster_to_buffers(state.timestamp_scale)
-            |> Enum.split_with(fn {id, _buffer} -> state.tracks[id].active end)
+      :Cluster ->
+        {active, inactive} =
+          data
+          |> cluster_to_buffers(state.timestamp_scale)
+          |> Enum.split_with(fn {id, _buffer} -> state.tracks[id].active end)
 
-          {prepare_output_buffers(active), %State{state | cache: state.cache ++ inactive}}
+        {prepare_output_buffers(active), %State{state | cache: state.cache ++ inactive}}
 
-        _ ->
-          {[], state}
-      end
-
-    {{:ok, [{:demand, {:input, 1}} | actions]}, state}
+      _ ->
+        {[], state}
+    end
   end
 
   @impl true

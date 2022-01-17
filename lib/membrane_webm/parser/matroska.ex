@@ -1,4 +1,7 @@
 defmodule Membrane.WebM.Parser.Matroska do
+  # special parsing of matroska elements
+  # take note that when matroska and webm conflict it is webm rules that take precedence
+
   alias Membrane.WebM.Parser.EBML
 
   def parse(<<type::unsigned-integer-size(8)>>, :uint, :TrackType) do
@@ -38,6 +41,31 @@ defmodule Membrane.WebM.Parser.Matroska do
       0 -> :unspecified
       1 -> :top_collocated
       2 -> :half
+    end
+  end
+
+  def parse(<<type::unsigned-integer-size(8)>>, :uint, :StereoMode) do
+    # Stereo-3D video mode.
+    # WebM Supported Modes: 0, 1, 2, 3, 11
+    # See https://www.webmproject.org/docs/container/#StereoMode
+
+    case type do
+      0 -> :mono
+      1 -> :side_by_side_left_eye_first
+      2 -> :top_bottom_right_eye_is_first
+      3 -> :top_bottom_left_eye_is_first
+      # 4	checkboard (right eye is first)
+      # 5	checkboard (left eye is first)
+      # 6	row interleaved (right eye is first)
+      # 7	row interleaved (left eye is first)
+      # 8	column interleaved (right eye is first)
+      # 9	column interleaved (left eye is first)
+      # 10	anaglyph (cyan/red)
+      11 -> :side_by_side_right_eye_first
+      # 12	anaglyph (green/magenta)
+      # 13	both eyes laced in one Block (left eye is first)
+      # 14	both eyes laced in one Block (right eye is first)
+      _ -> :unsupported
     end
   end
 

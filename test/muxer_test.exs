@@ -142,8 +142,8 @@ defmodule Membrane.WebM.MuxerTest do
         |> via_in(Pad.ref(:input, :random.uniform(1 <<< 64)))
         |> to(:muxer),
         link(:muxer)
-        |> to(:parser)
-        |> to(:printer)
+        # |> to(:parser)
+        # |> to(:printer)
         |> to(:sink)
       ]
 
@@ -243,17 +243,17 @@ defmodule Membrane.WebM.MuxerTest do
     assert_pipeline_playback_changed(pipeline, _, :stopped)
   end
 
-  # test "mux single vp8" do
-  #   test_stream("1_vp8.ivf", "muxed_vp8.webm")
-  # end
+  test "mux single vp8" do
+    test_stream("1_vp8.ivf", "muxed_vp8.webm")
+  end
 
-  # test "mux single vp9" do
-  #   test_stream("1_vp9.ivf", "muxed_vp9.webm")
-  # end
+  test "mux single vp9" do
+    test_stream("1_vp9.ivf", "muxed_vp9.webm")
+  end
 
-  # test "mux opus from buffers" do
-  #   test_from_buffers()
-  # end
+  test "mux opus from buffers" do
+    test_from_buffers()
+  end
 
   test "mux two streams into one file, then parse it for debugging" do
     test_many()
