@@ -67,6 +67,9 @@ defmodule Membrane.WebM.Muxer do
 
   @impl true
   def handle_caps(Pad.ref(:input, id), caps, _context, state) do
+    # FIXME: id is a source of nondeterminism - makes testing difficult
+    # also it shouldn't be assigned via input pad but generated in muxer
+    # imho best: leave option to provide input pad but generate random id if none provided
     pads = Map.put(state.pads, id, caps)
     track_num = length(Map.keys(state.tracks)) + 1
     tracks = Map.put(state.tracks, id, track_num)

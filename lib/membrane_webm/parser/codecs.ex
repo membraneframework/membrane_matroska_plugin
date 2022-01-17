@@ -1,4 +1,6 @@
 defmodule Membrane.WebM.Parser.Codecs do
+  # These functions should be provided by VP8, VP9 and Opus plugins but they aren't
+
   alias Membrane.{Opus, VP8, VP9}
 
   def vp8_frame_is_keyframe(<<frame_tag::binary-size(3), _rest::bitstring>>) do

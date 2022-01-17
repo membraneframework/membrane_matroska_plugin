@@ -30,6 +30,7 @@ defmodule Membrane.WebM.MuxerTest do
 
       links = [
         link(:source)
+        |> via_in(Pad.ref(:input, :rand.uniform(1 <<< 64)))
         |> to(:muxer)
         |> to(:sink)
       ]

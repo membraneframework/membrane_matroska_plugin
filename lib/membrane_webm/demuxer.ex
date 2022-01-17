@@ -41,7 +41,6 @@ defmodule Membrane.WebM.Demuxer do
     {{:ok, demand: :input}, state}
   end
 
-  # FIXME: ignoring for now
   @impl true
   def handle_demand(Pad.ref(:output, _id), _size, :buffers, _context, state) do
     {:ok, state}
@@ -55,6 +54,7 @@ defmodule Membrane.WebM.Demuxer do
         state
       ) do
     IO.inspect(element_name)
+
     {actions, state} =
       case element_name do
         :Info ->
@@ -88,9 +88,8 @@ defmodule Membrane.WebM.Demuxer do
 
     caps =
       case track.codec do
-        # TODO: :opus -> %Opus{channels: track_info.channels, self_delimiting?: false}
         :opus ->
-          %Opus{channels: 2, self_delimiting?: false}
+          %Opus{channels: track.channels, self_delimiting?: false}
 
         :vp8 ->
           %VP8{width: track.width, height: track.height}
@@ -143,7 +142,7 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   defp packetize(%{timecode: timecode, data: data}, timecode_scale) do
-    %Buffer{payload: data, dts: timecode * timecode_scale}
+    %Buffer{payload: data, dts: timecode * timecode_scale, pts: timecode * timecode_scale}
   end
 
   defp prepare_simple_block(block, cluster_timecode) do

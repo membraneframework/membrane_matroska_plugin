@@ -23,6 +23,7 @@ defmodule Membrane.WebM.Parser.EBML do
   use Bitwise
 
   alias Membrane.WebM.Schema
+  alias Membrane.Time
 
   @doc "left for reference but shouldn't be used. unsafe - doesn't check if first byte or `vint_width` + 1 bytes are available"
   def parse_vint!(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
@@ -61,7 +62,7 @@ defmodule Membrane.WebM.Parser.EBML do
           end
 
         _too_short ->
-              {:error, :need_more_bytes}
+          {:error, :need_more_bytes}
       end
     end
   end
@@ -74,6 +75,7 @@ defmodule Membrane.WebM.Parser.EBML do
          {:ok, {data_size, bytes}} <- decode_vint(bytes) do
       name = Schema.element_id_to_name(id)
       type = Schema.element_type(name)
+
       with {:ok, {data, bytes}} <- split_bytes(bytes, data_size) do
         # TODO: remove; only for debugging
         if name == :Unknown do
@@ -101,6 +103,7 @@ defmodule Membrane.WebM.Parser.EBML do
   """
   def decode_element_id(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
     vint_width = get_vint_width(first_byte)
+
     case bytes do
       <<vint_bytes::binary-size(vint_width), rest::binary>> ->
         <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
@@ -111,8 +114,7 @@ defmodule Membrane.WebM.Parser.EBML do
     end
   end
 
-  def decode_element_id(too_short) do
-    # IO.inspect(too_short)
+  def decode_element_id(_too_short) do
     {:error, :need_more_bytes}
   end
 
@@ -218,5 +220,75 @@ defmodule Membrane.WebM.Parser.EBML do
 
   def encode_element_id(name) do
     name |> Schema.name_to_element_id() |> Base.decode16!()
+  end
+
+  def parse(bytes, :master) do
+    if byte_size(bytes) == 0 do
+      []
+    else
+      Membrane.WebM.Parser.WebM.parse_many!([], bytes)
+    end
+  end
+
+  # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.1
+  def parse(<<>>, :integer) do
+    0
+  end
+
+  def parse(bytes, :integer) do
+    s = bit_size(bytes)
+    <<num::signed-big-integer-size(s)>> = bytes
+    num
+  end
+
+  # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.2
+  def parse(<<>>, :uint) do
+    0
+  end
+
+  def parse(bytes, :uint) do
+    :binary.decode_unsigned(bytes, :big)
+  end
+
+  # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.3
+  def parse(<<>>, :float) do
+    0
+  end
+
+  def parse(<<num::float-big>>, :float) do
+    num
+  end
+
+  def parse(bytes, :string) do
+    chars = for <<c::utf8 <- bytes>>, do: <<c::utf8>>
+    chars |> Enum.take_while(fn c -> c != <<0>> end) |> Enum.join()
+  end
+
+  def parse(bytes, :utf_8) do
+    bytes
+    |> String.codepoints()
+    |> Enum.reduce("", fn codepoint, result ->
+      <<parsed::8>> = codepoint
+      if parsed == 0, do: result, else: result <> <<parsed>>
+    end)
+  end
+
+  # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.6
+  def parse(<<>>, :date) do
+    {{2001, 1, 1}, {0, 0, 0}}
+  end
+
+  def parse(<<nanoseconds::big-signed>>, :date) do
+    seconds_zero = :calendar.datetime_to_gregorian_seconds({{2001, 1, 1}, {0, 0, 0}})
+    seconds = div(nanoseconds, Time.nanosecond()) + seconds_zero
+    :calendar.gregorian_seconds_to_datetime(seconds)
+  end
+
+  def parse(bytes, :binary) do
+    bytes
+  end
+
+  def parse(bytes, :void) do
+    bytes
   end
 end
