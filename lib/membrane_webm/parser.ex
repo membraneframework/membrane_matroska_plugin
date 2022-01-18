@@ -20,7 +20,7 @@ defmodule Membrane.WebM.Parser do
 
   @impl true
   def handle_init(_) do
-    {:ok, %{acc: <<>>, header_consumed: False}}
+    {:ok, %{acc: <<>>, header_consumed: false}}
   end
 
   @impl true

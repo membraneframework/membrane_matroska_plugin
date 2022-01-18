@@ -156,7 +156,7 @@ defmodule Membrane.WebM.Serializer.Elements do
         {:Seek,
          [
            {:SeekPosition, offset},
-           {:SeekID, Base.decode16!(Membrane.WebM.Schema.name_to_element_id(name))}
+           {:SeekID, Membrane.WebM.Parser.EBML.encode_element_id(name)}
          ]}
       end)
 

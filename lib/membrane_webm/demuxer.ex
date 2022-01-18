@@ -31,7 +31,7 @@ defmodule Membrane.WebM.Demuxer do
     defstruct timestamp_scale: nil,
               cache: [],
               tracks: %{},
-              parser: %{acc: <<>>, header_consumed: False}
+              parser: %{acc: <<>>, is_header_consumed: false}
   end
 
   @impl true
@@ -54,17 +54,17 @@ defmodule Membrane.WebM.Demuxer do
         :input,
         %Buffer{payload: payload},
         _context,
-        state = %State{parser: %{acc: acc, header_consumed: header_consumed}}
+        state = %State{parser: %{acc: acc, is_header_consumed: is_header_consumed}}
       ) do
     unparsed = acc <> payload
 
-    {parsed, unparsed, header_consumed} =
-      Membrane.WebM.Parser.WebM.parse(unparsed, header_consumed)
+    {parsed, unparsed, is_header_consumed} =
+      Membrane.WebM.DemuxerHelper.parse(unparsed, is_header_consumed)
 
     {actions, state} = process_element(parsed, state)
 
     {{:ok, [{:demand, {:input, 1}} | actions]},
-     %State{state | parser: %{acc: unparsed, header_consumed: header_consumed}}}
+     %State{state | parser: %{acc: unparsed, is_header_consumed: is_header_consumed}}}
   end
 
   def process_element(elements_list, state) when is_list(elements_list) do

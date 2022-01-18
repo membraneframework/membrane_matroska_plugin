@@ -107,7 +107,7 @@ defmodule Membrane.WebM.Parser.EBML do
     case bytes do
       <<vint_bytes::binary-size(vint_width), rest::binary>> ->
         <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
-        {:ok, {Integer.to_string(vint, 16), rest}}
+        {:ok, {vint, rest}}
 
       _too_short ->
         {:error, :need_more_bytes}
@@ -219,15 +219,8 @@ defmodule Membrane.WebM.Parser.EBML do
   end
 
   def encode_element_id(name) do
-    name |> Schema.name_to_element_id() |> Base.decode16!()
-  end
-
-  def parse(bytes, :master) do
-    if byte_size(bytes) == 0 do
-      []
-    else
-      Membrane.WebM.Parser.WebM.parse_many!([], bytes)
-    end
+    id = Schema.name_to_element_id(name)
+    :binary.encode_unsigned(id, :big)
   end
 
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.1
