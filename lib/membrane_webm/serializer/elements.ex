@@ -104,6 +104,7 @@ defmodule Membrane.WebM.Serializer.Elements do
      ]}
   end
 
+  # TODO: check out if relevant source of values: https://www.webmproject.org/docs/container/#TagBinary
   defp construct_track_entry({{id, %VP9{width: width, height: height}}, {_id, track_number}}) do
     {:TrackEntry,
      [
@@ -194,6 +195,7 @@ defmodule Membrane.WebM.Serializer.Elements do
 
   # TODO: There's no way of extracting this metadata from raw streams so a callback or option should be implemented to supply these values
   # Though they do not appear essential for achieving playable files (possible exception: VLC)
+  # https://matroska.org/technical/tagging.html
   def construct_tags() do
     {:Tags,
      [

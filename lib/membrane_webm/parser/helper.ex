@@ -1,4 +1,4 @@
-defmodule Membrane.WebM.DemuxerHelper do
+defmodule Membrane.WebM.Parser.Helper do
   @moduledoc """
   Module for parsing a WebM binary stream (such as from a files) used by `Membrane.WebM.Demuxer`.
 
@@ -37,6 +37,8 @@ defmodule Membrane.WebM.DemuxerHelper do
   """
   alias Membrane.WebM.Parser.EBML
   alias Membrane.WebM.Parser.WebM
+
+  @parser &WebM.parse/3
 
   def parse(unparsed, false = _header_parsed) do
     case consume_webm_header(unparsed) do
@@ -87,7 +89,7 @@ defmodule Membrane.WebM.DemuxerHelper do
 
   def parse_element(bytes) do
     with {:ok, {name, type, data, rest}} <- EBML.decode_element(bytes) do
-      element = {name, WebM.parse(data, type, name)}
+      element = {name, @parser.(data, type, name)}
       {:ok, {element, rest}}
     end
   end

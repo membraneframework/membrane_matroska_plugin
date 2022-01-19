@@ -223,6 +223,10 @@ defmodule Membrane.WebM.Parser.EBML do
     :binary.encode_unsigned(id, :big)
   end
 
+  def parse(bytes, type, _name) do
+    parse(bytes, type)
+  end
+
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.1
   def parse(<<>>, :integer) do
     0
@@ -284,4 +288,13 @@ defmodule Membrane.WebM.Parser.EBML do
   def parse(bytes, :void) do
     bytes
   end
+
+  def parse(bytes, :master, _name) do
+    if byte_size(bytes) == 0 do
+      []
+    else
+      Membrane.WebM.DemuxerHelper.parse_many!([], bytes)
+    end
+  end
+
 end

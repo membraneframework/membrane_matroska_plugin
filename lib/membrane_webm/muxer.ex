@@ -57,12 +57,24 @@ defmodule Membrane.WebM.Muxer do
     defstruct cache: [],
               pads: %{},
               tracks: %{},
+              inactive: 0,
               active: 0,
               caps: nil,
               current_cluster_timecode: 0,
               current_block_timecode: nil,
               first_frame: true,
-              contains_video: false
+              contains_video: false,
+              cluster: %{
+                current_cluster: {[], 999_999_999},
+                current_bytes: 0,
+                current_time: 0,
+                previous_time: 0
+              }
+  end
+
+  @impl true
+  def handle_pad_added(_pad, _context, state) do
+    {:ok, %State{state | inactive: state.inactive + 1}}
   end
 
   @impl true
@@ -74,31 +86,37 @@ defmodule Membrane.WebM.Muxer do
     track_num = length(Map.keys(state.tracks)) + 1
     tracks = Map.put(state.tracks, id, track_num)
 
-    case caps do
-      %Opus{} ->
-        {{:ok, demand: Pad.ref(:input, id)},
-         %State{state | pads: pads, tracks: tracks, active: state.active + 1}}
-
-      %VP8{} ->
-        {{:ok, demand: Pad.ref(:input, id)},
-         %State{
-           state
-           | contains_video: true,
-             pads: pads,
-             tracks: tracks,
-             active: state.active + 1
-         }}
-
-      %VP9{} ->
-        {{:ok, demand: Pad.ref(:input, id)},
-         %State{
-           state
-           | contains_video: true,
-             pads: pads,
-             tracks: tracks,
-             active: state.active + 1
-         }}
+    if state.active + 1 == state.inactive do
+      IO.puts("construct header")
+      IO.puts("return header")
+      IO.puts("modify state to hold new segment position")
     end
+
+    state =
+      case caps do
+        %Opus{} ->
+          %State{state | pads: pads, tracks: tracks, active: state.active + 1}
+
+        %VP8{} ->
+          %State{
+            state
+            | contains_video: true,
+              pads: pads,
+              tracks: tracks,
+              active: state.active + 1
+          }
+
+        %VP9{} ->
+          %State{
+            state
+            | contains_video: true,
+              pads: pads,
+              tracks: tracks,
+              active: state.active + 1
+          }
+      end
+
+    {{:ok, demand: Pad.ref(:input, id)}, state}
   end
 
   @impl true

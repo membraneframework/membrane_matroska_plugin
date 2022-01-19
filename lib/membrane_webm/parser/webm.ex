@@ -121,14 +121,6 @@ defmodule Membrane.WebM.Parser.WebM do
     }
   end
 
-  def parse(bytes, :master, _name) do
-    if byte_size(bytes) == 0 do
-      []
-    else
-      Membrane.WebM.DemuxerHelper.parse_many!([], bytes)
-    end
-  end
-
   # non-special-case elements should be handled generically by the EBML parser
   def parse(bytes, type, _name) do
     EBML.parse(bytes, type)

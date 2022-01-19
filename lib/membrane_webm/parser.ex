@@ -5,7 +5,7 @@ defmodule Membrane.WebM.Parser do
   use Membrane.Filter
 
   alias Membrane.Buffer
-  alias Membrane.WebM.Parser.WebM
+  alias Membrane.WebM.Parser.Helper
 
   def_input_pad :input,
     availability: :always,
@@ -34,7 +34,7 @@ defmodule Membrane.WebM.Parser do
         header_consumed: header_consumed
       }) do
     unparsed = payload <> acc
-    {parsed, unparsed, header_consumed} = WebM.parse(unparsed, header_consumed)
+    {parsed, unparsed, header_consumed} = Helper.parse(unparsed, header_consumed)
 
     {{:ok, [{:buffer, {:output, to_buffers(parsed)}}, {:demand, {:input, 1}}]},
      %{acc: unparsed, header_consumed: header_consumed}}

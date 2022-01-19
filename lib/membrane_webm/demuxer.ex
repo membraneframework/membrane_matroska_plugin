@@ -59,7 +59,7 @@ defmodule Membrane.WebM.Demuxer do
     unparsed = acc <> payload
 
     {parsed, unparsed, is_header_consumed} =
-      Membrane.WebM.DemuxerHelper.parse(unparsed, is_header_consumed)
+      Membrane.WebM.Parser.Helper.parse(unparsed, is_header_consumed)
 
     {actions, state} = process_element(parsed, state)
 
