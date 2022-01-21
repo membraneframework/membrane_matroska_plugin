@@ -156,25 +156,14 @@ defmodule Membrane.WebM.Parser.EBML do
       (byte &&& 0b01000000) > 0 -> 2
       (byte &&& 0b00100000) > 0 -> 3
       (byte &&& 0b00010000) > 0 -> 4
-      (byte &&& 0b00010000) > 0 -> 5
-      (byte &&& 0b00001000) > 0 -> 6
-      (byte &&& 0b00000100) > 0 -> 7
-      (byte &&& 0b00000010) > 0 -> 8
-      # TODO: check why this is needed (it is in fact necessary):
+      (byte &&& 0b00001000) > 0 -> 5
+      (byte &&& 0b00000100) > 0 -> 6
+      (byte &&& 0b00000010) > 0 -> 7
       (byte &&& 0b00000001) > 0 -> 8
     end
   end
 
   def encode_vint(number) do
-    # FIXME:
-    # https://www.rfc-editor.org/rfc/rfc8794.pdf
-    # uint should work for up to (1 <<< 64) = 18,446,744,073,709,551,615.
-    # int should work for range -9,223,372,036,854,775,808 to 9_223_372_036_854_775_807
-    # -(1 <<< 63) to (1 <<< 63) - 1
-    # current limits:
-    # https://www.rfc-editor.org/rfc/rfc8794.pdf
-    # FIXME: also isn't the max 1-byte num 127? so shouldn't the limit be just 128? soo all of these += 2??
-
     # +==============+======================+
     # | Octet Length | Possible Value Range |
     # +==============+======================+
@@ -206,7 +195,6 @@ defmodule Membrane.WebM.Parser.EBML do
       72_057_594_037_927_936
     ]
 
-    # TODO: does this work for determining octets?
     octets = Enum.find_index(limits, fn max_num -> number < max_num end) + 1
     width_bits = octets - 1
     data_bits = octets * 7
@@ -289,12 +277,11 @@ defmodule Membrane.WebM.Parser.EBML do
     bytes
   end
 
-  def parse(bytes, :master, _name) do
+  def parse(bytes, :master) do
     if byte_size(bytes) == 0 do
       []
     else
-      Membrane.WebM.DemuxerHelper.parse_many!([], bytes)
+      Membrane.WebM.Parser.Helper.parse_many!([], bytes)
     end
   end
-
 end
