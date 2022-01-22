@@ -55,14 +55,11 @@ defmodule Membrane.WebM.Muxer do
 
   defmodule State do
     defstruct cache: [],
-              pads: %{},
               tracks: %{},
-              inactive: 0,
-              active: 0,
-              caps: nil,
+              expected_tracks: 0,
+              active_tracks: 0,
               current_cluster_timecode: 0,
               current_block_timecode: nil,
-              first_frame: true,
               contains_video: false,
               cluster: %{
                 current_cluster: {[], 999_999_999},
@@ -74,7 +71,7 @@ defmodule Membrane.WebM.Muxer do
 
   @impl true
   def handle_pad_added(_pad, _context, state) do
-    {:ok, %State{state | inactive: state.inactive + 1}}
+    {:ok, %State{state | expected_tracks: state.expected_tracks + 1}}
   end
 
   @impl true
@@ -82,41 +79,43 @@ defmodule Membrane.WebM.Muxer do
     # FIXME: id is a source of nondeterminism - makes testing difficult
     # also it shouldn't be assigned via input pad but generated in muxer
     # imho best: leave option to provide input pad but generate random id if none provided
-    pads = Map.put(state.pads, id, caps)
-    track_num = length(Map.keys(state.tracks)) + 1
-    tracks = Map.put(state.tracks, id, track_num)
+    state = update_in(state.active_tracks, fn t -> t + 1 end)
+    is_video = Codecs.is_video(caps)
 
-    if state.active + 1 == state.inactive do
-      IO.puts("construct header")
-      IO.puts("return header")
-      IO.puts("modify state to hold new segment position")
+    track = %{
+      track_number: state.active_tracks,
+      id: id,
+      caps: caps,
+      is_video: is_video,
+      last_timestamp: nil
+    }
+
+    state = put_in(state.tracks[id], track)
+    state = if is_video, do: put_in(state.contains_video, true), else: state
+
+    if state.active_tracks == state.expected_tracks do
+      {{:ok,
+        demand: Pad.ref(:input, id),
+        buffer: {:output, %Buffer{payload: serialize_webm_header(state)}}}, state}
+      # FIXME: i can calculate duration only at the end of the stream so the whole webm_header and it's length should be saved; recalculated at the end of the stream and the file stitched together along with seek and cues
+    else
+      {{:ok, demand: Pad.ref(:input, id)}, state}
     end
+  end
 
-    state =
-      case caps do
-        %Opus{} ->
-          %State{state | pads: pads, tracks: tracks, active: state.active + 1}
+  def serialize_webm_header(state) do
+    info = Elements.construct_info()
+    tracks = Elements.construct_tracks(state.tracks)
+    tags = Elements.construct_tags()
+    seek_head = Elements.construct_seek_head([info, tracks, tags])
+    void = Elements.construct_void(seek_head)
 
-        %VP8{} ->
-          %State{
-            state
-            | contains_video: true,
-              pads: pads,
-              tracks: tracks,
-              active: state.active + 1
-          }
+    ebml_header = Serializer.serialize(Elements.construct_ebml_header())
 
-        %VP9{} ->
-          %State{
-            state
-            | contains_video: true,
-              pads: pads,
-              tracks: tracks,
-              active: state.active + 1
-          }
-      end
+    segment_beginning =
+      Serializer.serialize({:Segment, Enum.reverse([seek_head, void, info, tracks, tags])})
 
-    {{:ok, demand: Pad.ref(:input, id)}, state}
+    ebml_header <> segment_beginning
   end
 
   @impl true
@@ -126,7 +125,7 @@ defmodule Membrane.WebM.Muxer do
 
   @impl true
   def handle_demand(:output, _size, :buffers, _context, state) do
-    {{:ok, Enum.map(state.pads, fn {id, _type} -> {:demand, Pad.ref(:input, id)} end)}, state}
+    {{:ok, Enum.map(state.tracks, fn {id, _info} -> {:demand, Pad.ref(:input, id)} end)}, state}
   end
 
   # TODO: for now accumulates everything in cache and serializes at end of input stream which is suboptimal
@@ -137,7 +136,7 @@ defmodule Membrane.WebM.Muxer do
      %State{
        state
        | cache: [
-           {div(timestamp, @timestamp_scale), data, state.tracks[id], state.pads[id]}
+           {div(timestamp, @timestamp_scale), data, state.tracks[id].track_number, id}
            | state.cache
          ]
      }}
@@ -145,28 +144,15 @@ defmodule Membrane.WebM.Muxer do
 
   @impl true
   def handle_end_of_stream(Pad.ref(:input, _id), _context, state) do
-    if state.active == 1 do
-      info = Elements.construct_info()
-      tracks = Elements.construct_tracks(state.pads, state.tracks)
-      tags = Elements.construct_tags()
-      seek_head = Elements.construct_seek_head([info, tracks, tags])
-      void = Elements.construct_void(seek_head)
+    if state.active_tracks == 1 do
       blocks = Enum.sort(state.cache, &block_sorter/2)
-      clusters = construct_clusters(blocks)
+      clusters = blocks |> construct_clusters()
+      Enum.map(clusters, fn cluster -> IO.inspect(elem(cluster, 1)[:Timecode]) end)
+      clusters_bytes = clusters |> Serializer.serialize()
 
-      ebml_header = Serializer.serialize(Elements.construct_ebml_header())
-
-      segment =
-        Serializer.serialize(
-          {:Segment, Enum.reverse([seek_head, void, info, tracks, tags] ++ clusters)}
-        )
-
-      webm_bytes = ebml_header <> segment
-
-      {{:ok, buffer: {:output, %Buffer{payload: webm_bytes}}, end_of_stream: :output},
-       %State{first_frame: false}}
+      {{:ok, buffer: {:output, %Buffer{payload: clusters_bytes}}, end_of_stream: :output}, state}
     else
-      {:ok, %State{state | active: state.active - 1}}
+      {:ok, %State{state | active_tracks: state.active_tracks - 1}}
     end
   end
 
