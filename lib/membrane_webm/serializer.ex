@@ -38,8 +38,14 @@ defmodule Membrane.WebM.Serializer do
     element_id <> element_data_size <> element_data
   end
 
-  # this function creates Segment as an element with unknonw width
-  # TODO: elements with unknonw width currently can't be parsed
+  def serialize_segment_header() do
+    element_id = EBML.encode_element_id(:Segment)
+    element_data_size = <<0b11111111>>
+    element_id <> element_data_size
+  end
+
+  # this function creates Segment as an element with unknown width
+  # TODO: elements with unknown width currently can't be parsed
   defp serialize(elements, :master, :Segment) do
     element_id = EBML.encode_element_id(:Segment)
     element_data_size = <<0b11111111>>
@@ -48,6 +54,15 @@ defmodule Membrane.WebM.Serializer do
       Enum.reduce(elements, <<>>, fn {name, data}, acc -> serialize({name, data}) <> acc end)
 
     element_id <> element_data_size <> element_data
+  end
+
+  defp serialize(contents, :master, :Cluster) do
+    if @print_elements, do: IO.puts("serialize master Cluster")
+
+    element_id = EBML.encode_element_id(:Cluster)
+    element_data_size = byte_size(contents) |> EBML.encode_vint()
+
+    element_id <> element_data_size <> contents
   end
 
   defp serialize(elements, :master, name) do

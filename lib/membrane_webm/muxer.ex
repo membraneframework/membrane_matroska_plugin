@@ -53,11 +53,21 @@ defmodule Membrane.WebM.Muxer do
   @cluster_time_limit Membrane.Time.seconds(5)
   @timestamp_scale Membrane.Time.millisecond()
 
+  # FIXME: create SimpleBlock struct
+
   defmodule State do
     defstruct tracks: %{},
+              segment_size: 0,
               expected_tracks: 0,
               active_tracks: 0,
-              cluster_acc: {[], 999_999_999, 0}
+              # cluster_acc holds: `list_of_blocks`, `cluster_timestamp`, `cluster_length_in_bytes`
+              cluster_acc: {<<>>, :infinity, 0},
+              cues: []
+  end
+
+  @impl true
+  def handle_init(_) do
+    {:ok, %State{}}
   end
 
   @impl true
@@ -94,9 +104,11 @@ defmodule Membrane.WebM.Muxer do
     state = put_in(state.tracks[id], track)
 
     if state.active_tracks == state.expected_tracks do
+      {segment_bytes, webm_header} = serialize_webm_header(state)
+      new_state = %State{state | segment_size: state.segment_size + segment_bytes}
       {{:ok,
         demand: Pad.ref(:input, id),
-        buffer: {:output, %Buffer{payload: serialize_webm_header(state)}}}, state}
+        buffer: {:output, %Buffer{payload: webm_header}}}, new_state}
 
       # FIXME: i can calculate duration only at the end of the stream so the whole webm_header and it's length should be saved; recalculated at the end of the stream and the file stitched together along with seek and cues
     else
@@ -104,29 +116,28 @@ defmodule Membrane.WebM.Muxer do
     end
   end
 
-  def serialize_webm_header(state) do
+  defp serialize_webm_header(state) do
+    ebml_header = Serializer.serialize(Elements.construct_ebml_header())
+
+    segment_header = Serializer.serialize_segment_header()
+
     info = Elements.construct_info()
     tracks = Elements.construct_tracks(state.tracks)
     tags = Elements.construct_tags()
     seek_head = Elements.construct_seek_head([info, tracks, tags])
     void = Elements.construct_void(seek_head)
 
-    ebml_header = Serializer.serialize(Elements.construct_ebml_header())
+    webm_header_elements =
+      Serializer.serialize([seek_head, void, info, tracks, tags])
 
-    segment_beginning =
-      Serializer.serialize({:Segment, Enum.reverse([seek_head, void, info, tracks, tags])})
+    segment_size = byte_size(webm_header_elements)
 
-    ebml_header <> segment_beginning
+    {segment_size, ebml_header <> segment_header <> webm_header_elements}
   end
 
-  @impl true
-  def handle_init(_) do
-    {:ok, %State{}}
-  end
-
+  # demand all tracks for which the last frame is not cached
   @impl true
   def handle_demand(:output, _size, :buffers, _context, state) do
-    # demand all tracks for which the last frame is not cached
     if state.expected_tracks == state.active_tracks do
       demands =
         state.tracks
@@ -143,9 +154,6 @@ defmodule Membrane.WebM.Muxer do
   @impl true
   def handle_process(Pad.ref(:input, id), %Buffer{payload: data, pts: timestamp}, _context, state) do
     timestamp = div(timestamp, @timestamp_scale)
-
-    IO.inspect(timestamp)
-
     state = put_in(state.tracks[id].last_timestamp, timestamp)
     block = {timestamp, data, state.tracks[id].track_number, state.tracks[id].codec}
     state = put_in(state.tracks[id].last_block, block)
@@ -158,6 +166,8 @@ defmodule Membrane.WebM.Muxer do
     end
   end
 
+  # the cache contains one frame for each track
+  # takes the frame that should come next and appends it to current cluster or creates a new cluster and outputs current cluster
   def consume_block(state) do
     # sort blocks according to which should be next in the cluster
     youngest_track =
@@ -166,20 +176,25 @@ defmodule Membrane.WebM.Muxer do
       |> hd()
       |> elem(1)
 
-    {returned_cluster, new_cluster_acc} = step_cluster(youngest_track.last_block, state.cluster_acc)
+    block = youngest_track.last_block
+
+    {returned_cluster, new_cluster_acc} = step_cluster(block, state.cluster_acc)
 
     state = put_in(state.tracks[youngest_track.id].last_block, nil)
 
     if returned_cluster == nil do
       {{:ok, redemand: :output}, %State{state | cluster_acc: new_cluster_acc}}
     else
-      {{:ok, buffer: {:output, %Buffer{payload: write(returned_cluster)}}, redemand: :output},
-       %State{state | cluster_acc: new_cluster_acc}}
+      # CueTime - absolute timestamp
+      # CueTrack - track number
+      # CueClusterPosition - SegmentPosition of the Cluster containing the associated Block
+      new_cue = {:CuePoint, [CueTime: elem(block, 0), CueTrack: youngest_track.track_number, CueClusterPosition: state.segment_size]}
+      state = update_in(state.cues, fn cues -> [new_cue | cues] end)
+      cluster_bytes = Serializer.serialize({:Cluster, returned_cluster})
+      new_segment_size = state.segment_size + byte_size(cluster_bytes)
+      {{:ok, buffer: {:output, %Buffer{payload: cluster_bytes}}, redemand: :output},
+       %State{state | cluster_acc: new_cluster_acc, segment_size: new_segment_size}}
     end
-  end
-
-  def write({blocks, timecode}) do
-    Serializer.serialize({:Cluster, blocks ++ [{:Timecode, timecode}]})
   end
 
   def step_cluster(
@@ -187,7 +202,6 @@ defmodule Membrane.WebM.Muxer do
         {current_cluster, cluster_time, current_bytes} = _cluster_acc
       ) do
     cluster_time = min(cluster_time, absolute_time)
-    current_bytes = current_bytes + byte_size(data) + 7
     relative_time = absolute_time - cluster_time
 
     # 32767 is max valid value of a simpleblock timecode (max signed_int16)
@@ -201,18 +215,23 @@ defmodule Membrane.WebM.Muxer do
         Codecs.is_video_keyframe(block)
 
     if begin_new_cluster do
+      timecode = {:Timecode, absolute_time}
       new_block = {:SimpleBlock, {0, data, track_number, type}}
+      new_cluster = Serializer.serialize([timecode, new_block])
+      bytes = byte_size(new_cluster)
+      new_cluster_acc = {new_cluster, absolute_time, bytes}
 
-      new_cluster_acc = {[new_block], absolute_time, 0}
-
-      if current_cluster == [] do
+      if current_cluster == <<>> do
         {nil, new_cluster_acc}
       else
-        {{current_cluster, cluster_time}, new_cluster_acc}
+        {current_cluster, new_cluster_acc}
       end
     else
       new_block = {:SimpleBlock, {absolute_time - cluster_time, data, track_number, type}}
-      new_cluster_acc = {[new_block | current_cluster], cluster_time, current_bytes}
+      serialized_block = Serializer.serialize(new_block)
+      new_cluster = current_cluster <> serialized_block
+      new_bytes = current_bytes + byte_size(serialized_block)
+      new_cluster_acc = {new_cluster, cluster_time, new_bytes}
 
       {nil, new_cluster_acc}
     end
@@ -237,9 +256,12 @@ defmodule Membrane.WebM.Muxer do
     put_in(state.cluster_acc, {[new_block | blocks], timecode, bytes})
 
     if state.active_tracks == 1 do
-      {blocks, timecode, _bytes} = state.cluster_acc
-      cluster = Serializer.serialize({:Cluster, blocks ++ [{:Timecode, timecode}]})
-      {{:ok, buffer: {:output, %Buffer{payload: cluster}}, end_of_stream: :output}, state}
+      {blocks, _timecode, _bytes} = state.cluster_acc
+      cluster_bytes = Serializer.serialize({:Cluster, blocks})
+      new_segment_size = state.segment_size + byte_size(cluster_bytes)
+      state = %State{state | segment_size: new_segment_size}
+      cues_bytes = Serializer.serialize({:Cues, state.cues})
+      {{:ok, buffer: {:output, %Buffer{payload: cluster_bytes <> cues_bytes}}, end_of_stream: :output}, state}
     else
       {_track, state} = pop_in(state.tracks[id])
       {actions, state} = consume_block(state)
@@ -275,3 +297,12 @@ defmodule Membrane.WebM.Muxer do
   WebM Muxer Guidelines https://www.webmproject.org/docs/container/
   """
 end
+
+# Cues
+#   CuePoint
+#     CueTime - absolute timestamp
+#     CueTrack - track number
+#     CueClusterPosition - SegmentPosition of the Cluster containing the associated Block
+#     (CueRelativePosition) - only if the referenced frame is not stored in the first Block in the Cluster
+#   CuePoint
+#   CuePoint
