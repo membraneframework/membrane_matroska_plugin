@@ -105,6 +105,9 @@ defmodule Membrane.WebM.Demuxer do
 
   @impl true
   def handle_pad_added(Pad.ref(:output, id), _context, %State{tracks: tracks} = state) do
+    # Demuxer should return TrackUID for each pad that's added
+    # FIXME: https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-8.1.4.1.2-1.18
+    # The TrackUID SHOULD be kept the same when making a direct stream copy to another file.
     track = tracks[id]
 
     caps =
@@ -127,7 +130,7 @@ defmodule Membrane.WebM.Demuxer do
 
     new_state = %State{
       state
-      | tracks: update_in(tracks[id].active, fn _ -> true end),
+      | tracks: put_in(tracks[id].active, true),
         cache: other_buffers
     }
 
@@ -183,6 +186,7 @@ defmodule Membrane.WebM.Demuxer do
           :audio ->
             %{
               codec: track[:CodecID],
+              uid: track[:TrackUID],
               active: false,
               channels: track[:Audio][:Channels]
             }
@@ -190,6 +194,7 @@ defmodule Membrane.WebM.Demuxer do
           :video ->
             %{
               codec: track[:CodecID],
+              uid: track[:TrackUID],
               active: false,
               height: track[:Video][:PixelHeight],
               width: track[:Video][:PixelWidth],

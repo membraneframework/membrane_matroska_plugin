@@ -199,9 +199,9 @@ defmodule Membrane.WebM.MuxerTest do
     Testing.Pipeline.play(pipeline)
     assert_pipeline_playback_changed(pipeline, _, :playing)
 
-    assert_start_of_stream(pipeline, :sink, :input)
+    assert_start_of_stream(pipeline, :sink, :input, 100_000)
 
-    assert_end_of_stream(pipeline, :sink)
+    assert_end_of_stream(pipeline, :sink, :input, 100_000)
 
     Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
     assert_pipeline_playback_changed(pipeline, _, :stopped)
@@ -243,17 +243,17 @@ defmodule Membrane.WebM.MuxerTest do
     assert_pipeline_playback_changed(pipeline, _, :stopped)
   end
 
-  # test "mux single vp8" do
-  #   test_stream("1_vp8.ivf", "muxed_vp8.webm")
-  # end
+  test "mux single vp8" do
+    test_stream("1_vp8.ivf", "muxed_vp8.webm")
+  end
 
-  # test "mux single vp9" do
-  #   test_stream("1_vp9.ivf", "muxed_vp9.webm")
-  # end
+  test "mux single vp9" do
+    test_stream("1_vp9.ivf", "muxed_vp9.webm")
+  end
 
-  # test "mux opus from buffers" do
-  #   test_from_buffers()
-  # end
+  test "mux opus from buffers" do
+    test_from_buffers()
+  end
 
   test "mux two streams into one file, then parse it for debugging" do
     test_many()

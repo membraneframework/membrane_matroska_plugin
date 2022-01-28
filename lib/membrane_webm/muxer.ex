@@ -54,18 +54,12 @@ defmodule Membrane.WebM.Muxer do
   @timestamp_scale Membrane.Time.millisecond()
 
   defmodule State do
-    defstruct cache: [],
-              tracks: %{},
+    defstruct tracks: %{},
               expected_tracks: 0,
               active_tracks: 0,
-              current_cluster_timecode: 0,
-              current_block_timecode: nil,
-              contains_video: false,
               cluster: %{
                 current_cluster: {[], 999_999_999},
                 current_bytes: 0,
-                current_time: 0,
-                previous_time: 0
               }
   end
 
@@ -79,24 +73,34 @@ defmodule Membrane.WebM.Muxer do
     # FIXME: id is a source of nondeterminism - makes testing difficult
     # also it shouldn't be assigned via input pad but generated in muxer
     # imho best: leave option to provide input pad but generate random id if none provided
+    codec =
+      case caps do
+        %VP8{} -> :vp8
+        %VP9{} -> :vp9
+        %Opus{} -> :opus
+        _ -> raise "unsupported codec #{inspect(caps)}"
+      end
+
     state = update_in(state.active_tracks, fn t -> t + 1 end)
-    is_video = Codecs.is_video(caps)
+    is_video = Codecs.is_video(codec)
 
     track = %{
       track_number: state.active_tracks,
       id: id,
+      codec: codec,
       caps: caps,
       is_video: is_video,
-      last_timestamp: nil
+      last_timestamp: nil,
+      last_block: nil
     }
 
     state = put_in(state.tracks[id], track)
-    state = if is_video, do: put_in(state.contains_video, true), else: state
 
     if state.active_tracks == state.expected_tracks do
       {{:ok,
         demand: Pad.ref(:input, id),
         buffer: {:output, %Buffer{payload: serialize_webm_header(state)}}}, state}
+
       # FIXME: i can calculate duration only at the end of the stream so the whole webm_header and it's length should be saved; recalculated at the end of the stream and the file stitched together along with seek and cues
     else
       {{:ok, demand: Pad.ref(:input, id)}, state}
@@ -125,42 +129,132 @@ defmodule Membrane.WebM.Muxer do
 
   @impl true
   def handle_demand(:output, _size, :buffers, _context, state) do
-    {{:ok, Enum.map(state.tracks, fn {id, _info} -> {:demand, Pad.ref(:input, id)} end)}, state}
-  end
+    # demand all tracks for which the last frame is not cached
+    if state.expected_tracks == state.active_tracks do
+      demands =
+        state.tracks
+        |> Enum.filter(fn {_id, info} -> info.last_block == nil end)
+        |> Enum.map(fn {id, _info} -> {:demand, Pad.ref(:input, id)} end)
 
-  # TODO: for now accumulates everything in cache and serializes at end of input stream which is suboptimal
-  # TODO: ivf sends pts while muxer needs dts
-  @impl true
-  def handle_process(Pad.ref(:input, id), %Buffer{payload: data, pts: timestamp}, _context, state) do
-    {{:ok, redemand: :output},
-     %State{
-       state
-       | cache: [
-           {div(timestamp, @timestamp_scale), data, state.tracks[id].track_number, id}
-           | state.cache
-         ]
-     }}
-  end
-
-  @impl true
-  def handle_end_of_stream(Pad.ref(:input, _id), _context, state) do
-    if state.active_tracks == 1 do
-      blocks = Enum.sort(state.cache, &block_sorter/2)
-      clusters = blocks |> construct_clusters()
-      Enum.map(clusters, fn cluster -> IO.inspect(elem(cluster, 1)[:Timecode]) end)
-      clusters_bytes = clusters |> Serializer.serialize()
-
-      {{:ok, buffer: {:output, %Buffer{payload: clusters_bytes}}, end_of_stream: :output}, state}
+      {{:ok, demands}, state}
     else
-      {:ok, %State{state | active_tracks: state.active_tracks - 1}}
+      {:ok, state}
     end
   end
 
-  defp block_sorter({time1, _data1, _track1, codec1}, {time2, _data2, _track2, codec2}) do
+  # TODO: ivf sends pts while muxer needs dts
+  @impl true
+  def handle_process(Pad.ref(:input, id), %Buffer{payload: data, pts: timestamp}, _context, state) do
+    timestamp = div(timestamp, @timestamp_scale)
+
+    # IO.inspect(timestamp)
+
+    state = put_in(state.tracks[id].last_timestamp, timestamp)
+    block = {timestamp, data, state.tracks[id].track_number, state.tracks[id].codec}
+    state = put_in(state.tracks[id].last_block, block)
+
+    if Enum.any?(state.tracks, fn {_id, info} -> info.last_block == nil end) do
+      # if there are active tracks without a cached frame then demand it
+      {{:ok, redemand: :output}, state}
+    else
+      consume_block(state)
+    end
+  end
+
+  def consume_block(state) do
+    # sort blocks according to which should be next in the cluster
+    youngest_track =
+      state.tracks
+      |> Enum.sort(&block_sorter/2)
+      |> hd()
+      |> elem(1)
+
+    {returned_cluster, new_cluster_acc} = step_cluster(youngest_track.last_block, state.cluster)
+
+    state = put_in(state.tracks[youngest_track.id].last_block, nil)
+
+    if returned_cluster == nil do
+      {{:ok, redemand: :output}, %State{state | cluster: new_cluster_acc}}
+    else
+      {{:ok, buffer: {:output, %Buffer{payload: write(returned_cluster)}}, redemand: :output},
+       %State{state | cluster: new_cluster_acc}}
+    end
+  end
+
+  def write({blocks, timecode}) do
+    Serializer.serialize({:Cluster, blocks ++ [{:Timecode, timecode}]})
+  end
+
+  def step_cluster(
+        {absolute_time, data, track_number, type} = block,
+        %{
+          current_cluster: {current_cluster, cluster_time},
+          current_bytes: current_bytes
+        } = _cluster_acc
+      ) do
+    cluster_time = min(cluster_time, absolute_time)
+    current_bytes = current_bytes + byte_size(data) + 7
+    relative_time = absolute_time - cluster_time
+
+    # 32767 is max valid value of a simpleblock timecode (max signed_int16)
+    if relative_time * @timestamp_scale > Membrane.Time.milliseconds(32767) do
+      IO.warn("Simpleblock timecode overflow. Still writing but some data will be lost.")
+    end
+
+    begin_new_cluster =
+      current_bytes >= @cluster_bytes_limit or relative_time * @timestamp_scale >= @cluster_time_limit or
+        Codecs.is_video_keyframe(block)
+
+    if begin_new_cluster do
+      new_block = {:SimpleBlock, {0, data, track_number, type}}
+
+      new_cluster_acc = %{
+        current_cluster: {[new_block], absolute_time},
+        current_bytes: 0
+      }
+
+      if current_cluster == [] do
+        {nil, new_cluster_acc}
+      else
+        {{current_cluster, cluster_time}, new_cluster_acc}
+      end
+    else
+      new_block = {:SimpleBlock, {absolute_time - cluster_time, data, track_number, type}}
+
+      new_cluster_acc = %{
+        current_cluster: {[new_block | current_cluster], cluster_time},
+        current_bytes: current_bytes
+      }
+
+      {nil, new_cluster_acc}
+    end
+  end
+
+  defp block_sorter({_id1, track1}, {_id2, track2}) do
+    {time1, _data1, _track_number1, codec1} = track1.last_block
+    {time2, _data2, _track_number2, codec2} = track2.last_block
+
     if time1 < time2 do
       true
     else
       Codecs.is_audio(codec1) and Codecs.is_video(codec2)
+    end
+  end
+
+  @impl true
+  def handle_end_of_stream(Pad.ref(:input, id), _context, state) do
+    new_block = state.tracks[id].last_block
+    {blocks, _timecode} = state.cluster.current_cluster
+    put_in(state.cluster.current_cluster, [new_block | blocks])
+
+    if state.active_tracks == 1 do
+      {blocks, timecode} = state.cluster.current_cluster
+      cluster = Serializer.serialize({:Cluster, blocks ++ [{:Timecode, timecode}]})
+      {{:ok, buffer: {:output, %Buffer{payload: cluster}}, end_of_stream: :output}, state}
+    else
+      {_track, state} = pop_in(state.tracks[id])
+      {actions, state} = consume_block(state)
+      {actions, %State{state | active_tracks: state.active_tracks - 1, expected_tracks: state.expected_tracks - 1}}
     end
   end
 
@@ -185,76 +279,4 @@ defmodule Membrane.WebM.Muxer do
 
   WebM Muxer Guidelines https://www.webmproject.org/docs/container/
   """
-  def construct_clusters(blocks) do
-    acc = %{
-      clusters: [],
-      current_cluster: {[], 999_999_999},
-      current_bytes: 0,
-      current_time: 0,
-      previous_time: 0
-    }
-
-    %{
-      clusters: clusters,
-      current_cluster: current_cluster
-    } =
-      Enum.reduce(blocks, acc, fn block, acc ->
-        step_reduce_with_limits(block, acc)
-      end)
-
-    [current_cluster | clusters]
-    |> Enum.reverse()
-    |> Enum.map(fn {blocks, timecode} -> {:Cluster, blocks ++ [{:Timecode, timecode}]} end)
-  end
-
-  def step_reduce_with_limits(
-        {absolute_time, data, track_number, type} = block,
-        %{
-          clusters: clusters,
-          current_cluster: {current_cluster, cluster_time},
-          current_bytes: current_bytes,
-          current_time: current_time,
-          previous_time: previous_time
-        } = _acc
-      ) do
-    # TODO: maybe don't add 7? doesn't make much difference
-    # 7 is only an approximation because VINTs (variable-length ints) are used
-    # +2 # timecode
-    # +1 # header_flags
-    # +1 # track_number - only correct as long as less than 128 tracks in file
-    # +1 # element_id
-    # +2 # element_size - should be correct in most cases (122 to 16378 byte frames)
-
-    cluster_time = min(cluster_time, absolute_time)
-    current_bytes = current_bytes + byte_size(data) + 7
-    current_time = current_time + Membrane.Time.milliseconds(absolute_time - previous_time)
-
-    # 32767 is max valid value of a simpleblock timecode (max signed_int16)
-    if current_time > Membrane.Time.milliseconds(32767) do
-      IO.warn("Simpleblock timecode overflow. Still writing but some data will be lost.")
-    end
-
-    if current_bytes >= @cluster_bytes_limit or current_time >= @cluster_time_limit or
-         Codecs.is_video_keyframe(block) do
-      block = {:SimpleBlock, {0, data, track_number, type}}
-
-      %{
-        clusters: [{current_cluster, cluster_time} | clusters],
-        current_cluster: {[block], absolute_time},
-        current_bytes: 0,
-        current_time: 0,
-        previous_time: absolute_time
-      }
-    else
-      block = {:SimpleBlock, {absolute_time - cluster_time, data, track_number, type}}
-
-      %{
-        clusters: clusters,
-        current_cluster: {[block | current_cluster], cluster_time},
-        current_bytes: current_bytes,
-        current_time: current_time,
-        previous_time: absolute_time
-      }
-    end
-  end
 end

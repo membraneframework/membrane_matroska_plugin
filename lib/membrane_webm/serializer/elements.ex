@@ -26,11 +26,11 @@ defmodule Membrane.WebM.Serializer.Elements do
     }
   end
 
-  def construct_tracks(pads, tracks) do
-    {:Tracks, Enum.map(Enum.zip(pads, tracks), &construct_track_entry/1)}
+  def construct_tracks(tracks) do
+    {:Tracks, Enum.map(tracks, &construct_track_entry/1)}
   end
 
-  defp construct_track_entry({{id, %Opus{channels: channels}}, {_id, track_number}}) do
+  defp construct_track_entry({id, %{caps: %Opus{channels: channels}, track_number: track_number}}) do
     {:TrackEntry,
      [
        # CodecPrivate is identical to the ogg ID header specified here:
@@ -69,15 +69,16 @@ defmodule Membrane.WebM.Serializer.Elements do
        # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-8.1.4.1.12
        FlagLacing: 0,
        #  TrackUID is an 8 byte number that MUST NOT be 0
-       #  FIXME: :rand.uniform((1 <<< 56) - 2) works for now but :rand.uniform((1 <<< 64) - 2) should be used instead
-       # Probably a problem with Membrane.WebM.EBML encoding of 8-byte numbers
+       #  FIXME: The value of this Element SHOULD be kept the same when making a direct stream copy to another file.
        TrackUID: id,
        # The track number as used in the Block Header (using more than 127 tracks is not encouraged, though the design allows an unlimited number).
        TrackNumber: track_number
      ]}
   end
 
-  defp construct_track_entry({{id, %VP8{width: width, height: height}}, {_id, track_number}}) do
+  defp construct_track_entry(
+         {id, %{caps: %VP8{width: width, height: height}, track_number: track_number}}
+       ) do
     {:TrackEntry,
      [
        Video: [
@@ -105,7 +106,9 @@ defmodule Membrane.WebM.Serializer.Elements do
   end
 
   # TODO: check out if relevant source of values: https://www.webmproject.org/docs/container/#TagBinary
-  defp construct_track_entry({{id, %VP9{width: width, height: height}}, {_id, track_number}}) do
+  defp construct_track_entry(
+         {id, %{caps: %VP9{width: width, height: height}, track_number: track_number}}
+       ) do
     {:TrackEntry,
      [
        Video: [

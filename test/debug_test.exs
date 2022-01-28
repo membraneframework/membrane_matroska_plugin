@@ -77,7 +77,7 @@ defmodule Membrane.WebM.PrettyPrint do
   end
 
   # test "parse and pretty print a webm file" do
-  #   run("test/results/muxed_opus.webm", "test/results/demuxed_opus.webp")
+  #   run("test/fixtures/output.webm", "test/results/output.webp")
   # end
 
   defp run(input, output) do

@@ -1,8 +1,6 @@
 defmodule Membrane.WebM.Parser.Codecs do
   # These functions should be provided by VP8, VP9 and Opus plugins but they aren't
 
-  alias Membrane.{Opus, VP8, VP9}
-
   def vp8_frame_is_keyframe(<<frame_tag::binary-size(3), _rest::bitstring>>) do
     <<size_0::3, _show_frame::1, _version::3, frame_type::1, size_1, size_2>> = frame_tag
     <<_size::19>> = <<size_2, size_1, size_0::3>>
@@ -44,26 +42,19 @@ defmodule Membrane.WebM.Parser.Codecs do
   end
 
   def is_audio(codec) do
-    case codec do
-      %Opus{} -> true
-      _ -> false
-    end
+    codec == :opus
   end
 
   def is_video(codec) do
-    case codec do
-      %VP8{} -> true
-      %VP9{} -> true
-      _ -> false
-    end
+    codec == :vp8 or codec == :vp9
   end
 
   def keyframe_bit({_timecode, data, _track_number, codec} = _block) do
     case codec do
-      %VP8{} -> vp8_frame_is_keyframe(data) |> boolean_to_integer
-      %VP9{} -> vp9_frame_is_keyframe(data) |> boolean_to_integer
-      %Opus{} -> 1
-      _ -> 0
+      :vp8 -> vp8_frame_is_keyframe(data) |> boolean_to_integer
+      :vp9 -> vp9_frame_is_keyframe(data) |> boolean_to_integer
+      :opus -> 1
+      _ -> raise "unsupported codec #{inspect(codec)}"
     end
   end
 

@@ -8,7 +8,7 @@ defmodule Membrane.WebM.Plugin.Mixfile do
     [
       app: :membrane_webm_plugin,
       version: @version,
-      elixir: "~> 1.12",
+      elixir: "~> 1.13",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
