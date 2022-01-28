@@ -57,10 +57,7 @@ defmodule Membrane.WebM.Muxer do
     defstruct tracks: %{},
               expected_tracks: 0,
               active_tracks: 0,
-              cluster: %{
-                current_cluster: {[], 999_999_999},
-                current_bytes: 0,
-              }
+              cluster_acc: {[], 999_999_999, 0}
   end
 
   @impl true
@@ -147,7 +144,7 @@ defmodule Membrane.WebM.Muxer do
   def handle_process(Pad.ref(:input, id), %Buffer{payload: data, pts: timestamp}, _context, state) do
     timestamp = div(timestamp, @timestamp_scale)
 
-    # IO.inspect(timestamp)
+    IO.inspect(timestamp)
 
     state = put_in(state.tracks[id].last_timestamp, timestamp)
     block = {timestamp, data, state.tracks[id].track_number, state.tracks[id].codec}
@@ -169,15 +166,15 @@ defmodule Membrane.WebM.Muxer do
       |> hd()
       |> elem(1)
 
-    {returned_cluster, new_cluster_acc} = step_cluster(youngest_track.last_block, state.cluster)
+    {returned_cluster, new_cluster_acc} = step_cluster(youngest_track.last_block, state.cluster_acc)
 
     state = put_in(state.tracks[youngest_track.id].last_block, nil)
 
     if returned_cluster == nil do
-      {{:ok, redemand: :output}, %State{state | cluster: new_cluster_acc}}
+      {{:ok, redemand: :output}, %State{state | cluster_acc: new_cluster_acc}}
     else
       {{:ok, buffer: {:output, %Buffer{payload: write(returned_cluster)}}, redemand: :output},
-       %State{state | cluster: new_cluster_acc}}
+       %State{state | cluster_acc: new_cluster_acc}}
     end
   end
 
@@ -187,10 +184,7 @@ defmodule Membrane.WebM.Muxer do
 
   def step_cluster(
         {absolute_time, data, track_number, type} = block,
-        %{
-          current_cluster: {current_cluster, cluster_time},
-          current_bytes: current_bytes
-        } = _cluster_acc
+        {current_cluster, cluster_time, current_bytes} = _cluster_acc
       ) do
     cluster_time = min(cluster_time, absolute_time)
     current_bytes = current_bytes + byte_size(data) + 7
@@ -202,16 +196,14 @@ defmodule Membrane.WebM.Muxer do
     end
 
     begin_new_cluster =
-      current_bytes >= @cluster_bytes_limit or relative_time * @timestamp_scale >= @cluster_time_limit or
+      current_bytes >= @cluster_bytes_limit or
+        relative_time * @timestamp_scale >= @cluster_time_limit or
         Codecs.is_video_keyframe(block)
 
     if begin_new_cluster do
       new_block = {:SimpleBlock, {0, data, track_number, type}}
 
-      new_cluster_acc = %{
-        current_cluster: {[new_block], absolute_time},
-        current_bytes: 0
-      }
+      new_cluster_acc = {[new_block], absolute_time, 0}
 
       if current_cluster == [] do
         {nil, new_cluster_acc}
@@ -220,11 +212,7 @@ defmodule Membrane.WebM.Muxer do
       end
     else
       new_block = {:SimpleBlock, {absolute_time - cluster_time, data, track_number, type}}
-
-      new_cluster_acc = %{
-        current_cluster: {[new_block | current_cluster], cluster_time},
-        current_bytes: current_bytes
-      }
+      new_cluster_acc = {[new_block | current_cluster], cluster_time, current_bytes}
 
       {nil, new_cluster_acc}
     end
@@ -244,17 +232,24 @@ defmodule Membrane.WebM.Muxer do
   @impl true
   def handle_end_of_stream(Pad.ref(:input, id), _context, state) do
     new_block = state.tracks[id].last_block
-    {blocks, _timecode} = state.cluster.current_cluster
-    put_in(state.cluster.current_cluster, [new_block | blocks])
+    {blocks, timecode, bytes} = state.cluster_acc
+    # FIXME: this should be handled by step_cluster; now bytes are wrong
+    put_in(state.cluster_acc, {[new_block | blocks], timecode, bytes})
 
     if state.active_tracks == 1 do
-      {blocks, timecode} = state.cluster.current_cluster
+      {blocks, timecode, _bytes} = state.cluster_acc
       cluster = Serializer.serialize({:Cluster, blocks ++ [{:Timecode, timecode}]})
       {{:ok, buffer: {:output, %Buffer{payload: cluster}}, end_of_stream: :output}, state}
     else
       {_track, state} = pop_in(state.tracks[id])
       {actions, state} = consume_block(state)
-      {actions, %State{state | active_tracks: state.active_tracks - 1, expected_tracks: state.expected_tracks - 1}}
+
+      {actions,
+       %State{
+         state
+         | active_tracks: state.active_tracks - 1,
+           expected_tracks: state.expected_tracks - 1
+       }}
     end
   end
 
