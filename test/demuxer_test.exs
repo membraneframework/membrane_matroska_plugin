@@ -6,7 +6,6 @@ defmodule Membrane.WebM.DemuxerTest do
   alias Membrane.Testing
 
   @input_dir "./test/fixtures/"
-  @output_dir "./test/results/"
 
   defmodule TestPipeline do
     use Membrane.Pipeline
@@ -89,31 +88,13 @@ defmodule Membrane.WebM.DemuxerTest do
     end
   end
 
-  # test "demuxing webm containing opus" do
-  #   test_stream("opus_audio.webm", ["1.ogg"], ["1.ogg"])
-  # end
-
-  # test "demuxing webm containing vp8 + opus" do
-  #   test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.ogg"], ["1_vp8.ivf", "2.ogg"])
-  # end
-
-  # test "demuxing webm containing vp9 + opus" do
-  #   test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.ogg"], ["1_vp9.ivf", "2.ogg"])
-  # end
-
-  defp test_stream(input_file, references, results) do
-    args = Enum.zip(references, results)
-
-    if !File.exists?(@output_dir) do
-      File.mkdir!(@output_dir)
-    end
-
+  defp test_stream(input_file, references, tmp_dir) do
     {:ok, pipeline} =
       %Testing.Pipeline.Options{
         module: TestPipeline,
         custom_args: %{
           input_file: @input_dir <> input_file,
-          output_dir: @output_dir
+          output_dir: tmp_dir
         }
       }
       |> Testing.Pipeline.start_link()
@@ -121,7 +102,7 @@ defmodule Membrane.WebM.DemuxerTest do
     Testing.Pipeline.play(pipeline)
     assert_pipeline_playback_changed(pipeline, _, :playing)
 
-    if Enum.count(args) == 1 do
+    if Enum.count(references) == 1 do
       assert_end_of_stream(pipeline, {:sink, 1})
     else
       assert_end_of_stream(pipeline, {:sink, 1})
@@ -131,9 +112,23 @@ defmodule Membrane.WebM.DemuxerTest do
     Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
     assert_pipeline_playback_changed(pipeline, _, :stopped)
 
-    for {reference, result} <- args do
-      assert File.read!(@input_dir <> reference) ==
-               File.read!(@output_dir <> result)
+    for reference <- references do
+      assert File.read!(@input_dir <> reference) == File.read!(tmp_dir <> reference)
     end
+  end
+
+  @tag :tmp_dir
+  test "demuxing webm containing opus", %{tmp_dir: tmp_dir} do
+    test_stream("opus_audio.webm", ["1.ogg"], tmp_dir)
+  end
+
+  @tag :tmp_dir
+  test "demuxing webm containing vp8 + opus", %{tmp_dir: tmp_dir} do
+    test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.ogg"], tmp_dir)
+  end
+
+  @tag :tmp_dir
+  test "demuxing webm containing vp9 + opus", %{tmp_dir: tmp_dir} do
+    test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.ogg"], tmp_dir)
   end
 end

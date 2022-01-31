@@ -183,6 +183,8 @@ defmodule Membrane.WebM.Serializer.Elements do
         MuxingApp: "membrane_webm_plugin-#{@version}",
         # FIXME: how should the title field be populated?
         Title: "Membrane WebM file",
+        # TODO: add date when creating
+        # DateUTC: :calendar.,
         # hardcoded per RFC
         # note that this requires all incoming buffer `pts` timestamp to be expressed in Membrane.Time (i.e. in nanoseconds)
         # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#name-timestampscale-element

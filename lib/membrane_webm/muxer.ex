@@ -106,9 +106,9 @@ defmodule Membrane.WebM.Muxer do
     if state.active_tracks == state.expected_tracks do
       {segment_bytes, webm_header} = serialize_webm_header(state)
       new_state = %State{state | segment_size: state.segment_size + segment_bytes}
-      {{:ok,
-        demand: Pad.ref(:input, id),
-        buffer: {:output, %Buffer{payload: webm_header}}}, new_state}
+
+      {{:ok, demand: Pad.ref(:input, id), buffer: {:output, %Buffer{payload: webm_header}}},
+       new_state}
 
       # FIXME: i can calculate duration only at the end of the stream so the whole webm_header and it's length should be saved; recalculated at the end of the stream and the file stitched together along with seek and cues
     else
@@ -127,8 +127,7 @@ defmodule Membrane.WebM.Muxer do
     seek_head = Elements.construct_seek_head([info, tracks, tags])
     void = Elements.construct_void(seek_head)
 
-    webm_header_elements =
-      Serializer.serialize([seek_head, void, info, tracks, tags])
+    webm_header_elements = Serializer.serialize([seek_head, void, info, tracks, tags])
 
     segment_size = byte_size(webm_header_elements)
 
@@ -188,10 +187,18 @@ defmodule Membrane.WebM.Muxer do
       # CueTime - absolute timestamp
       # CueTrack - track number
       # CueClusterPosition - SegmentPosition of the Cluster containing the associated Block
-      new_cue = {:CuePoint, [CueTime: elem(block, 0), CueTrack: youngest_track.track_number, CueClusterPosition: state.segment_size]}
+      new_cue =
+        {:CuePoint,
+         [
+           CueTime: elem(block, 0),
+           CueTrack: youngest_track.track_number,
+           CueClusterPosition: state.segment_size
+         ]}
+
       state = update_in(state.cues, fn cues -> [new_cue | cues] end)
       cluster_bytes = Serializer.serialize({:Cluster, returned_cluster})
       new_segment_size = state.segment_size + byte_size(cluster_bytes)
+
       {{:ok, buffer: {:output, %Buffer{payload: cluster_bytes}}, redemand: :output},
        %State{state | cluster_acc: new_cluster_acc, segment_size: new_segment_size}}
     end
@@ -261,7 +268,10 @@ defmodule Membrane.WebM.Muxer do
       new_segment_size = state.segment_size + byte_size(cluster_bytes)
       state = %State{state | segment_size: new_segment_size}
       cues_bytes = Serializer.serialize({:Cues, state.cues})
-      {{:ok, buffer: {:output, %Buffer{payload: cluster_bytes <> cues_bytes}}, end_of_stream: :output}, state}
+
+      {{:ok,
+        buffer: {:output, %Buffer{payload: cluster_bytes <> cues_bytes}}, end_of_stream: :output},
+       state}
     else
       {_track, state} = pop_in(state.tracks[id])
       {actions, state} = consume_block(state)

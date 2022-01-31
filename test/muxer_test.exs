@@ -1,4 +1,8 @@
 defmodule Membrane.WebM.MuxerTest do
+  # note that input pad ids should be set to a random value:
+  # :random.uniform(1 <<< 64)
+  # here numbers are hardcoded to achieve reproducibility
+
   use ExUnit.Case
   use Bitwise
 
@@ -7,7 +11,7 @@ defmodule Membrane.WebM.MuxerTest do
   alias Membrane.{Buffer, Opus}
 
   @fixtures_dir "./test/fixtures/"
-  @output_dir "./test/results/"
+  # @output_dir "./test/results/"
 
   defmodule TestPipelineOpus do
     use Membrane.Pipeline
@@ -30,7 +34,7 @@ defmodule Membrane.WebM.MuxerTest do
 
       links = [
         link(:source)
-        |> via_in(Pad.ref(:input, :rand.uniform(1 <<< 64)))
+        |> via_in(Pad.ref(:input, 17_447_232_417_024_423_937))
         |> to(:muxer)
         |> to(:sink)
       ]
@@ -58,7 +62,7 @@ defmodule Membrane.WebM.MuxerTest do
       links = [
         link(:source)
         |> to(:deserializer)
-        |> via_in(Pad.ref(:input, :rand.uniform(1 <<< 64)))
+        |> via_in(Pad.ref(:input, 13_337_737_628_113_408_001))
         |> to(:muxer)
         |> to(:sink)
       ]
@@ -136,10 +140,10 @@ defmodule Membrane.WebM.MuxerTest do
       links = [
         link(:vpx_source)
         |> to(:deserializer)
-        |> via_in(Pad.ref(:input, :random.uniform(1 <<< 64)))
+        |> via_in(Pad.ref(:input, 11_020_961_587_148_742_657))
         |> to(:muxer),
         link(:opus_source)
-        |> via_in(Pad.ref(:input, :random.uniform(1 <<< 64)))
+        |> via_in(Pad.ref(:input, 16_890_875_709_512_990_721))
         |> to(:muxer),
         link(:muxer)
         # |> to(:parser)
@@ -151,7 +155,7 @@ defmodule Membrane.WebM.MuxerTest do
     end
   end
 
-  defp test_from_buffers() do
+  defp test_from_buffers(tmp_dir) do
     buffers =
       (@fixtures_dir <> "buffers_dump.opus")
       |> File.read!()
@@ -162,7 +166,7 @@ defmodule Membrane.WebM.MuxerTest do
       %Testing.Pipeline.Options{
         module: TestPipelineOpus,
         custom_args: %{
-          output_file: @output_dir <> "muxed_opus.webm",
+          output_file: tmp_dir <> "output.webm",
           buffers: buffers
         }
       }
@@ -170,51 +174,33 @@ defmodule Membrane.WebM.MuxerTest do
 
     Testing.Pipeline.play(pipeline)
     assert_pipeline_playback_changed(pipeline, _, :playing)
-
     assert_start_of_stream(pipeline, :sink)
-
     assert_end_of_stream(pipeline, :sink)
-
-    # assert File.read!(@output_dir <> "muxed_opus.webm") ==
-    #          File.read!(@fixtures_dir <> "muxed_opus.webm")
-
+    assert File.read!(@fixtures_dir <> "muxed_opus.webm") == File.read!(tmp_dir <> "output.webm")
     Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
   end
 
-  defp test_stream(input_file, output_file) do
-    if !File.exists?(@output_dir) do
-      File.mkdir!(@output_dir)
-    end
-
+  defp test_stream(input_file, reference, tmp_dir) do
     {:ok, pipeline} =
       %Testing.Pipeline.Options{
         module: TestPipelineVpx,
         custom_args: %{
           input_file: @fixtures_dir <> input_file,
-          output_file: @output_dir <> output_file
+          output_file: tmp_dir <> "output.webm"
         }
       }
       |> Testing.Pipeline.start_link()
 
     Testing.Pipeline.play(pipeline)
     assert_pipeline_playback_changed(pipeline, _, :playing)
-
     assert_start_of_stream(pipeline, :sink, :input, 100_000)
-
     assert_end_of_stream(pipeline, :sink, :input, 100_000)
-
     Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
     assert_pipeline_playback_changed(pipeline, _, :stopped)
-
-    # result_file: @output_dir <> output_file
-
-    # for {reference, result} <- args do
-    #   assert File.read!(@fixtures_dir <> reference) ==
-    #            File.read!(@output_dir <> result)
-    # end
+    assert File.read!(@fixtures_dir <> reference) == File.read!(tmp_dir <> "output.webm")
   end
 
-  defp test_many() do
+  defp test_many(tmp_dir) do
     buffers =
       (@fixtures_dir <> "buffers_dump.opus")
       |> File.read!()
@@ -226,7 +212,7 @@ defmodule Membrane.WebM.MuxerTest do
         module: TestPipelineMany,
         custom_args: %{
           input_file: @fixtures_dir <> "1_vp8.ivf",
-          output_file: @output_dir <> "combined.webm",
+          output_file: tmp_dir <> "output.webm",
           buffers: buffers
         }
       }
@@ -234,28 +220,30 @@ defmodule Membrane.WebM.MuxerTest do
 
     Testing.Pipeline.play(pipeline)
     assert_pipeline_playback_changed(pipeline, _, :playing)
-
     assert_start_of_stream(pipeline, :sink, :input, 100_000)
-
     assert_end_of_stream(pipeline, :sink, :input, 100_000)
-
     Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
     assert_pipeline_playback_changed(pipeline, _, :stopped)
+    assert File.read!(@fixtures_dir <> "combined.webm") == File.read!(tmp_dir <> "output.webm")
   end
 
-  # test "mux single vp8" do
-  #   test_stream("1_vp8.ivf", "muxed_vp8.webm")
-  # end
+  @tag :tmp_dir
+  test "mux single vp8", %{tmp_dir: tmp_dir} do
+    test_stream("1_vp8.ivf", "muxed_vp8.webm", tmp_dir)
+  end
 
-  # test "mux single vp9" do
-  #   test_stream("1_vp9.ivf", "muxed_vp9.webm")
-  # end
+  @tag :tmp_dir
+  test "mux single vp9", %{tmp_dir: tmp_dir} do
+    test_stream("1_vp9.ivf", "muxed_vp9.webm", tmp_dir)
+  end
 
-  # test "mux opus from buffers" do
-  #   test_from_buffers()
-  # end
+  @tag :tmp_dir
+  test "mux opus from buffers", %{tmp_dir: tmp_dir} do
+    test_from_buffers(tmp_dir)
+  end
 
-  test "mux two streams into one file, then parse it for debugging" do
-    test_many()
+  @tag :tmp_dir
+  test "mux two streams into one file, then parse it for debugging", %{tmp_dir: tmp_dir} do
+    test_many(tmp_dir)
   end
 end
