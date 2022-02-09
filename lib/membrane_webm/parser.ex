@@ -19,7 +19,7 @@ defmodule Membrane.WebM.Parser do
     caps: :any
 
   @impl true
-  def handle_init(_) do
+  def handle_init(_options) do
     {:ok, %{acc: <<>>, header_consumed: false}}
   end
 

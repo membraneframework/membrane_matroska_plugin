@@ -17,13 +17,11 @@ defmodule Membrane.WebM.DemuxerTest do
           location: options.input_file,
           chunk_size: 4096
         },
-        parser: Membrane.WebM.Parser,
         demuxer: Membrane.WebM.Demuxer
       ]
 
       links = [
         link(:source)
-        # |> to(:parser)
         |> to(:demuxer)
       ]
 
@@ -47,7 +45,7 @@ defmodule Membrane.WebM.DemuxerTest do
             # {:portaudio, track_id} => Membrane.PortAudio.Sink,
             {:payloader, track_id} => %Membrane.Ogg.Payloader.Opus{
               frame_size: 20,
-              random_serial_number?: false
+              serial_number: 4_210_672_757
             },
             {:sink, track_id} => %Membrane.File.Sink{
               location: state.output_dir <> "#{track_id}.ogg"
@@ -119,16 +117,16 @@ defmodule Membrane.WebM.DemuxerTest do
 
   @tag :tmp_dir
   test "demuxing webm containing opus", %{tmp_dir: tmp_dir} do
-    test_stream("opus_audio.webm", ["1.ogg"], tmp_dir)
+    test_stream("opus_audio.webm", ["1.ogg"], tmp_dir <> "/")
   end
 
   @tag :tmp_dir
   test "demuxing webm containing vp8 + opus", %{tmp_dir: tmp_dir} do
-    test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.ogg"], tmp_dir)
+    test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.ogg"], tmp_dir <> "/")
   end
 
   @tag :tmp_dir
   test "demuxing webm containing vp9 + opus", %{tmp_dir: tmp_dir} do
-    test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.ogg"], tmp_dir)
+    test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.ogg"], tmp_dir <> "/")
   end
 end

@@ -21,7 +21,7 @@ defmodule Membrane.WebM.PrettyPrint do
       caps: :any
 
     @impl true
-    def handle_init(_) do
+    def handle_init(_options) do
       {:ok, %{cache: []}}
     end
 

@@ -11,6 +11,7 @@ defmodule Membrane.WebM.Serializer.Elements do
   @version Membrane.WebM.Plugin.Mixfile.project()[:version]
   @seekhead_bytes 160
 
+  @spec construct_ebml_header() :: {atom, list}
   def construct_ebml_header() do
     {
       :EBML,
@@ -26,6 +27,7 @@ defmodule Membrane.WebM.Serializer.Elements do
     }
   end
 
+  @spec construct_tracks(list({non_neg_integer, map})) :: {atom, list}
   def construct_tracks(tracks) do
     {:Tracks, Enum.map(tracks, &construct_track_entry/1)}
   end
@@ -69,7 +71,7 @@ defmodule Membrane.WebM.Serializer.Elements do
        # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-8.1.4.1.12
        FlagLacing: 0,
        #  TrackUID is an 8 byte number that MUST NOT be 0
-       #  FIXME: The value of this Element SHOULD be kept the same when making a direct stream copy to another file.
+       #  The value of this Element SHOULD be kept the same when making a direct stream copy to another file.
        TrackUID: id,
        # The track number as used in the Block Header (using more than 127 tracks is not encouraged, though the design allows an unlimited number).
        TrackNumber: track_number
@@ -98,6 +100,7 @@ defmodule Membrane.WebM.Serializer.Elements do
        TrackType: 1,
        # :vp8,
        CodecID: "V_VP8",
+       # und = undetermined
        Language: "und",
        FlagLacing: 0,
        TrackUID: id,
@@ -134,6 +137,7 @@ defmodule Membrane.WebM.Serializer.Elements do
        TrackType: 1,
        # :vp8,
        CodecID: "V_VP9",
+       # und = undetermined
        Language: "und",
        FlagLacing: 0,
        TrackUID: id,
@@ -145,6 +149,7 @@ defmodule Membrane.WebM.Serializer.Elements do
   segment position:
   https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#name-segment-position
   """
+  @spec construct_seek_head(list({atom, list})) :: {atom, list}
   def construct_seek_head(elements) do
     seeks =
       elements
@@ -167,110 +172,57 @@ defmodule Membrane.WebM.Serializer.Elements do
     {:SeekHead, seeks}
   end
 
+  @spec construct_void({atom, list}) :: {atom, non_neg_integer}
   def construct_void(seek_head) do
     void_width = @seekhead_bytes - byte_size(Serializer.serialize(seek_head))
     {:Void, void_width}
   end
 
   # this element MUST exist - because of TimestampScale
+  @spec construct_info() :: {atom, list}
   def construct_info() do
     {
       :Info,
       [
         # TODO: calculate Duration dynamically
-        Duration: 27201.0,
+        Duration: 0,
         WritingApp: "membrane_webm_plugin-#{@version}",
         MuxingApp: "membrane_webm_plugin-#{@version}",
-        # FIXME: how should the title field be populated?
+        # TODO: add options to populate title fields
         Title: "Membrane WebM file",
-        # TODO: add date when creating
-        # DateUTC: :calendar.,
+        # breaks testing reproducibility:
+        # DateUTC:
+        #   :calendar.datetime_to_gregorian_seconds(:calendar.now_to_datetime(:erlang.timestamp())),
         # hardcoded per RFC
-        # note that this requires all incoming buffer `pts` timestamp to be expressed in Membrane.Time (i.e. in nanoseconds)
+        # note that this requires all incoming buffer `dts` timestamps to be expressed in Membrane.Time (i.e. in nanoseconds)
         # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#name-timestampscale-element
-        # FIXME: FIXME: FIXME:
+        TimestampScale: @timestamp_scale
+        # FIXME:
         # Matroska's `TimecodeScale` changed it's name to `TimestampScale`
         # See https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-13
         # Yet the WebM documentation appears to still be using `TimecodeScale`
         # See https://www.webmproject.org/docs/container/#TimecodeScale
-        TimestampScale: @timestamp_scale
       ]
     }
   end
 
-  # TODO: There's no way of extracting this metadata from raw streams so a callback or option should be implemented to supply these values
-  # Though they do not appear essential for achieving playable files (possible exception: VLC)
+  # TODO: a callback or option should be implemented to supply tag values
   # https://matroska.org/technical/tagging.html
-  def construct_tags() do
-    {:Tags,
-     [
-       Tag: [
-         SimpleTag: [TagString: "00:00:27.201000000", TagName: "DURATION"],
-         SimpleTag: [TagString: "Lavc58.134.100 libopus", TagName: "ENCODER"],
-         Targets: []
-       ],
-       Tag: [
-         SimpleTag: [TagString: "Lavf58.76.100", TagName: "ENCODER"],
-         SimpleTag: [TagString: "Kevin MacLeod", TagName: "ARTIST"],
-         SimpleTag: [TagString: "YouTube Audio Library", TagName: "ALBUM"],
-         SimpleTag: [TagString: "Cinematic", TagName: "GENRE"],
-         Targets: []
-       ]
-     ]}
-  end
-
-  # Unless Matroska is used as a live stream, it SHOULD contain a Cues Element.
-  # For each video track, each keyframe SHOULD be referenced by a CuePoint Element.
-  # It is RECOMMENDED to not reference non-keyframes of video tracks in Cues unless it references a Cluster Element which contains a CodecState Element but no keyframes.
-  # For each subtitle track present, each subtitle frame SHOULD be referenced by a CuePoint Element with a CueDuration Element.
-  # References to audio tracks MAY be skipped in CuePoint Elements if a video track is present. When included the CuePoint Elements SHOULD reference audio keyframes at most once every 500 milliseconds.
-  # If the referenced frame is not stored within the first SimpleBlock, or first BlockGroup within its Cluster Element, then the CueRelativePosition Element SHOULD be written to reference where in the Cluster the reference frame is stored.
-  # If a CuePoint Element references Cluster Element that includes a CodecState Element, then that CuePoint Element MUST use a CueCodecState Element.
-  # CuePoint Elements SHOULD be numerically sorted in storage order by the value of the CueTime Element.
-  # https://www.matroska.org/technical/cues.html
-  def construct_cues() do
-    {:Cues,
-     [
-       CuePoint: [
-         CueTrackPositions: [
-           CueRelativePosition: 4,
-           CueClusterPosition: 1_841_571,
-           CueTrack: 1
-         ],
-         CueTime: 8540
-       ],
-       CuePoint: [
-         CueTrackPositions: [
-           CueRelativePosition: 656,
-           CueClusterPosition: 818_091,
-           CueTrack: 1
-         ],
-         CueTime: 6407
-       ],
-       CuePoint: [
-         CueTrackPositions: [
-           CueRelativePosition: 544,
-           CueClusterPosition: 397_871,
-           CueTrack: 1
-         ],
-         CueTime: 4274
-       ],
-       CuePoint: [
-         CueTrackPositions: [
-           CueRelativePosition: 4,
-           CueClusterPosition: 186_395,
-           CueTrack: 1
-         ],
-         CueTime: 2140
-       ],
-       CuePoint: [
-         CueTrackPositions: [
-           CueRelativePosition: 1402,
-           CueClusterPosition: 1234,
-           CueTrack: 1
-         ],
-         CueTime: 7
-       ]
-     ]}
-  end
+  # def construct_tags() do
+  #   {:Tags,
+  #    [
+  #      Tag: [
+  #        SimpleTag: [TagString: "00:00:27.201000000", TagName: "DURATION"],
+  #        SimpleTag: [TagString: "Lavc58.134.100 libopus", TagName: "ENCODER"],
+  #        Targets: []
+  #      ],
+  #      Tag: [
+  #        SimpleTag: [TagString: "Lavf58.76.100", TagName: "ENCODER"],
+  #        SimpleTag: [TagString: "Kevin MacLeod", TagName: "ARTIST"],
+  #        SimpleTag: [TagString: "YouTube Audio Library", TagName: "ALBUM"],
+  #        SimpleTag: [TagString: "Cinematic", TagName: "GENRE"],
+  #        Targets: []
+  #      ]
+  #    ]}
+  # end
 end

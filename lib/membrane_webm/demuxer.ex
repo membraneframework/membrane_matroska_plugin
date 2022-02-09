@@ -13,7 +13,7 @@ defmodule Membrane.WebM.Demuxer do
   """
   use Membrane.Filter
 
-  alias Membrane.{Buffer, Time}
+  alias Membrane.{Buffer, Time, Pipeline.Action}
   alias Membrane.{Opus, VP8, VP9}
 
   def_input_pad :input,
@@ -28,6 +28,10 @@ defmodule Membrane.WebM.Demuxer do
     caps: :any
 
   defmodule State do
+    @moduledoc false
+
+    @type t :: %__MODULE__{}
+
     defstruct timestamp_scale: nil,
               cache: [],
               tracks: %{},
@@ -35,7 +39,7 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   @impl true
-  def handle_init(_) do
+  def handle_init(_options) do
     {:ok, %State{}}
   end
 
@@ -54,7 +58,7 @@ defmodule Membrane.WebM.Demuxer do
         :input,
         %Buffer{payload: payload},
         _context,
-        state = %State{parser: %{acc: acc, is_header_consumed: is_header_consumed}}
+        %State{parser: %{acc: acc, is_header_consumed: is_header_consumed}} = state
       ) do
     unparsed = acc <> payload
 
@@ -67,6 +71,7 @@ defmodule Membrane.WebM.Demuxer do
      %State{state | parser: %{acc: unparsed, is_header_consumed: is_header_consumed}}}
   end
 
+  @spec process_element(list({atom, binary}), State.t()) :: {list(Action.t()), State.t()}
   def process_element(elements_list, state) when is_list(elements_list) do
     elements_list
     |> Enum.reverse()
@@ -76,9 +81,8 @@ defmodule Membrane.WebM.Demuxer do
     end)
   end
 
+  @spec process_element(atom, binary, State.t()) :: {list(Action.t()), State.t()}
   def process_element(element_name, data, state) do
-    IO.inspect(element_name)
-
     case element_name do
       :Info ->
         # scale of block timecodes in nanoseconds
@@ -98,16 +102,13 @@ defmodule Membrane.WebM.Demuxer do
 
         {prepare_output_buffers(active), %State{state | cache: state.cache ++ inactive}}
 
-      _ ->
+      _other_element ->
         {[], state}
     end
   end
 
   @impl true
   def handle_pad_added(Pad.ref(:output, id), _context, %State{tracks: tracks} = state) do
-    # Demuxer should return TrackUID for each pad that's added
-    # FIXME: https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-8.1.4.1.2-1.18
-    # The TrackUID SHOULD be kept the same when making a direct stream copy to another file.
     track = tracks[id]
 
     caps =
@@ -149,7 +150,6 @@ defmodule Membrane.WebM.Demuxer do
     Enum.map(tracks, &notify_new_track/1)
   end
 
-  # sends tuple `{track_id, track_info} = track`
   defp notify_new_track(track) do
     {:notify, {:new_track, track}}
   end
@@ -183,6 +183,8 @@ defmodule Membrane.WebM.Demuxer do
     for track <- tracks, into: %{} do
       info =
         case track[:TrackType] do
+          # The TrackUID SHOULD be kept the same when making a direct stream copy to another file.
+
           :audio ->
             %{
               codec: track[:CodecID],

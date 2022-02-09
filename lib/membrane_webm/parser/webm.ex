@@ -1,10 +1,13 @@
 defmodule Membrane.WebM.Parser.WebM do
-  # special parsing of matroska elements
-  # take note that when matroska and webm conflict it is webm rules that take precedence
+  @moduledoc false
+  # special parsing rules for matroska elements
+  # note that when matroska and webm conflict webm takes precedence
 
   alias Membrane.WebM.Parser.EBML
+  alias Membrane.WebM.Schema
 
-  def parse(<<type::unsigned-integer-size(8)>>, :uint, :TrackType) do
+  @spec parse(binary, atom) :: any
+  def parse(<<type::unsigned-integer-size(8)>>, :TrackType) do
     case type do
       1 -> :video
       2 -> :audio
@@ -17,7 +20,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
-  def parse(<<type::unsigned-integer-size(8)>>, :uint, :FlagInterlaced) do
+  def parse(<<type::unsigned-integer-size(8)>>, :FlagInterlaced) do
     case type do
       # Unknown status.This value SHOULD be avoided.
       0 -> :undetermined
@@ -28,7 +31,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
-  def parse(<<type::unsigned-integer-size(8)>>, :uint, :ChromaSitingHorz) do
+  def parse(<<type::unsigned-integer-size(8)>>, :ChromaSitingHorz) do
     case type do
       0 -> :unspecified
       1 -> :left_collocated
@@ -36,7 +39,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
-  def parse(<<type::unsigned-integer-size(8)>>, :uint, :ChromaSitingVert) do
+  def parse(<<type::unsigned-integer-size(8)>>, :ChromaSitingVert) do
     case type do
       0 -> :unspecified
       1 -> :top_collocated
@@ -44,7 +47,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
-  def parse(<<type::unsigned-integer-size(8)>>, :uint, :StereoMode) do
+  def parse(<<type::unsigned-integer-size(8)>>, :StereoMode) do
     # Stereo-3D video mode.
     # WebM Supported Modes: 0, 1, 2, 3, 11
     # See https://www.webmproject.org/docs/container/#StereoMode
@@ -65,32 +68,39 @@ defmodule Membrane.WebM.Parser.WebM do
       # 12	anaglyph (green/magenta)
       # 13	both eyes laced in one Block (left eye is first)
       # 14	both eyes laced in one Block (right eye is first)
-      _ -> :unsupported
+      _other -> :unsupported
     end
   end
 
   # The demuxer MUST only open webm DocType files.
   # per demuxer guidelines https://www.webmproject.org/docs/container/
-  def parse(bytes, :string, :DocType) do
-    case parse(bytes, :string, nil) do
+  def parse(bytes, :DocType) do
+    text = EBML.parse(bytes, :string)
+
+    case text do
       "webm" -> "webm"
       type -> raise "The file DocType is '#{type}' but it MUST be 'webm'"
     end
   end
 
-  def parse(bytes, :string, :CodecID) do
-    case parse(bytes, :string, nil) do
+  def parse(bytes, :CodecID) do
+    text = EBML.parse(bytes, :string)
+
+    case text do
       "A_OPUS" -> :opus
       "A_VORBIS" -> :vorbis
       "V_VP8" -> :vp8
       "V_VP9" -> :vp9
+      codec -> raise "WebM contains illegal codec #{codec}"
     end
   end
 
-  # TODO: handle Block, BlockGroup - codec_data will be stored here
+  # codec state is stored in :Block, :BlockGroup elements
+  # it probably contains information about the next I-frame or some such
+  # for now it seems that it can be safely ignored - every frame is inside a :SimpleBlock
 
   # https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#rfc.section.6.2.4.4
-  def parse(bytes, :binary, :SimpleBlock) do
+  def parse(bytes, :SimpleBlock) do
     # track_number is a vint with size 1 or 2 bytes
     {:ok, {track_number, body}} = EBML.decode_vint(bytes)
 
@@ -122,7 +132,8 @@ defmodule Membrane.WebM.Parser.WebM do
   end
 
   # non-special-case elements should be handled generically by the EBML parser
-  def parse(bytes, type, _name) do
+  def parse(bytes, name) do
+    type = Schema.element_type(name)
     EBML.parse(bytes, type)
   end
 end

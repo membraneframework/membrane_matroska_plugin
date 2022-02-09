@@ -10,14 +10,32 @@ defmodule Membrane.WebM.Parser.EBML do
   - VINT_WIDTH - the number N of leading `0` bits in the first byte of the VINT signifies how many bytes the VINT takes up in total: N+1
     having no leading `0` bits is also allowed in which case the VINT takes up 1 byte
   - VINT_MARKER - the `1` bit immediately following the VINT_WIDTH `0` bits
-  - VINT_DATA - the 7*N bits following the VINT_MARKER
+  - VINT_DATA - the 7*N bits following the VINT_MARKER containing the unsigned integer (big-endian)
 
-  TODO: deal with unknown element sizes
-  (these shouldn't be used but can occur (only) in master elements)
-  EBML Element Data Size VINTs with VINT_DATA consisting of only 1's are reserver to mean `unknown` e.g.:
-    1 1111111
-    0 1 11111111111111
-  determining where an unknonw-sized elements end is tricky
+  As an example here are three ways to encode the decimal number `13`:
+  ```
+  1 0001101
+  0 1 000000 00001101
+  00 1 00000 00000000 00001101
+  ```
+
+  An EBML_ELEMENT consists of three consecutive parts:
+  - ELEMENT_ID - a VINT defined in a schema which specifies the corresponding EBML_TYPE and other constraints
+  - ELEMENT_DATA_SIZE - a VINT of how many bytes the ELEMENT_DATA field occupies
+  - ELEMENT_DATA - the actual payload of the element, interpreted differently for each EBML_TYPE
+
+  Possible EBML_TYPE values:
+  - Signed Integer
+  - Unsigned Integer
+  - Float
+  - String
+  - UTF-8
+  - Date
+  - Master
+
+  Only Master Elements can contain other Elements in their ELEMENT_DATA which occur one after the other simply concatenated.
+
+  Note that this module does not support parsing Master Elements with unknown data size
   https://www.rfc-editor.org/rfc/rfc8794.html#section-6.2
   """
   use Bitwise
@@ -25,28 +43,31 @@ defmodule Membrane.WebM.Parser.EBML do
   alias Membrane.WebM.Schema
   alias Membrane.Time
 
-  @doc "left for reference but shouldn't be used. unsafe - doesn't check if first byte or `vint_width` + 1 bytes are available"
-  def parse_vint!(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
-    vint_width = get_vint_width(first_byte)
-    <<vint_bytes::binary-size(vint_width), rest::binary>> = bytes
-    <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
-    vint_data = get_vint_data(vint, vint_width)
-    element_id = Integer.to_string(vint, 16)
+  @type t :: :integer | :uint | :float | :string | :utf8 | :date | :master | :binary
 
-    %{
-      vint: %{
-        vint: vint,
-        vint_width: vint_width,
-        vint_data: vint_data,
-        element_id: element_id
-      },
-      rest: rest
-    }
-  end
+  # left for reference but shouldn't be used. unsafe - doesn't check if first byte or `vint_width` + 1 bytes are available
+  # def parse_vint!(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
+  #   vint_width = get_vint_width(first_byte)
+  #   <<vint_bytes::binary-size(vint_width), rest::binary>> = bytes
+  #   <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
+  #   vint_data = get_vint_data(vint, vint_width)
+  #   element_id = Integer.to_string(vint, 16)
+
+  #   %{
+  #     vint: %{
+  #       vint: vint,
+  #       vint_width: vint_width,
+  #       vint_data: vint_data,
+  #       element_id: element_id
+  #     },
+  #     rest: rest
+  #   }
+  # end
 
   @doc """
   Discards `element_id`, `element_data_size` and returns the available portion of `element_data`.
   """
+  @spec consume_element_header(binary) :: {:ok, binary} | {:error, :need_more_bytes}
   def consume_element_header(bytes) do
     with {:ok, {_id, bytes}} <- decode_element_id(bytes) do
       case bytes do
@@ -68,43 +89,37 @@ defmodule Membrane.WebM.Parser.EBML do
   end
 
   @doc """
-  Returns an EBML element's name, type and data
+  Returns an EBML element's name, type, and data
   """
+  @spec decode_element(binary) ::
+          {:ok, {name :: atom, data :: binary, rest :: binary}}
+          | {:error, :need_more_bytes}
   def decode_element(bytes) do
     with {:ok, {id, bytes}} <- decode_element_id(bytes),
          {:ok, {data_size, bytes}} <- decode_vint(bytes) do
       name = Schema.element_id_to_name(id)
-      type = Schema.element_type(name)
 
-      with {:ok, {data, bytes}} <- split_bytes(bytes, data_size) do
+      with {:ok, {data, rest}} <- split_bytes(bytes, data_size) do
         # TODO: remove; only for debugging
         if name == :Unknown do
           IO.warn("Unknown element ID: #{id}")
         end
 
-        {:ok, {name, type, data, bytes}}
+        {:ok, {name, data, rest}}
       end
     end
   end
 
-  defp split_bytes(bytes, how_many) do
-    if how_many > byte_size(bytes) do
-      {:error, :need_more_bytes}
-    else
-      <<bytes::binary-size(how_many), rest::binary>> = bytes
-      {:ok, {bytes, rest}}
-    end
-  end
-
   @doc """
-  Returns the `EBML Element ID` of the given VINT.
+  Returns the EBML ELEMENT_ID of the first Element in the input binary.
 
-  EMBL elements are identified by the hex representation of the entire leading VINT including WIDTH, MARKER and DATA
+  EMBL elements are identified by the hexadecimal representation of the entire leading VINT including WIDTH, MARKER and DATA
   """
-  def decode_element_id(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
+  @spec decode_element_id(binary) :: {:ok, {integer, binary}} | {:error, :need_more_bytes}
+  def decode_element_id(<<first_byte::unsigned-size(8), _rest::binary>> = element) do
     vint_width = get_vint_width(first_byte)
 
-    case bytes do
+    case element do
       <<vint_bytes::binary-size(vint_width), rest::binary>> ->
         <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
         {:ok, {vint, rest}}
@@ -118,7 +133,8 @@ defmodule Membrane.WebM.Parser.EBML do
     {:error, :need_more_bytes}
   end
 
-  @doc "Returns the number encoded in the VINT_DATA field of the VINT"
+  @doc "Returns the number encoded in the VINT_DATA field of the first VINT in the input binary"
+  @spec decode_vint(binary) :: {:ok, {non_neg_integer, binary}} | {:error, :need_more_bytes}
   def decode_vint(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
     vint_width = get_vint_width(first_byte)
 
@@ -136,20 +152,16 @@ defmodule Membrane.WebM.Parser.EBML do
     {:error, :need_more_bytes}
   end
 
-  # the numbers are bit masks for extracting the data part of a VINT
-  defp get_vint_data(vint, vint_width) do
-    case vint_width do
-      1 -> vint &&& 0x1000000000000007F
-      2 -> vint &&& 0x10000000000003FFF
-      3 -> vint &&& 0x100000000001FFFFF
-      4 -> vint &&& 0x1000000000FFFFFFF
-      5 -> vint &&& 0x100000007FFFFFFFF
-      6 -> vint &&& 0x1000003FFFFFFFFFF
-      7 -> vint &&& 0x10001FFFFFFFFFFFF
-      8 -> vint &&& 0x100FFFFFFFFFFFFFF
+  defp split_bytes(bytes, how_many) do
+    if how_many > byte_size(bytes) do
+      {:error, :need_more_bytes}
+    else
+      <<bytes::binary-size(how_many), rest::binary>> = bytes
+      {:ok, {bytes, rest}}
     end
   end
 
+  # See https://datatracker.ietf.org/doc/html/rfc8794#section-4.1
   defp get_vint_width(byte) do
     cond do
       (byte &&& 0b10000000) > 0 -> 1
@@ -163,6 +175,26 @@ defmodule Membrane.WebM.Parser.EBML do
     end
   end
 
+  # See https://datatracker.ietf.org/doc/html/rfc8794#section-4.3
+  defp get_vint_data(vint, vint_width) do
+    case vint_width do
+      1 -> vint &&& 0x1000000000000007F
+      2 -> vint &&& 0x10000000000003FFF
+      3 -> vint &&& 0x100000000001FFFFF
+      4 -> vint &&& 0x1000000000FFFFFFF
+      5 -> vint &&& 0x100000007FFFFFFFF
+      6 -> vint &&& 0x1000003FFFFFFFFFF
+      7 -> vint &&& 0x10001FFFFFFFFFFFF
+      8 -> vint &&& 0x100FFFFFFFFFFFFFF
+    end
+  end
+
+  @doc "
+  Encodes the provided number as a VINT ready for serialization
+
+  See https://datatracker.ietf.org/doc/html/rfc8794#section-4
+  "
+  @spec encode_vint(non_neg_integer) :: binary
   def encode_vint(number) do
     # +==============+======================+
     # | Octet Length | Possible Value Range |
@@ -186,7 +218,7 @@ defmodule Membrane.WebM.Parser.EBML do
 
     limits = [
       126,
-      16382,
+      16_382,
       2_097_150,
       268_435_454,
       34_359_738_366,
@@ -202,19 +234,20 @@ defmodule Membrane.WebM.Parser.EBML do
     <<0::size(width_bits), 1::1, number::big-size(data_bits)>>
   end
 
-  def encode_max_width_vint(number) do
-    <<0::size(7), 1::1, number::big-size(56)>>
-  end
+  @doc "
+  Returns the Element's ELEMENT_ID ready for serialization
 
+  See https://datatracker.ietf.org/doc/html/rfc8794#section-5
+  Matroska elements and id's https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#name-matroska-schema
+  WebM supported Matroska elements https://www.webmproject.org/docs/container/#EBML
+  "
+  @spec encode_element_id(atom) :: binary
   def encode_element_id(name) do
     id = Schema.name_to_element_id(name)
     :binary.encode_unsigned(id, :big)
   end
 
-  def parse(bytes, type, _name) do
-    parse(bytes, type)
-  end
-
+  @spec parse(binary, __MODULE__.t()) :: any
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.1
   def parse(<<>>, :integer) do
     0

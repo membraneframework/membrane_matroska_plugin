@@ -44,8 +44,10 @@ defmodule Membrane.WebM.Schema do
   │   └── SimpleBlock
   """
 
+  alias Membrane.WebM.Parser.EBML
+
   @bimap BiMap.new([
-           ### EBML elements:
+           ### EBML elements
            {0x1A45DFA3, :EBML},
            {0x4286, :EBMLVersion},
            {0x42F7, :EBMLReadVersion},
@@ -58,7 +60,7 @@ defmodule Membrane.WebM.Schema do
            {0x4283, :DocTypeExtensionName},
            {0x4284, :DocTypeExtensionVersion},
            {0xEC, :Void},
-           ### Matroska elements:
+           ### Matroska elements
            {0x18538067, :Segment},
            # \Segment
            {0x1C53BB6B, :Cues},
@@ -280,9 +282,6 @@ defmodule Membrane.WebM.Schema do
     CodecName: :utf_8,
     Audio: :master,
     DefaultDuration: :uint,
-    Channels: :uint,
-    SamplingFrequency: :float,
-    BitDepth: :uint,
     Video: :master,
     PixelWidth: :uint,
     PixelHeight: :uint,
@@ -360,10 +359,12 @@ defmodule Membrane.WebM.Schema do
     Unknown: :unknown
   }
 
+  @spec element_type(atom) :: EBML.t()
   def element_type(name) do
     @element_info[name]
   end
 
+  @spec element_id_to_name(integer) :: atom
   def element_id_to_name(element_id) do
     case BiMap.fetch(@bimap, element_id) do
       {:ok, name} -> name
@@ -371,6 +372,7 @@ defmodule Membrane.WebM.Schema do
     end
   end
 
+  @spec name_to_element_id(atom) :: integer
   def name_to_element_id(name) do
     BiMap.fetch_key!(@bimap, name)
   end
