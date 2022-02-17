@@ -117,7 +117,7 @@ defmodule Membrane.WebM.DemuxerTest do
 
   @tag :tmp_dir
   test "demuxing webm containing opus", %{tmp_dir: tmp_dir} do
-    test_stream("opus_audio.webm", ["1.ogg"], tmp_dir <> "/")
+    test_stream("muxed_opus.webm", ["1.ogg"], tmp_dir <> "/")
   end
 
   @tag :tmp_dir
