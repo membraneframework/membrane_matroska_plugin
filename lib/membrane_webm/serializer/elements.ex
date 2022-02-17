@@ -50,11 +50,11 @@ defmodule Membrane.WebM.Serializer.Elements do
        # Tracktype: 2 for `audio`
        # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#name-tracktype-values
        TrackType: 2,
-       # FIXME: I don't understand SeekPreRoll: copying over from ffmpeg webm for now
+       # SeekPreRoll: copied over from ffmpeg webm
        # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#name-seekpreroll-element
        # https://opus-codec.org/docs/opusfile_api-0.5/group__stream__seeking.html
        SeekPreRoll: 80_000_000,
-       # FIXME: How do I determine CodecDelay? copying over from ffmpeg webm for now
+       # TODO: How do I determine CodecDelay? copying over from ffmpeg webm for now
        # https://github.com/GStreamer/gstreamer/blob/5e3bf0fff7205390de56747f950f726b456fc65d/subprojects/gst-plugins-good/gst/matroska/matroska-mux.c#L1898
        # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-8.1.4.1.28-1.14
        # https://datatracker.ietf.org/doc/html/rfc6716#section-2
@@ -64,7 +64,8 @@ defmodule Membrane.WebM.Serializer.Elements do
        # additional delay (up to 1.5 ms) may be required for sampling rate
        # conversion.
        # gstreamer has codecdelay set to 0
-       CodecDelay: 3_250_000,
+      #  CodecDelay: 3_250_000,
+       CodecDelay: 0,
        CodecID: "A_OPUS",
        CodecName: "Opus Audio Codec",
        # I didn't find information about lacing in the Opus RFC so I assume it's always unlaced
@@ -121,9 +122,7 @@ defmodule Membrane.WebM.Serializer.Elements do
            # vertical direction (or both, or neither).
            # In profiles 0 and 2, only 4:2:0 format is allowed, which means that chroma is subsampled
            # page 22 https://storage.googleapis.com/downloads.webmproject.org/docs/vp9/vp9-bitstream-specification-v0.6-20160331-draft.pdf
-           # :half, - 2
            ChromaSitingVert: 0,
-           # :left_coallocated - 1
            ChromaSitingHorz: 0
          ],
          # :progressive, - no interlacing
@@ -197,11 +196,6 @@ defmodule Membrane.WebM.Serializer.Elements do
         # note that this requires all incoming buffer `dts` timestamps to be expressed in Membrane.Time (i.e. in nanoseconds)
         # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#name-timestampscale-element
         TimestampScale: @timestamp_scale
-        # FIXME:
-        # Matroska's `TimecodeScale` changed it's name to `TimestampScale`
-        # See https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-13
-        # Yet the WebM documentation appears to still be using `TimecodeScale`
-        # See https://www.webmproject.org/docs/container/#TimecodeScale
       ]
     }
   end

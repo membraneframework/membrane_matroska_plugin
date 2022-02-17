@@ -53,16 +53,14 @@ defmodule Membrane.WebM.Muxer do
   @cluster_time_limit Membrane.Time.seconds(5)
   @timestamp_scale Membrane.Time.millisecond()
 
-  # FIXME: create SimpleBlock struct
-
   defmodule State do
     @moduledoc false
     defstruct tracks: %{},
               segment_size: 0,
               expected_tracks: 0,
               active_tracks: 0,
-              # cluster_acc holds: `list_of_blocks`, `cluster_timestamp`, `cluster_length_in_bytes`
-              cluster_acc: {<<>>, :infinity, 0},
+              # cluster_acc holds: `serialized_list_of_blocks`, `cluster_timestamp`, `cluster_length_in_bytes`
+              cluster_acc: {Serializer.serialize({:Timecode, 0}), :infinity, 0},
               cues: []
   end
 
@@ -284,7 +282,7 @@ defmodule Membrane.WebM.Muxer do
   def handle_end_of_stream(Pad.ref(:input, id), _context, state) do
     new_block = state.tracks[id].last_block
     {blocks, timecode, bytes} = state.cluster_acc
-    # FIXME: this should be handled by step_cluster; now bytes is incorrect
+    # TODO: this should be handled by step_cluster; now bytes is incorrect
     put_in(state.cluster_acc, {[new_block | blocks], timecode, bytes})
 
     if state.active_tracks == 1 do

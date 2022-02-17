@@ -43,7 +43,7 @@ defmodule Membrane.WebM.Parser.EBML do
   alias Membrane.WebM.Schema
   alias Membrane.Time
 
-  @type t :: :integer | :uint | :float | :string | :utf8 | :date | :master | :binary
+  @type t :: :integer | :uint | :float | :string | :utf_8 | :date | :master | :binary
 
   # left for reference but shouldn't be used. unsafe - doesn't check if first byte or `vint_width` + 1 bytes are available
   # def parse_vint!(<<first_byte::unsigned-size(8), _rest::binary>> = bytes) do
