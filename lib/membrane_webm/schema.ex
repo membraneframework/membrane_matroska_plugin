@@ -228,7 +228,7 @@ defmodule Membrane.WebM.Schema do
     DocTypeExtensionName: :string,
     DocTypeExtensionVersion: :uint,
     CRC_32: :crc_32,
-    Void: :void,
+    Void: :binary,
     Segment: :master,
     Cues: :master,
     CuePoint: :master,

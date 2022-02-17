@@ -111,14 +111,14 @@ defmodule Membrane.WebM.Serializer do
     generic_serialize(element_data, :float, name)
   end
 
-  defp serialize(length, :void, name) do
+  defp serialize(length, :binary, :Void) do
     # it's impossible to create void elements with size 2^(7*n) +- 1 because element_width is a vint which takes up n bytes
     # solution: create two void elements, each holding half the bytes (but not exactly half or you have the same problem)
     n = trunc(:math.log2(length - 1) / 7) + 1
     length = (length - n - 1) * 8
     element_data = <<0::size(length)>>
 
-    generic_serialize(element_data, :void, name)
+    generic_serialize(element_data, :binary, :Void)
   end
 
   defp serialize({timecode, data, track_number, _type} = block, :binary, :SimpleBlock) do
