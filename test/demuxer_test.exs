@@ -34,15 +34,6 @@ defmodule Membrane.WebM.DemuxerTest do
       cond do
         track_info.codec == :opus ->
           children = %{
-            # {:decoder, track_id} => Membrane.Opus.Decoder,
-            # {:converter, track_id} => %Membrane.FFmpeg.SWResample.Converter{
-            #   output_caps: %Membrane.Caps.Audio.Raw{
-            #     format: :s16le,
-            #     sample_rate: 48000,
-            #     channels: 2
-            #   }
-            # },
-            # {:portaudio, track_id} => Membrane.PortAudio.Sink,
             {:payloader, track_id} => %Membrane.Ogg.Payloader.Opus{
               frame_size: 20,
               serial_number: 4_210_672_757
@@ -55,9 +46,6 @@ defmodule Membrane.WebM.DemuxerTest do
           links = [
             link(:demuxer)
             |> via_out(Pad.ref(:output, track_id))
-            # |> to({:decoder, track_id})
-            # |> to({:converter, track_id})
-            # |> to({:portaudio, track_id})
             |> to({:payloader, track_id})
             |> to({:sink, track_id})
           ]

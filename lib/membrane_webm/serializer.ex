@@ -7,7 +7,8 @@ defmodule Membrane.WebM.Serializer do
 
   use Bitwise
 
-  alias Membrane.WebM.Parser.{EBML, Codecs}
+  alias Membrane.WebM.Parser.Codecs
+  alias Membrane.WebM.Serializer.EBML
   alias Membrane.WebM.Schema
 
   @int_value_ranges [
@@ -20,11 +21,6 @@ defmodule Membrane.WebM.Serializer do
     (-2 ** 55)..(2 ** 55 - 1),
     (-2 ** 63)..(2 ** 63 - 1)
   ]
-
-  # for debugging
-  # def serialize_not(stuff) do
-  #   inspect(stuff, limit: :infinity, pretty: true)
-  # end
 
   @spec serialize({atom, any}) :: binary
   def serialize({name, data}) do

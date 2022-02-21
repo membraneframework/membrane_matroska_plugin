@@ -45,17 +45,16 @@ defmodule Membrane.WebM.Parser.Codecs do
 
   @spec is_video_keyframe({integer, binary, non_neg_integer, atom}) :: boolean
   def is_video_keyframe({_timecode, _data, _track_number, codec} = block) do
-    is_video(codec) and keyframe_bit(block) == 1
+    type(codec) == :video and keyframe_bit(block) == 1
   end
 
-  @spec is_audio(atom) :: boolean
-  def is_audio(codec) do
-    codec == :opus
-  end
-
-  @spec is_video(atom) :: boolean
-  def is_video(codec) do
-    codec == :vp8 or codec == :vp9
+  @spec type(:opus | :vp8 | :vp9) :: :audio | :video
+  def type(codec) do
+    case codec do
+      :opus -> :audio
+      :vp8 -> :video
+      :vp9 -> :video
+    end
   end
 
   @spec keyframe_bit({integer, binary, non_neg_integer, atom}) :: 0 | 1
@@ -80,36 +79,10 @@ defmodule Membrane.WebM.Parser.Codecs do
   @spec construct_opus_id_header(1..255) :: binary
   def construct_opus_id_header(channels) do
     if channels > 2 do
-      raise "Handling Opus channel counts of #{channels} is not supported. Cannot mux into a playable form."
+      raise "Handling Opus channel count of #{channels} is not supported. Cannot mux into a playable form."
     end
 
-    # option descriptions copied over from ogg_plugin:
-    # original_sample_rate: [
-    #   type: :non_neg_integer,
-    #   default: 0,
-    #   description: """
-    #   Optionally, you may pass the original sample rate of the source (before it was encoded).
-    #   This is considered metadata for Ogg/Opus. Leave this at 0 otherwise.
-    #   See https://tools.ietf.org/html/rfc7845#section-5.
-    #   """
-    # ],
-    # output_gain: [
-    #   type: :integer,
-    #   default: 0,
-    #   description: """
-    #   Optionally, you may pass a gain change when decoding.
-    #   You probably shouldn't though. Instead apply any gain changes using Membrane itself, if possible.
-    #   See https://tools.ietf.org/html/rfc7845#section-5
-    #   """
-    # ],
-    # pre_skip: [
-    #   type: :non_neg_integer,
-    #   default: 0,
-    #   description: """
-    #   Optionally, you may as a number of samples (at 48kHz) to discard
-    #   from the decoder output when starting playback.
-    #   See https://tools.ietf.org/html/rfc7845#section-5
-    #   """
+    # for reference see options descriptions in `Membrane.OggPlugin`
     encapsulation_version = 1
     original_sample_rate = 0
     output_gain = 0

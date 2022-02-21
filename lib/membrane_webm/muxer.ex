@@ -1,29 +1,9 @@
 defmodule Membrane.WebM.Muxer do
   @moduledoc """
-  Module for muxing WebM files.
-
+  Filter element for muxing WebM files.
 
   Muxer guidelines
   https://www.webmproject.org/docs/container/
-
-  Muxers should treat all guidelines marked SHOULD in this section as MUST.
-  This will foster consistency across WebM files in the real world.
-
-  - WebM SHOULD contain the SeekHead element.
-      - Reason: Allows the client to know if the file contains a Cues element.
-  - WebM files SHOULD include a keyframe-only Cues element.
-      - The Cues element SHOULD contain only video key frames, to decrease the size of the file header.
-      - It is recommended that the Cues element be before any clusters, so that the client can seek to a point
-        in the data that has not yet been downloaded in a single seek operation. Ref: a tool that will put the Cues at the front.
-  - All absolute (block + cluster) timecodes MUST be monotonically increasing.
-      - All timecodes are associated with the start time of the block.
-  - The TimecodeScale element SHOULD be set to a default of 1.000.000 nanoseconds.
-      - Reason: Allows every cluster to have blocks with positive values up to 32.767 seconds.
-  - Key frames SHOULD be placed at the beginning of clusters.
-      - Having key frames at the beginning of clusters should make seeking faster and easier for the client.
-  - Audio blocks that contain the video key frame's timecode SHOULD be in the same cluster as the video key frame block.
-  - Audio blocks that have same absolute timecode as video blocks SHOULD be written before the video blocks.
-  - WebM files MUST only support pixels for the DisplayUnit element.
   """
   use Bitwise
   use Bunch
@@ -59,6 +39,7 @@ defmodule Membrane.WebM.Muxer do
               segment_size: 0,
               expected_tracks: 0,
               active_tracks: 0,
+              accepting_pads: true,
               # cluster_acc holds: `serialized_list_of_blocks`, `cluster_timestamp`, `cluster_length_in_bytes`
               cluster_acc: {Serializer.serialize({:Timecode, 0}), :infinity, 0},
               cues: []
@@ -70,8 +51,17 @@ defmodule Membrane.WebM.Muxer do
   end
 
   @impl true
+  def handle_prepared_to_playing(_context, state) do
+    {:ok, %State{state | accepting_pads: false}}
+  end
+
+  @impl true
   def handle_pad_added(_pad, _context, state) do
-    {:ok, %State{state | expected_tracks: state.expected_tracks + 1}}
+    if state.accepting_pads do
+      {:ok, %State{state | expected_tracks: state.expected_tracks + 1}}
+    else
+      raise "Can only add new input pads to muxer in state :prepared!"
+    end
   end
 
   @impl true
@@ -85,14 +75,14 @@ defmodule Membrane.WebM.Muxer do
       end
 
     state = update_in(state.active_tracks, fn t -> t + 1 end)
-    is_video = Codecs.is_video(codec)
+    type = Codecs.type(codec)
 
     track = %{
       track_number: state.active_tracks,
       id: id,
       codec: codec,
       caps: caps,
-      is_video: is_video,
+      type: type,
       last_timestamp: nil,
       last_block: nil
     }
@@ -103,7 +93,7 @@ defmodule Membrane.WebM.Muxer do
       {segment_bytes, webm_header} = serialize_webm_header(state)
       new_state = %State{state | segment_size: state.segment_size + segment_bytes}
 
-      {{:ok, demand: Pad.ref(:input, id), buffer: {:output, %Buffer{payload: webm_header}}},
+      {{:ok, [buffer: {:output, %Buffer{payload: webm_header}}, demand: Pad.ref(:input, id)]},
        new_state}
     else
       {{:ok, demand: Pad.ref(:input, id)}, state}
@@ -274,7 +264,7 @@ defmodule Membrane.WebM.Muxer do
     if time1 < time2 do
       true
     else
-      Codecs.is_audio(codec1) and Codecs.is_video(codec2)
+      Codecs.type(codec1) == :audio and Codecs.type(codec2) == :video
     end
   end
 

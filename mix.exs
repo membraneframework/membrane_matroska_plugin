@@ -48,7 +48,6 @@ defmodule Membrane.WebM.Plugin.Mixfile do
        github: "membraneframework/membrane_vp8_format", branch: "add-stream-params"},
       {:membrane_vp9_format,
        github: "membraneframework/membrane_vp9_format", branch: "add-stream-params"},
-      {:membrane_portaudio_plugin, "~> 0.10.0", only: :test, runtime: false},
       {:membrane_ffmpeg_swresample_plugin, "~> 0.10.0", only: :test, runtime: false},
       {:membrane_file_plugin, "~> 0.7.0", only: :test, runtime: false},
       {:membrane_ogg_plugin,

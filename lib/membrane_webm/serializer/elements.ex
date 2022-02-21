@@ -64,7 +64,7 @@ defmodule Membrane.WebM.Serializer.Elements do
        # additional delay (up to 1.5 ms) may be required for sampling rate
        # conversion.
        # gstreamer has codecdelay set to 0
-      #  CodecDelay: 3_250_000,
+       #  CodecDelay: 3_250_000,
        CodecDelay: 0,
        CodecID: "A_OPUS",
        CodecName: "Opus Audio Codec",
@@ -164,7 +164,7 @@ defmodule Membrane.WebM.Serializer.Elements do
         {:Seek,
          [
            {:SeekPosition, offset},
-           {:SeekID, Membrane.WebM.Parser.EBML.encode_element_id(name)}
+           {:SeekID, Membrane.WebM.Serializer.EBML.encode_element_id(name)}
          ]}
       end)
 

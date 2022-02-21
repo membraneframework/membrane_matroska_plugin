@@ -1,9 +1,9 @@
 defmodule Membrane.WebM.Demuxer do
   @moduledoc """
-  Module for demuxing WebM files.
+  Filter element for demuxing WebM files.
 
-  It receives a bytestream containing a WebM file and outputs the constituent tracks onto separate output pads.
-  Streaming of each track occurs in chunks of up to 5 seconds of data.
+  It receives a bytestream in WebM format and outputs the constituent tracks onto separate output pads.
+  Streaming of each track occurs in chunks of up to 5 seconds an up to 5 mb of data.
 
   WebM files can contain many:
     - VP8 or VP9 video tracks
@@ -25,12 +25,35 @@ defmodule Membrane.WebM.Demuxer do
   def_output_pad :output,
     availability: :on_request,
     mode: :pull,
-    caps: :any
+    caps: [VP8, VP9, Opus]
 
   defmodule State do
     @moduledoc false
+    @type track_t :: audio_track_t | video_track_t
 
-    @type t :: %__MODULE__{}
+    @type audio_track_t :: %{
+            codec: :opus,
+            uid: non_neg_integer,
+            active: boolean,
+            channels: non_neg_integer
+          }
+
+    @type video_track_t :: %{
+            codec: :vp8 | :vp9,
+            uid: non_neg_integer,
+            active: boolean,
+            height: non_neg_integer,
+            width: non_neg_integer,
+            rate: Membrane.Time.t(),
+            scale: non_neg_integer
+          }
+
+    @type t :: %__MODULE__{
+            timestamp_scale: non_neg_integer,
+            cache: list,
+            tracks: %{(id :: non_neg_integer) => track_t},
+            parser: %{required(:acc) => binary, required(:is_header_consumed) => boolean}
+          }
 
     defstruct timestamp_scale: nil,
               cache: [],
@@ -65,24 +88,24 @@ defmodule Membrane.WebM.Demuxer do
     {parsed, unparsed, is_header_consumed} =
       Membrane.WebM.Parser.Helper.parse(unparsed, is_header_consumed)
 
-    {actions, state} = process_element(parsed, state)
+    {actions, state} = process_elements(parsed, state)
 
     {{:ok, [{:demand, {:input, 1}} | actions]},
      %State{state | parser: %{acc: unparsed, is_header_consumed: is_header_consumed}}}
   end
 
-  @spec process_element(list({atom, binary}), State.t()) :: {list(Action.t()), State.t()}
-  def process_element(elements_list, state) when is_list(elements_list) do
+  @spec process_elements(list({atom, binary}), State.t()) :: {list(Action.t()), State.t()}
+  def process_elements(elements_list, state) when is_list(elements_list) do
     elements_list
     |> Enum.reverse()
     |> Enum.reduce({[], state}, fn {element_name, data}, {actions, state} ->
-      {new_actions, new_state} = process_element(element_name, data, state)
+      {new_actions, new_state} = process_elements(element_name, data, state)
       {actions ++ new_actions, new_state}
     end)
   end
 
-  @spec process_element(atom, binary, State.t()) :: {list(Action.t()), State.t()}
-  def process_element(element_name, data, state) do
+  @spec process_elements(atom, binary, State.t()) :: {list(Action.t()), State.t()}
+  def process_elements(element_name, data, state) do
     case element_name do
       :Info ->
         # scale of block timecodes in nanoseconds
@@ -91,7 +114,7 @@ defmodule Membrane.WebM.Demuxer do
 
       :Tracks ->
         tracks = identify_tracks(data, state.timestamp_scale)
-        actions = notify_new_track(tracks)
+        actions = notify_about_new_track(tracks)
         {actions, %State{state | tracks: tracks}}
 
       :Cluster ->
@@ -146,15 +169,15 @@ defmodule Membrane.WebM.Demuxer do
     {:buffer, {Pad.ref(:output, track_id), buffers}}
   end
 
-  defp notify_new_track(tracks) when is_map(tracks) do
-    Enum.map(tracks, &notify_new_track/1)
+  defp notify_about_new_track(tracks) when is_map(tracks) do
+    Enum.map(tracks, &notify_about_new_track/1)
   end
 
-  defp notify_new_track(track) do
+  defp notify_about_new_track(track) do
     {:notify, {:new_track, track}}
   end
 
-  defp cluster_to_buffers(cluster, timecode_scale) do
+  defp cluster_to_buffers(cluster, timestamp_scale) do
     timecode = cluster[:Timecode]
 
     cluster
@@ -162,11 +185,11 @@ defmodule Membrane.WebM.Demuxer do
     |> Enum.reduce([], fn block, acc ->
       [prepare_simple_block(block, timecode) | acc]
     end)
-    |> Enum.group_by(& &1.track_number, &packetize(&1, timecode_scale))
+    |> Enum.group_by(& &1.track_number, &packetize(&1, timestamp_scale))
   end
 
-  defp packetize(%{timecode: timecode, data: data}, timecode_scale) do
-    %Buffer{payload: data, dts: timecode * timecode_scale, pts: timecode * timecode_scale}
+  defp packetize(%{timecode: timecode, data: data}, timestamp_scale) do
+    %Buffer{payload: data, dts: timecode * timestamp_scale, pts: timecode * timestamp_scale}
   end
 
   defp prepare_simple_block(block, cluster_timecode) do
@@ -177,7 +200,7 @@ defmodule Membrane.WebM.Demuxer do
     }
   end
 
-  defp identify_tracks(tracks, timecode_scale) do
+  defp identify_tracks(tracks, timestamp_scale) do
     tracks = Keyword.get_values(tracks, :TrackEntry)
 
     for track <- tracks, into: %{} do
@@ -201,7 +224,7 @@ defmodule Membrane.WebM.Demuxer do
               height: track[:Video][:PixelHeight],
               width: track[:Video][:PixelWidth],
               rate: Time.second(),
-              scale: timecode_scale
+              scale: timestamp_scale
             }
         end
 
