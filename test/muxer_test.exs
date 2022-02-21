@@ -11,7 +11,7 @@ defmodule Membrane.WebM.MuxerTest do
   import Membrane.ParentSpec
   import Membrane.Testing.Assertions
   alias Membrane.Testing
-  alias Membrane.{Buffer, Opus, Pad}
+  alias Membrane.{Opus, Pad}
 
   @fixtures_dir "./test/fixtures/"
   @pad_id_1 17_447_232_417_024_423_937
@@ -130,12 +130,17 @@ defmodule Membrane.WebM.MuxerTest do
 
   defp play_and_validate(pipeline, reference_file, output_file) do
     Testing.Pipeline.play(pipeline)
-    assert_pipeline_playback_changed(pipeline, _, :playing)
+    assert_pipeline_playback_changed(pipeline, :prepared, :playing)
     assert_start_of_stream(pipeline, :sink)
     assert_end_of_stream(pipeline, :sink)
     Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
-    assert_pipeline_playback_changed(pipeline, _, :stopped)
+    assert_pipeline_playback_changed(pipeline, :prepared, :stopped)
     assert File.read!(reference_file) == File.read!(output_file)
+  end
+
+  @tag :tmp_dir
+  setup %{tmp_dir: tmp_dir} do
+    on_exit(fn -> File.rm_rf!(tmp_dir); :ok end)
   end
 
   @tag :tmp_dir
