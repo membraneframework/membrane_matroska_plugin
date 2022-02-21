@@ -6,111 +6,18 @@ defmodule Membrane.WebM.MuxerTest do
   use ExUnit.Case
   use Bitwise
 
+  require Membrane.Pad
+
+  import Membrane.ParentSpec
   import Membrane.Testing.Assertions
   alias Membrane.Testing
-  alias Membrane.{Buffer, Opus}
+  alias Membrane.{Buffer, Opus, Pad}
 
   @fixtures_dir "./test/fixtures/"
   @pad_id_1 17_447_232_417_024_423_937
   @pad_id_2 13_337_737_628_113_408_001
   @pad_id_3 11_020_961_587_148_742_657
   @pad_id_4 16_890_875_709_512_990_721
-
-  defmodule TestPipelineOpus do
-    use Membrane.Pipeline
-
-    @impl true
-    def handle_init(options) do
-      source = %Testing.Source{
-        output: Testing.Source.output_from_buffers(options.buffers),
-        caps: %Opus{channels: 2, self_delimiting?: false}
-      }
-
-      children = [
-        source: source,
-        deserializer: Membrane.Element.IVF.Deserializer,
-        muxer: Membrane.WebM.Muxer,
-        sink: %Membrane.File.Sink{
-          location: options.output_file
-        }
-      ]
-
-      links = [
-        link(:source)
-        |> via_in(Pad.ref(:input, 17_447_232_417_024_423_937))
-        |> to(:muxer)
-        |> to(:sink)
-      ]
-
-      {{:ok, spec: %ParentSpec{children: children, links: links}}, %{}}
-    end
-  end
-
-  defmodule TestPipelineVpx do
-    use Membrane.Pipeline
-
-    @impl true
-    def handle_init(options) do
-      children = [
-        source: %Membrane.File.Source{
-          location: options.input_file
-        },
-        deserializer: Membrane.Element.IVF.Deserializer,
-        muxer: Membrane.WebM.Muxer,
-        sink: %Membrane.File.Sink{
-          location: options.output_file
-        }
-      ]
-
-      links = [
-        link(:source)
-        |> to(:deserializer)
-        |> via_in(Pad.ref(:input, 13_337_737_628_113_408_001))
-        |> to(:muxer)
-        |> to(:sink)
-      ]
-
-      {{:ok, spec: %ParentSpec{children: children, links: links}}, %{}}
-    end
-  end
-
-  defmodule TestPipelineMany do
-    use Membrane.Pipeline
-
-    @impl true
-    def handle_init(options) do
-      opus_source = %Testing.Source{
-        output: Testing.Source.output_from_buffers(options.buffers),
-        caps: %Opus{channels: 2, self_delimiting?: false}
-      }
-
-      children = [
-        vpx_source: %Membrane.File.Source{
-          location: options.input_file
-        },
-        deserializer: Membrane.Element.IVF.Deserializer,
-        opus_source: opus_source,
-        muxer: Membrane.WebM.Muxer,
-        sink: %Membrane.File.Sink{
-          location: options.output_file
-        }
-      ]
-
-      links = [
-        link(:vpx_source)
-        |> to(:deserializer)
-        |> via_in(Pad.ref(:input, 11_020_961_587_148_742_657))
-        |> to(:muxer),
-        link(:opus_source)
-        |> via_in(Pad.ref(:input, 16_890_875_709_512_990_721))
-        |> to(:muxer),
-        link(:muxer)
-        |> to(:sink)
-      ]
-
-      {{:ok, spec: %ParentSpec{children: children, links: links}}, %{}}
-    end
-  end
 
   defp test_from_buffers(tmp_dir) do
     output_file = Path.join(tmp_dir, "output_webm")
@@ -124,11 +31,23 @@ defmodule Membrane.WebM.MuxerTest do
 
     {:ok, pipeline} =
       %Testing.Pipeline.Options{
-        module: TestPipelineOpus,
-        custom_args: %{
-          output_file: output_file,
-          buffers: buffers
-        }
+        elements: [
+          source: %Testing.Source{
+            output: Testing.Source.output_from_buffers(buffers),
+            caps: %Opus{channels: 2, self_delimiting?: false}
+          },
+          deserializer: Membrane.Element.IVF.Deserializer,
+          muxer: Membrane.WebM.Muxer,
+          sink: %Membrane.File.Sink{
+            location: output_file
+          }
+        ],
+        links: [
+          link(:source)
+          |> via_in(Pad.ref(:input, @pad_id_1))
+          |> to(:muxer)
+          |> to(:sink)
+        ]
       }
       |> Testing.Pipeline.start_link()
 
@@ -136,16 +55,29 @@ defmodule Membrane.WebM.MuxerTest do
   end
 
   defp test_stream(input_file, reference_file, tmp_dir) do
+    input_file = Path.join(@fixtures_dir, input_file)
     output_file = Path.join(tmp_dir, "output.webm")
     reference_file = Path.join(@fixtures_dir, reference_file)
 
     {:ok, pipeline} =
       %Testing.Pipeline.Options{
-        module: TestPipelineVpx,
-        custom_args: %{
-          input_file: Path.join(@fixtures_dir, input_file),
-          output_file: Path.join(tmp_dir, "output.webm")
-        }
+        elements: [
+          source: %Membrane.File.Source{
+            location: input_file
+          },
+          deserializer: Membrane.Element.IVF.Deserializer,
+          muxer: Membrane.WebM.Muxer,
+          sink: %Membrane.File.Sink{
+            location: output_file
+          }
+        ],
+        links: [
+          link(:source)
+          |> to(:deserializer)
+          |> via_in(Pad.ref(:input, 13_337_737_628_113_408_001))
+          |> to(:muxer)
+          |> to(:sink)
+        ]
       }
       |> Testing.Pipeline.start_link()
 
@@ -153,6 +85,7 @@ defmodule Membrane.WebM.MuxerTest do
   end
 
   defp test_many(tmp_dir) do
+    input_file = Path.join(@fixtures_dir, "1_vp8.ivf")
     output_file = Path.join(tmp_dir, "output.webm")
     reference_file = Path.join(@fixtures_dir, "combined.webm")
 
@@ -164,12 +97,31 @@ defmodule Membrane.WebM.MuxerTest do
 
     {:ok, pipeline} =
       %Testing.Pipeline.Options{
-        module: TestPipelineMany,
-        custom_args: %{
-          input_file: Path.join(@fixtures_dir, "1_vp8.ivf"),
-          output_file: output_file,
-          buffers: buffers
-        }
+        elements: [
+          vpx_source: %Membrane.File.Source{
+            location: input_file
+          },
+          deserializer: Membrane.Element.IVF.Deserializer,
+          opus_source: %Testing.Source{
+            output: Testing.Source.output_from_buffers(buffers),
+            caps: %Opus{channels: 2, self_delimiting?: false}
+          },
+          muxer: Membrane.WebM.Muxer,
+          sink: %Membrane.File.Sink{
+            location: output_file
+          }
+        ],
+        links: [
+          link(:vpx_source)
+          |> to(:deserializer)
+          |> via_in(Pad.ref(:input, 11_020_961_587_148_742_657))
+          |> to(:muxer),
+          link(:opus_source)
+          |> via_in(Pad.ref(:input, 16_890_875_709_512_990_721))
+          |> to(:muxer),
+          link(:muxer)
+          |> to(:sink)
+        ]
       }
       |> Testing.Pipeline.start_link()
 
