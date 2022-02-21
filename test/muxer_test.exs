@@ -74,7 +74,7 @@ defmodule Membrane.WebM.MuxerTest do
         links: [
           link(:source)
           |> to(:deserializer)
-          |> via_in(Pad.ref(:input, 13_337_737_628_113_408_001))
+          |> via_in(Pad.ref(:input, @pad_id_2))
           |> to(:muxer)
           |> to(:sink)
         ]
@@ -114,10 +114,10 @@ defmodule Membrane.WebM.MuxerTest do
         links: [
           link(:vpx_source)
           |> to(:deserializer)
-          |> via_in(Pad.ref(:input, 11_020_961_587_148_742_657))
+          |> via_in(Pad.ref(:input, @pad_id_3))
           |> to(:muxer),
           link(:opus_source)
-          |> via_in(Pad.ref(:input, 16_890_875_709_512_990_721))
+          |> via_in(Pad.ref(:input, @pad_id_4))
           |> to(:muxer),
           link(:muxer)
           |> to(:sink)
@@ -131,8 +131,8 @@ defmodule Membrane.WebM.MuxerTest do
   defp play_and_validate(pipeline, reference_file, output_file) do
     Testing.Pipeline.play(pipeline)
     assert_pipeline_playback_changed(pipeline, _, :playing)
-    assert_start_of_stream(pipeline, :sink, :input, 100_000)
-    assert_end_of_stream(pipeline, :sink, :input, 100_000)
+    assert_start_of_stream(pipeline, :sink)
+    assert_end_of_stream(pipeline, :sink)
     Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
     assert_pipeline_playback_changed(pipeline, _, :stopped)
     assert File.read!(reference_file) == File.read!(output_file)
