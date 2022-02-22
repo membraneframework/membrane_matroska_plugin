@@ -6,10 +6,11 @@ defmodule Membrane.WebM.MuxerTest do
   use ExUnit.Case
   use Bitwise
 
-  require Membrane.Pad
-
   import Membrane.ParentSpec
   import Membrane.Testing.Assertions
+
+  require Membrane.Pad
+
   alias Membrane.Testing
   alias Membrane.{Opus, Pad}
 
@@ -140,7 +141,10 @@ defmodule Membrane.WebM.MuxerTest do
 
   @tag :tmp_dir
   setup %{tmp_dir: tmp_dir} do
-    on_exit(fn -> File.rm_rf!(tmp_dir); :ok end)
+    on_exit(fn ->
+      File.rm_rf!(tmp_dir)
+      :ok
+    end)
   end
 
   @tag :tmp_dir
