@@ -18,9 +18,6 @@ defmodule Membrane.WebM.Parser.Helper do
 
   """
   alias Membrane.WebM.Parser.EBML
-  alias Membrane.WebM.Parser.WebM
-
-  @parser &WebM.parse/2
 
   @doc """
   Main function used for parsing a WebM file
@@ -30,11 +27,11 @@ defmodule Membrane.WebM.Parser.Helper do
   The function expects as input bytes to be parsed and `header_parsed` (initially false)
   It returns a list of parsed top-level elements, the rest unparsed bytes and a modified `header_parsed`
   """
-  @spec parse(binary, boolean) :: {list, binary, boolean}
-  def parse(unparsed, false = _header_parsed) do
-    case maybe_consume_webm_header(unparsed) do
+  @spec parse(binary, boolean, any) :: {list, binary, boolean}
+  def parse(unparsed, false = _header_parsed, schema) do
+    case maybe_consume_webm_header(unparsed, schema) do
       {:ok, rest} ->
-        {parsed, unparsed} = parse_many([], rest)
+        {parsed, unparsed} = parse_many([], rest, schema)
         {parsed, unparsed, true}
 
       {:error, :need_more_bytes} ->
@@ -42,34 +39,34 @@ defmodule Membrane.WebM.Parser.Helper do
     end
   end
 
-  def parse(unparsed, true = _header_parsed) do
-    {parsed, unparsed} = parse_many([], unparsed)
+  def parse(unparsed, true = _header_parsed, schema) do
+    {parsed, unparsed} = parse_many([], unparsed, schema)
     {parsed, unparsed, true}
   end
 
-  @spec parse_many!(list, binary) :: list
-  def parse_many!(acc, bytes) do
-    case maybe_parse_element(bytes) do
+  @spec parse_many!(list, binary, any) :: list
+  def parse_many!(acc, bytes, schema) do
+    case maybe_parse_element(bytes, schema) do
       {:ok, {element, <<>>}} ->
         [element | acc]
 
       {:ok, {element, rest}} ->
-        parse_many!([element | acc], rest)
+        parse_many!([element | acc], rest, schema)
     end
   end
 
-  @spec maybe_consume_webm_header(binary) :: {:ok, binary} | {:error, :need_more_bytes}
-  defp maybe_consume_webm_header(bytes) do
+  @spec maybe_consume_webm_header(binary, any) :: {:ok, binary} | {:error, :need_more_bytes}
+  defp maybe_consume_webm_header(bytes, schema) do
     # consume the EBML element
-    with {:ok, {_ebml, rest}} <- maybe_parse_element(bytes) do
+    with {:ok, {_ebml, rest}} <- maybe_parse_element(bytes, schema) do
       # consume Segment's element_id and element_data_size, return only element_data
       EBML.consume_element_header(rest)
     end
   end
 
-  @spec parse_many(list, binary) :: {list, binary}
-  defp parse_many(acc, bytes) do
-    case maybe_parse_element(bytes) do
+  @spec parse_many(list, binary, any) :: {list, binary}
+  defp parse_many(acc, bytes, schema) do
+    case maybe_parse_element(bytes, schema) do
       {:error, :need_more_bytes} ->
         {acc, bytes}
 
@@ -77,15 +74,19 @@ defmodule Membrane.WebM.Parser.Helper do
         {[element | acc], <<>>}
 
       {:ok, {element, rest}} ->
-        parse_many([element | acc], rest)
+        parse_many([element | acc], rest, schema)
     end
   end
 
-  @spec maybe_parse_element(binary) :: {:error, :need_more_bytes} | {:ok, {{atom, any}, binary}}
-  defp maybe_parse_element(bytes) do
+  @spec maybe_parse_element(binary, any) :: {:error, :need_more_bytes} | {:ok, {{atom, any}, binary}}
+  defp maybe_parse_element(bytes, schema) do
     with {:ok, {name, data, rest}} <- EBML.decode_element(bytes) do
-      element = {name, @parser.(data, name)}
-      {:ok, {element, rest}}
+      parsing_function = schema.(name)
+      if parsing_function == &EBML.parse_master/2 do
+        {:ok, {{name, EBML.parse_master(data, schema)}, rest}}
+      else
+        {:ok, {{name, parsing_function.(data)}, rest}}
+      end
     end
   end
 end

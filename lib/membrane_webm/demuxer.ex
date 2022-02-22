@@ -86,11 +86,11 @@ defmodule Membrane.WebM.Demuxer do
     unparsed = acc <> payload
 
     {parsed, unparsed, is_header_consumed} =
-      Membrane.WebM.Parser.Helper.parse(unparsed, is_header_consumed)
+      Membrane.WebM.Parser.Helper.parse(unparsed, is_header_consumed, &Membrane.WebM.Schema.webm/1)
 
     {actions, state} = process_elements(parsed, state)
 
-    {{:ok, [{:demand, {:input, 1}} | actions]},
+    {{:ok, actions ++ [{:demand, {:input, 1}}]},
      %State{state | parser: %{acc: unparsed, is_header_consumed: is_header_consumed}}}
   end
 

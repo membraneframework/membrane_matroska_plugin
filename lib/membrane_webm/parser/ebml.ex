@@ -150,42 +150,41 @@ defmodule Membrane.WebM.Parser.EBML do
     end
   end
 
-  @spec parse(binary, __MODULE__.t()) :: any
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.1
-  def parse(<<>>, :integer) do
+  def parse_integer(<<>>) do
     0
   end
 
-  def parse(bytes, :integer) do
+  def parse_integer(bytes) do
     s = bit_size(bytes)
     <<num::signed-big-integer-size(s)>> = bytes
     num
   end
 
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.2
-  def parse(<<>>, :uint) do
+  def parse_uint(<<>>) do
     0
   end
 
-  def parse(bytes, :uint) do
+  def parse_uint(bytes) do
     :binary.decode_unsigned(bytes, :big)
   end
 
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.3
-  def parse(<<>>, :float) do
+  def parse_float(<<>>) do
     0
   end
 
-  def parse(<<num::float-big>>, :float) do
+  def parse_float(<<num::float-big>>) do
     num
   end
 
-  def parse(bytes, :string) do
+  def parse_string(bytes) do
     chars = for <<c::utf8 <- bytes>>, do: <<c::utf8>>
     chars |> Enum.take_while(fn c -> c != <<0>> end) |> Enum.join()
   end
 
-  def parse(bytes, :utf_8) do
+  def parse_utf8(bytes) do
     bytes
     |> String.codepoints()
     |> Enum.reduce("", fn codepoint, result ->
@@ -195,29 +194,29 @@ defmodule Membrane.WebM.Parser.EBML do
   end
 
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.6
-  def parse(<<>>, :date) do
+  def parse_date(<<>>) do
     {{2001, 1, 1}, {0, 0, 0}}
   end
 
-  def parse(<<nanoseconds::big-signed>>, :date) do
+  def parse_date(<<nanoseconds::big-signed>>) do
     seconds_zero = :calendar.datetime_to_gregorian_seconds({{2001, 1, 1}, {0, 0, 0}})
     seconds = div(nanoseconds, Time.nanosecond()) + seconds_zero
     :calendar.gregorian_seconds_to_datetime(seconds)
   end
 
-  def parse(bytes, :binary) do
+  def parse_binary(bytes) do
     bytes
   end
 
-  def parse(bytes, :void) do
+  def parse(bytes) do
     bytes
   end
 
-  def parse(bytes, :master) do
+  def parse_master(bytes, schema) do
     if byte_size(bytes) == 0 do
       []
     else
-      Membrane.WebM.Parser.Helper.parse_many!([], bytes)
+      Membrane.WebM.Parser.Helper.parse_many!([], bytes, schema)
     end
   end
 end

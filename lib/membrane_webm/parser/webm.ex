@@ -4,10 +4,8 @@ defmodule Membrane.WebM.Parser.WebM do
   # note that when matroska and webm conflict webm takes precedence
 
   alias Membrane.WebM.Parser.EBML
-  alias Membrane.WebM.Schema
 
-  @spec parse(binary, atom) :: any
-  def parse(<<type::unsigned-integer-size(8)>>, :TrackType) do
+  def parse_track_type(<<type::unsigned-integer-size(8)>>) do
     case type do
       1 -> :video
       2 -> :audio
@@ -20,7 +18,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
-  def parse(<<type::unsigned-integer-size(8)>>, :FlagInterlaced) do
+  def parse_flag_interlaced(<<type::unsigned-integer-size(8)>>) do
     case type do
       # Unknown status.This value SHOULD be avoided.
       0 -> :undetermined
@@ -31,7 +29,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
-  def parse(<<type::unsigned-integer-size(8)>>, :ChromaSitingHorz) do
+  def parse_chroma_siting_horz(<<type::unsigned-integer-size(8)>>) do
     case type do
       0 -> :unspecified
       1 -> :left_collocated
@@ -39,7 +37,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
-  def parse(<<type::unsigned-integer-size(8)>>, :ChromaSitingVert) do
+  def parse_chroma_siting_vert(<<type::unsigned-integer-size(8)>>) do
     case type do
       0 -> :unspecified
       1 -> :top_collocated
@@ -47,7 +45,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
-  def parse(<<type::unsigned-integer-size(8)>>, :StereoMode) do
+  def parse_stereo_mode(<<type::unsigned-integer-size(8)>>) do
     # Stereo-3D video mode.
     # WebM Supported Modes: 0, 1, 2, 3, 11
     # See https://www.webmproject.org/docs/container/#StereoMode
@@ -74,8 +72,8 @@ defmodule Membrane.WebM.Parser.WebM do
 
   # The demuxer MUST only open webm DocType files.
   # per demuxer guidelines https://www.webmproject.org/docs/container/
-  def parse(bytes, :DocType) do
-    text = EBML.parse(bytes, :string)
+  def parse_doc_type(bytes) do
+    text = EBML.parse_string(bytes)
 
     case text do
       "webm" -> "webm"
@@ -83,8 +81,8 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
-  def parse(bytes, :CodecID) do
-    text = EBML.parse(bytes, :string)
+  def parse_codec_id(bytes) do
+    text = EBML.parse_string(bytes)
 
     case text do
       "A_OPUS" -> :opus
@@ -100,7 +98,7 @@ defmodule Membrane.WebM.Parser.WebM do
   # for now it seems that it can be safely ignored - every frame is inside a :SimpleBlock
 
   # https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#rfc.section.6.2.4.4
-  def parse(bytes, :SimpleBlock) do
+  def parse_simple_block(bytes) do
     # track_number is a vint with size 1 or 2 bytes
     {:ok, {track_number, body}} = EBML.decode_vint(bytes)
 
@@ -129,11 +127,5 @@ defmodule Membrane.WebM.Parser.WebM do
       },
       data: data
     }
-  end
-
-  # non-special-case elements should be handled generically by the EBML parser
-  def parse(bytes, name) do
-    type = Schema.element_type(name)
-    EBML.parse(bytes, type)
   end
 end
