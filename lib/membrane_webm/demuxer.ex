@@ -53,14 +53,16 @@ defmodule Membrane.WebM.Demuxer do
             cache: list,
             output_active: boolean,
             tracks: %{(id :: non_neg_integer) => track_t},
-            parser: %{required(:acc) => binary, required(:is_header_consumed) => boolean}
+            parser_acc: binary,
+            current_timecode: integer
           }
 
     defstruct timestamp_scale: nil,
               cache: [],
               output_active: false,
               tracks: %{},
-              parser: %{acc: <<>>, is_header_consumed: false}
+              parser_acc: <<>>,
+              current_timecode: nil
   end
 
   @impl true
@@ -94,21 +96,19 @@ defmodule Membrane.WebM.Demuxer do
         :input,
         %Buffer{payload: payload},
         _context,
-        %State{parser: %{acc: acc, is_header_consumed: is_header_consumed}} = state
+        %State{parser_acc: acc} = state
       ) do
     unparsed = acc <> payload
 
-    {parsed, unparsed, is_header_consumed} =
+    {parsed, unparsed} =
       Membrane.WebM.Parser.Helper.parse(
         unparsed,
-        is_header_consumed,
         &Membrane.WebM.Schema.webm/1
       )
 
     {actions, state} = process_elements(parsed, state)
 
-    {{:ok, actions ++ [{:demand, {:input, 1}}]},
-     %State{state | parser: %{acc: unparsed, is_header_consumed: is_header_consumed}}}
+    {{:ok, actions ++ [{:demand, {:input, 1}}]}, %State{state | parser_acc: unparsed}}
   end
 
   @impl true
@@ -142,6 +142,16 @@ defmodule Membrane.WebM.Demuxer do
         actions = notify_about_new_track(tracks)
         {actions, %State{state | tracks: tracks}}
 
+      :Timecode ->
+        {[], %State{state | current_timecode: data}}
+
+      :SimpleBlock ->
+        data
+        |> to_buffer(state.timestamp_scale, state.current_timecode)
+        |> send_or_cache(state)
+        # IO.inspect(data)
+        # {[], state}
+
       :Cluster ->
         {active, inactive} =
           data
@@ -152,6 +162,19 @@ defmodule Membrane.WebM.Demuxer do
 
       _other_element ->
         {[], state}
+    end
+  end
+
+  # TODO TODO TODO
+  defp to_buffer(block, timestamp_scale, current_timecode) do
+    {:buffer, {Pad.ref(:output, track_id), buffers}}
+  end
+
+  defp send_or_cache(block, state) do
+    if state.pad[block.track_number].is_active do
+      {action, state}
+    else
+      {action, state}
     end
   end
 
@@ -229,8 +252,6 @@ defmodule Membrane.WebM.Demuxer do
     for track <- tracks, into: %{} do
       info =
         case track[:TrackType] do
-          # The TrackUID SHOULD be kept the same when making a direct stream copy to another file.
-
           :audio ->
             %{
               codec: track[:CodecID],

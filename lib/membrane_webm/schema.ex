@@ -501,7 +501,9 @@ defmodule Membrane.WebM.Schema do
     Seek: &EBML.parse_master/2,
     SeekPosition: &EBML.parse_uint/1,
     SeekID: &EBML.parse_binary/1,
-    Unknown: &EBML.parse_binary/1
+    Unknown: &EBML.parse_binary/1,
+    ApplyFlatParsing?: [0x18538067, 0x1F43B675]
+    # ApplyFlatParsing?: [Segment_ID, Cluster_ID]
   }
 
   @spec webm(atom) :: function

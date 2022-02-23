@@ -1,6 +1,6 @@
 defmodule Membrane.WebM.Parser.Helper do
   @moduledoc """
-  Module for parsing a WebM binary stream (such as from a file) used by `Membrane.WebM.Demuxer`.
+  Module for parsing a WebM / MKV binary stream (such as from a file) used by `Membrane.WebM.Demuxer`.
 
   A WebM file is defined as a Matroska file that contains one segment and satisfies strict constraints.
   A Matroska file is an EBML file (Extendable-Binary-Meta-Language) satisfying certain other constraints.
@@ -20,28 +20,12 @@ defmodule Membrane.WebM.Parser.Helper do
   alias Membrane.WebM.Parser.EBML
 
   @doc """
-  Main function used for parsing a WebM file
-
-  The parser needs to know if the EBML element and the Segment element header have already been parsed - called `header_parsed`
-
-  The function expects as input bytes to be parsed and `header_parsed` (initially false)
-  It returns a list of parsed top-level elements, the rest unparsed bytes and a modified `header_parsed`
+  Main function used for parsing a file
   """
-  @spec parse(binary, boolean, function) :: {list, binary, boolean}
-  def parse(unparsed, false = _header_parsed, schema) do
-    case maybe_consume_webm_header(unparsed, schema) do
-      {:ok, rest} ->
-        {parsed, unparsed} = parse_many([], rest, schema)
-        {parsed, unparsed, true}
-
-      {:error, :need_more_bytes} ->
-        {[], unparsed, false}
-    end
-  end
-
-  def parse(unparsed, true = _header_parsed, schema) do
+  @spec parse(binary, function) :: {list, binary}
+  def parse(unparsed, schema) do
     {parsed, unparsed} = parse_many([], unparsed, schema)
-    {parsed, unparsed, true}
+    {parsed, unparsed}
   end
 
   @spec parse_many!(list, binary, function) :: list
@@ -52,15 +36,6 @@ defmodule Membrane.WebM.Parser.Helper do
 
       {:ok, {element, rest}} ->
         parse_many!([element | acc], rest, schema)
-    end
-  end
-
-  @spec maybe_consume_webm_header(binary, function) :: {:ok, binary} | {:error, :need_more_bytes}
-  defp maybe_consume_webm_header(bytes, schema) do
-    # consume the EBML element
-    with {:ok, {_ebml, rest}} <- maybe_parse_element(bytes, schema) do
-      # consume Segment's element_id and element_data_size, return only element_data
-      EBML.consume_element_header(rest)
     end
   end
 
@@ -81,6 +56,19 @@ defmodule Membrane.WebM.Parser.Helper do
   @spec maybe_parse_element(binary, function) ::
           {:error, :need_more_bytes} | {:ok, {{atom, list}, binary}}
   defp maybe_parse_element(bytes, schema) do
+    with {:ok, {element_id, rest}} <- EBML.decode_element_id(bytes),
+         {:ok, {_element_width, rest}} <- EBML.decode_vint(rest) do
+      if element_id in schema.(:ApplyFlatParsing?) do
+        maybe_parse_element(rest, schema)
+      else
+        maybe_parse_recursively(bytes, schema)
+      end
+    end
+  end
+
+  @spec maybe_parse_recursively(binary, function) ::
+          {:error, :need_more_bytes} | {:ok, {{atom, list}, binary}}
+  defp maybe_parse_recursively(bytes, schema) do
     with {:ok, {name, data, rest}} <- EBML.decode_element(bytes) do
       parsing_function = schema.(name)
 
