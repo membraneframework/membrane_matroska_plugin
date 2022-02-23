@@ -504,6 +504,7 @@ defmodule Membrane.WebM.Schema do
     Unknown: &EBML.parse_binary/1
   }
 
+  @spec webm(atom) :: function
   def webm(name) do
     @webm_schema[name]
   end

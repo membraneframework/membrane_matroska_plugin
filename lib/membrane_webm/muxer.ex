@@ -133,7 +133,6 @@ defmodule Membrane.WebM.Muxer do
     end
   end
 
-  # TODO: ivf sends pts while muxer needs dts
   @impl true
   def handle_process(Pad.ref(:input, id), %Buffer{payload: data} = buffer, _context, state) do
     timestamp = Buffer.get_dts_or_pts(buffer) |> div(@timestamp_scale)

@@ -5,6 +5,7 @@ defmodule Membrane.WebM.Parser.WebM do
 
   alias Membrane.WebM.Parser.EBML
 
+  @spec parse_track_type(binary) :: atom
   def parse_track_type(<<type::unsigned-integer-size(8)>>) do
     case type do
       1 -> :video
@@ -18,6 +19,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
+  @spec parse_flag_interlaced(binary) :: atom
   def parse_flag_interlaced(<<type::unsigned-integer-size(8)>>) do
     case type do
       # Unknown status.This value SHOULD be avoided.
@@ -29,6 +31,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
+  @spec parse_chroma_siting_horz(binary) :: atom
   def parse_chroma_siting_horz(<<type::unsigned-integer-size(8)>>) do
     case type do
       0 -> :unspecified
@@ -37,6 +40,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
+  @spec parse_chroma_siting_vert(binary) :: atom
   def parse_chroma_siting_vert(<<type::unsigned-integer-size(8)>>) do
     case type do
       0 -> :unspecified
@@ -45,6 +49,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
+  @spec parse_stereo_mode(binary) :: atom
   def parse_stereo_mode(<<type::unsigned-integer-size(8)>>) do
     # Stereo-3D video mode.
     # WebM Supported Modes: 0, 1, 2, 3, 11
@@ -70,8 +75,9 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
-  # The demuxer MUST only open webm DocType files.
+  # The demuxer MUST only open "webm" DocType files.
   # per demuxer guidelines https://www.webmproject.org/docs/container/
+  @spec parse_doc_type(binary) :: binary
   def parse_doc_type(bytes) do
     text = EBML.parse_string(bytes)
 
@@ -81,6 +87,7 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
+  @spec parse_codec_id(binary) :: :opus | :vorbis | :vp8 | :vp9
   def parse_codec_id(bytes) do
     text = EBML.parse_string(bytes)
 
@@ -98,6 +105,18 @@ defmodule Membrane.WebM.Parser.WebM do
   # for now it seems that it can be safely ignored - every frame is inside a :SimpleBlock
 
   # https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#rfc.section.6.2.4.4
+  @spec parse_simple_block(binary) :: %{
+          data: binary,
+          header_flags: %{
+            discardable: boolean,
+            invisible: boolean,
+            keyframe: boolean,
+            lacing: :EBML_lacing | :Xiph_lacing | :fixed_size_lacing | :no_lacing,
+            reserved: 0
+          },
+          timecode: integer,
+          track_number: non_neg_integer
+        }
   def parse_simple_block(bytes) do
     # track_number is a vint with size 1 or 2 bytes
     {:ok, {track_number, body}} = EBML.decode_vint(bytes)

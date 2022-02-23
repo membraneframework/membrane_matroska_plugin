@@ -151,6 +151,7 @@ defmodule Membrane.WebM.Parser.EBML do
   end
 
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.1
+  @spec parse_integer(binary) :: integer
   def parse_integer(<<>>) do
     0
   end
@@ -162,6 +163,7 @@ defmodule Membrane.WebM.Parser.EBML do
   end
 
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.2
+  @spec parse_uint(binary) :: non_neg_integer
   def parse_uint(<<>>) do
     0
   end
@@ -171,6 +173,7 @@ defmodule Membrane.WebM.Parser.EBML do
   end
 
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.3
+  @spec parse_float(binary) :: float
   def parse_float(<<>>) do
     0
   end
@@ -179,11 +182,13 @@ defmodule Membrane.WebM.Parser.EBML do
     num
   end
 
+  @spec parse_string(binary) :: binary
   def parse_string(bytes) do
     chars = for <<c::utf8 <- bytes>>, do: <<c::utf8>>
     chars |> Enum.take_while(fn c -> c != <<0>> end) |> Enum.join()
   end
 
+  @spec parse_utf8(binary) :: binary
   def parse_utf8(bytes) do
     bytes
     |> String.codepoints()
@@ -194,6 +199,7 @@ defmodule Membrane.WebM.Parser.EBML do
   end
 
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.6
+  @spec parse_date(binary) :: :calendar.datetime()
   def parse_date(<<>>) do
     {{2001, 1, 1}, {0, 0, 0}}
   end
@@ -204,14 +210,12 @@ defmodule Membrane.WebM.Parser.EBML do
     :calendar.gregorian_seconds_to_datetime(seconds)
   end
 
+  @spec parse_binary(binary) :: binary
   def parse_binary(bytes) do
     bytes
   end
 
-  def parse(bytes) do
-    bytes
-  end
-
+  @spec parse_master(binary, function) :: list
   def parse_master(bytes, schema) do
     if byte_size(bytes) == 0 do
       []

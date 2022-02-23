@@ -27,7 +27,7 @@ defmodule Membrane.WebM.Parser.Helper do
   The function expects as input bytes to be parsed and `header_parsed` (initially false)
   It returns a list of parsed top-level elements, the rest unparsed bytes and a modified `header_parsed`
   """
-  @spec parse(binary, boolean, any) :: {list, binary, boolean}
+  @spec parse(binary, boolean, function) :: {list, binary, boolean}
   def parse(unparsed, false = _header_parsed, schema) do
     case maybe_consume_webm_header(unparsed, schema) do
       {:ok, rest} ->
@@ -44,7 +44,7 @@ defmodule Membrane.WebM.Parser.Helper do
     {parsed, unparsed, true}
   end
 
-  @spec parse_many!(list, binary, any) :: list
+  @spec parse_many!(list, binary, function) :: list
   def parse_many!(acc, bytes, schema) do
     case maybe_parse_element(bytes, schema) do
       {:ok, {element, <<>>}} ->
@@ -55,7 +55,7 @@ defmodule Membrane.WebM.Parser.Helper do
     end
   end
 
-  @spec maybe_consume_webm_header(binary, any) :: {:ok, binary} | {:error, :need_more_bytes}
+  @spec maybe_consume_webm_header(binary, function) :: {:ok, binary} | {:error, :need_more_bytes}
   defp maybe_consume_webm_header(bytes, schema) do
     # consume the EBML element
     with {:ok, {_ebml, rest}} <- maybe_parse_element(bytes, schema) do
@@ -64,7 +64,7 @@ defmodule Membrane.WebM.Parser.Helper do
     end
   end
 
-  @spec parse_many(list, binary, any) :: {list, binary}
+  @spec parse_many(list, binary, function) :: {list, binary}
   defp parse_many(acc, bytes, schema) do
     case maybe_parse_element(bytes, schema) do
       {:error, :need_more_bytes} ->
@@ -78,11 +78,13 @@ defmodule Membrane.WebM.Parser.Helper do
     end
   end
 
-  @spec maybe_parse_element(binary, any) :: {:error, :need_more_bytes} | {:ok, {{atom, any}, binary}}
+  @spec maybe_parse_element(binary, function) ::
+          {:error, :need_more_bytes} | {:ok, {{atom, list}, binary}}
   defp maybe_parse_element(bytes, schema) do
     with {:ok, {name, data, rest}} <- EBML.decode_element(bytes) do
       parsing_function = schema.(name)
-      if parsing_function == &EBML.parse_master/2 do
+
+      if parsing_function == (&EBML.parse_master/2) do
         {:ok, {{name, EBML.parse_master(data, schema)}, rest}}
       else
         {:ok, {{name, parsing_function.(data)}, rest}}

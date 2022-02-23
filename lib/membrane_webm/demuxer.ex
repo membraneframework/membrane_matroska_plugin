@@ -14,13 +14,13 @@ defmodule Membrane.WebM.Demuxer do
   use Membrane.Filter
 
   alias Membrane.{Buffer, Time, Pipeline.Action}
-  alias Membrane.{Opus, VP8, VP9}
+  alias Membrane.{Opus, RemoteStream, VP8, VP9}
 
   def_input_pad :input,
     availability: :always,
     mode: :pull,
     demand_unit: :buffers,
-    caps: :any
+    caps: {RemoteStream, content_format: :WEBM}
 
   def_output_pad :output,
     availability: :on_request,
@@ -51,12 +51,14 @@ defmodule Membrane.WebM.Demuxer do
     @type t :: %__MODULE__{
             timestamp_scale: non_neg_integer,
             cache: list,
+            output_active: boolean,
             tracks: %{(id :: non_neg_integer) => track_t},
             parser: %{required(:acc) => binary, required(:is_header_consumed) => boolean}
           }
 
     defstruct timestamp_scale: nil,
               cache: [],
+              output_active: false,
               tracks: %{},
               parser: %{acc: <<>>, is_header_consumed: false}
   end
@@ -72,8 +74,19 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   @impl true
-  def handle_demand(Pad.ref(:output, _id), _size, :buffers, _context, state) do
-    {:ok, state}
+  def handle_demand(Pad.ref(:output, _id), _size, :buffers, context, state) do
+    # demuxer should output only if all pads are demanding
+
+    output_active =
+      context.pads
+      |> Enum.filter(fn {id, _pad_data} -> id != :input end)
+      |> Enum.all?(fn {_id, pad_data} -> pad_data.demand > 0 end)
+
+    # reconsider output
+
+    # actions = state.cache send demanded buffers...
+
+    {:ok, %State{state | output_active: output_active}}
   end
 
   @impl true
@@ -86,12 +99,24 @@ defmodule Membrane.WebM.Demuxer do
     unparsed = acc <> payload
 
     {parsed, unparsed, is_header_consumed} =
-      Membrane.WebM.Parser.Helper.parse(unparsed, is_header_consumed, &Membrane.WebM.Schema.webm/1)
+      Membrane.WebM.Parser.Helper.parse(
+        unparsed,
+        is_header_consumed,
+        &Membrane.WebM.Schema.webm/1
+      )
 
     {actions, state} = process_elements(parsed, state)
 
     {{:ok, actions ++ [{:demand, {:input, 1}}]},
      %State{state | parser: %{acc: unparsed, is_header_consumed: is_header_consumed}}}
+  end
+
+  @impl true
+  def handle_end_of_stream(:input, _context, state) do
+    actions =
+      Enum.map(state.tracks, fn {id, _track_info} -> {:end_of_stream, Pad.ref(:output, id)} end)
+
+    {{:ok, actions}, state}
   end
 
   @spec process_elements(list({atom, binary}), State.t()) :: {list(Action.t()), State.t()}
@@ -162,11 +187,9 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   defp prepare_output_buffers(buffers_list) when is_list(buffers_list) do
-    Enum.map(buffers_list, &prepare_output_buffers/1)
-  end
-
-  defp prepare_output_buffers({track_id, buffers}) do
-    {:buffer, {Pad.ref(:output, track_id), buffers}}
+    Enum.map(buffers_list, fn {track_id, buffers} ->
+      {:buffer, {Pad.ref(:output, track_id), buffers}}
+    end)
   end
 
   defp notify_about_new_track(tracks) when is_map(tracks) do
