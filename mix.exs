@@ -57,7 +57,8 @@ defmodule Membrane.WebM.Plugin.Mixfile do
        runtime: false},
       {:ex_doc, "~> 0.26", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
-      {:credo, "~> 1.5", only: :dev, runtime: false}
+      {:credo, "~> 1.5", only: :dev, runtime: false},
+      {:qex, "~> 0.5.1"}
     ]
   end
 

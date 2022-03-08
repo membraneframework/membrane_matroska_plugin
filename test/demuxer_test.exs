@@ -104,13 +104,13 @@ defmodule Membrane.WebM.DemuxerTest do
     end
   end
 
-  @tag :tmp_dir
-  setup %{tmp_dir: tmp_dir} do
-    on_exit(fn ->
-      File.rm_rf!(tmp_dir)
-      :ok
-    end)
-  end
+  # @tag :tmp_dir
+  # setup %{tmp_dir: tmp_dir} do
+  #   on_exit(fn ->
+  #     File.rm_rf!(tmp_dir)
+  #     :ok
+  #   end)
+  # end
 
   @tag :tmp_dir
   test "demuxing webm containing opus", %{tmp_dir: tmp_dir} do

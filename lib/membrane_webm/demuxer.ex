@@ -50,6 +50,7 @@ defmodule Membrane.WebM.Demuxer do
 
     @type t :: %__MODULE__{
             timestamp_scale: non_neg_integer,
+            # list of output buffers
             cache: list,
             output_active: boolean,
             tracks: %{(id :: non_neg_integer) => track_t},
@@ -59,6 +60,7 @@ defmodule Membrane.WebM.Demuxer do
 
     defstruct timestamp_scale: nil,
               cache: [],
+              tracks_notified: false,
               output_active: false,
               tracks: %{},
               parser_acc: <<>>,
@@ -77,19 +79,86 @@ defmodule Membrane.WebM.Demuxer do
 
   @impl true
   def handle_demand(Pad.ref(:output, _id), _size, :buffers, context, state) do
-    # demuxer should output only if all pads are demanding
-
-    output_active =
+    # demuxer should output only as long as all pads are demanding
+    demands =
       context.pads
       |> Enum.filter(fn {id, _pad_data} -> id != :input end)
-      |> Enum.all?(fn {_id, pad_data} -> pad_data.demand > 0 end)
+      |> Enum.map(fn {{Membrane.Pad, :output, id}, pad_data} -> {id, pad_data.demand} end)
+      |> Enum.into(%{})
 
-    # reconsider output
+    {to_send, to_cache} =
+      if Enum.all?(state.tracks, fn {_id, track} -> track.active end) do
+        # output buffers from cache as long as the destination pad demands it
+        split_cache(state.cache, demands)
+      else
+        {[], state.cache}
+      end
 
-    # actions = state.cache send demanded buffers...
+    buffer_actions =
+      to_send
+      # , &make_buffer/1)
+      |> Enum.group_by(fn buffer -> buffer.metadata.track_number end)
+      |> Enum.map(fn {track_number, buffers} ->
+        {:buffer, {{Membrane.Pad, :output, track_number}, buffers}}
+      end)
 
-    {:ok, %State{state | output_active: output_active}}
+    # if no buffers remain in cache then demand further bytes from input
+    if to_cache == [] do
+      {{:ok, buffer_actions ++ [{:demand, :input}]}, %State{state | cache: to_cache}}
+    else
+      {{:ok, buffer_actions}, %State{state | cache: to_cache}}
+    end
   end
+
+  # defp make_buffer(block) do
+  #   %Buffer{payload: block.data, dts: block.timestamp}
+  # end
+
+  # take blocks from cache until a block is encountered for which demand == 0
+  defp split_cache(cache, demands) do
+    {to_send, to_cache, _new_demands, _stop_output} =
+      Enum.reduce(cache, {[], [], demands, false}, fn buffer,
+                                                      {to_send, to_cache, demands, stop_output} ->
+        if stop_output or demands[buffer.metadata.track_number] <= 0 do
+          {to_send, [buffer | to_cache], demands, true}
+        else
+          {[buffer | to_send], to_cache,
+           update_in(demands[buffer.metadata.track_number], &(&1 - 1)), false}
+        end
+      end)
+
+    {to_send, to_cache}
+  end
+
+  # defp send_demanded_buffers(context, state) do
+  #   {buffer_actions, new_cache} =
+  #     Enum.reduce(context.pads, {[], state.cache},
+  #     fn {{id, pad_data}, {actions, cache}} ->
+  #     {buffer_count, buffers} = cache[id]
+  #     cond do
+  #       buffer_count > 0 and buffer_count >= pad_data.demand ->
+  #         {buffers, rest} = Qex.split(buffers, buffer_count)
+  #         new_cache = Map.put(cache, id, {buffer_count - pad_data.demand, rest})
+  #         action = {:buffer, {Pad.ref(:output, id), Enum.to_list(buffers)}}
+  #         {[action | actions], new_cache}
+  #       buffer_count > 0 and buffer_count < pad_data.demand ->
+  #         new_cache = Map.put(cache, id, {0, Qex.new})
+  #         action = {:buffer, {Pad.ref(:output, id), Enum.to_list(buffers)}}
+  #         {[action | actions], new_cache}
+  #       buffer_count == 0 ->
+  #         {actions, cache}
+  #     end
+  #   end)
+  #   {buffer_actions, %State{state | cache: new_cache}}
+  # end
+
+  # defp send_buffers_for_active_tracks(state) do
+  #   actions = state.cache
+  #   |> Enum.filter(fn {id, _buffers} -> state.tracks[id].active end)
+  #   |> Enum.map(fn {id, buffers} -> {:buffer, {Pad.ref(:output, id), Enum.to_list(buffers)}} end)
+  #   new_state = %State{state | cache: Enum.map(state.cache, fn {id, _qex} -> {id, Qex.new} end)}
+  #   {actions, new_state}
+  # end
 
   @impl true
   def handle_process(
@@ -108,7 +177,12 @@ defmodule Membrane.WebM.Demuxer do
 
     {actions, state} = process_elements(parsed, state)
 
-    {{:ok, actions ++ [{:demand, {:input, 1}}]}, %State{state | parser_acc: unparsed}}
+    # if even one element can't be parsed return demand: :input
+    if parsed == [] or not state.tracks_notified do
+      {{:ok, demand: :input}, %State{state | parser_acc: unparsed}}
+    else
+      {{:ok, actions}, %State{state | parser_acc: unparsed}}
+    end
   end
 
   @impl true
@@ -120,17 +194,20 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   @spec process_elements(list({atom, binary}), State.t()) :: {list(Action.t()), State.t()}
-  def process_elements(elements_list, state) when is_list(elements_list) do
+  defp process_elements(elements_list, state) do
     elements_list
+    # FIXME: don't reverse and prepend everything to lists => don't use Qex as cache
     |> Enum.reverse()
     |> Enum.reduce({[], state}, fn {element_name, data}, {actions, state} ->
-      {new_actions, new_state} = process_elements(element_name, data, state)
+      {new_actions, new_state} = process_element(element_name, data, state)
       {actions ++ new_actions, new_state}
     end)
   end
 
-  @spec process_elements(atom, binary, State.t()) :: {list(Action.t()), State.t()}
-  def process_elements(element_name, data, state) do
+  @spec process_element(atom, binary, State.t()) :: {list(Action.t()), State.t()}
+  defp process_element(element_name, data, state) do
+    IO.puts(element_name)
+
     case element_name do
       :Info ->
         # scale of block timecodes in nanoseconds
@@ -140,41 +217,22 @@ defmodule Membrane.WebM.Demuxer do
       :Tracks ->
         tracks = identify_tracks(data, state.timestamp_scale)
         actions = notify_about_new_track(tracks)
-        {actions, %State{state | tracks: tracks}}
+        {actions, %State{state | tracks: tracks, tracks_notified: true}}
 
       :Timecode ->
         {[], %State{state | current_timecode: data}}
 
       :SimpleBlock ->
-        data
-        |> to_buffer(state.timestamp_scale, state.current_timecode)
-        |> send_or_cache(state)
-        # IO.inspect(data)
-        # {[], state}
-
-      :Cluster ->
-        {active, inactive} =
-          data
-          |> cluster_to_buffers(state.timestamp_scale)
-          |> Enum.split_with(fn {id, _buffer} -> state.tracks[id].active end)
-
-        {prepare_output_buffers(active), %State{state | cache: state.cache ++ inactive}}
+        buffer = %Buffer{
+          payload: data.data,
+          dts: (state.current_timecode + data.timecode) * state.timestamp_scale,
+          metadata: %{track_number: data.track_number}
+        }
+        IO.inspect((state.current_timecode + data.timecode) * state.timestamp_scale)
+        {[], %State{state | cache: [buffer | state.cache]}}
 
       _other_element ->
         {[], state}
-    end
-  end
-
-  # TODO TODO TODO
-  defp to_buffer(block, timestamp_scale, current_timecode) do
-    {:buffer, {Pad.ref(:output, track_id), buffers}}
-  end
-
-  defp send_or_cache(block, state) do
-    if state.pad[block.track_number].is_active do
-      {action, state}
-    else
-      {action, state}
     end
   end
 
@@ -194,57 +252,43 @@ defmodule Membrane.WebM.Demuxer do
           %VP9{width: track.width, height: track.height}
       end
 
-    # now that the pad is added all cached buffers destined for this pad can be sent
-    {track_buffers, other_buffers} =
-      Enum.split_with(state.cache, fn {pad_id, _buffer} -> pad_id == id end)
+    new_state = %State{state | tracks: put_in(tracks[id].active, true)}
 
-    actions = [{:caps, {Pad.ref(:output, id), caps}} | prepare_output_buffers(track_buffers)]
-
-    new_state = %State{
-      state
-      | tracks: put_in(tracks[id].active, true),
-        cache: other_buffers
-    }
-
-    {{:ok, actions}, new_state}
+    {{:ok, caps: {Pad.ref(:output, id), caps}, redemand: Pad.ref(:output, id)}, new_state}
   end
 
-  defp prepare_output_buffers(buffers_list) when is_list(buffers_list) do
-    Enum.map(buffers_list, fn {track_id, buffers} ->
-      {:buffer, {Pad.ref(:output, track_id), buffers}}
-    end)
+  # defp prepare_output_buffers(buffers_list) do
+  #   Enum.map(Enum.to_list(buffers_list), fn {track_id, buffers} ->
+  #     {:buffer, {Pad.ref(:output, track_id), buffers}}
+  #   end)
+  # end
+
+  defp notify_about_new_track(tracks) do
+    Enum.map(tracks, fn track -> {:notify, {:new_track, track}} end)
   end
 
-  defp notify_about_new_track(tracks) when is_map(tracks) do
-    Enum.map(tracks, &notify_about_new_track/1)
-  end
+  # defp cluster_to_buffers(cluster, timestamp_scale) do
+  #   timecode = cluster[:Timecode]
 
-  defp notify_about_new_track(track) do
-    {:notify, {:new_track, track}}
-  end
+  #   cluster
+  #   |> Keyword.get_values(:SimpleBlock)
+  #   |> Enum.reduce([], fn block, acc ->
+  #     [prepare_simple_block(block, timecode) | acc]
+  #   end)
+  #   |> Enum.group_by(& &1.track_number, &packetize(&1, timestamp_scale))
+  # end
 
-  defp cluster_to_buffers(cluster, timestamp_scale) do
-    timecode = cluster[:Timecode]
+  # defp packetize(%{timecode: timecode, data: data}, timestamp_scale) do
+  #   %Buffer{payload: data, dts: timecode * timestamp_scale, pts: timecode * timestamp_scale}
+  # end
 
-    cluster
-    |> Keyword.get_values(:SimpleBlock)
-    |> Enum.reduce([], fn block, acc ->
-      [prepare_simple_block(block, timecode) | acc]
-    end)
-    |> Enum.group_by(& &1.track_number, &packetize(&1, timestamp_scale))
-  end
-
-  defp packetize(%{timecode: timecode, data: data}, timestamp_scale) do
-    %Buffer{payload: data, dts: timecode * timestamp_scale, pts: timecode * timestamp_scale}
-  end
-
-  defp prepare_simple_block(block, cluster_timecode) do
-    %{
-      timecode: cluster_timecode + block.timecode,
-      track_number: block.track_number,
-      data: block.data
-    }
-  end
+  # defp prepare_simple_block(block, cluster_timecode) do
+  #   %{
+  #     timecode: cluster_timecode + block.timecode,
+  #     track_number: block.track_number,
+  #     data: block.data
+  #   }
+  # end
 
   defp identify_tracks(tracks, timestamp_scale) do
     tracks = Keyword.get_values(tracks, :TrackEntry)

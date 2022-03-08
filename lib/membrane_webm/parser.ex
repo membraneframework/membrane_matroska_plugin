@@ -20,7 +20,7 @@ defmodule Membrane.WebM.Parser do
 
   @impl true
   def handle_init(_options) do
-    {:ok, %{acc: <<>>, header_consumed: false}}
+    {:ok, %{acc: <<>>}}
   end
 
   @impl true
@@ -30,11 +30,10 @@ defmodule Membrane.WebM.Parser do
 
   @impl true
   def handle_process(:input, %Buffer{payload: payload}, _context, %{
-        acc: acc,
-        header_consumed: header_consumed
+        acc: acc
       }) do
     unparsed = payload <> acc
-    {parsed, unparsed, header_consumed} = Helper.parse(unparsed, header_consumed)
+    {parsed, unparsed, header_consumed} = Helper.parse(unparsed, &Membrane.WebM.Schema.webm/1)
 
     {{:ok, [{:buffer, {:output, to_buffers(parsed)}}, {:demand, {:input, 1}}]},
      %{acc: unparsed, header_consumed: header_consumed}}
