@@ -36,7 +36,7 @@ defmodule Membrane.WebM.Plugin.Mixfile do
 
   defp deps do
     [
-      {:membrane_core, "~> 0.8.0"},
+      {:membrane_core, "~> 0.9.0", override: true},
       {:bimap, "~> 1.2"},
       {:membrane_opus_plugin, "~> 0.8.0"},
       {:membrane_ivf_plugin,
