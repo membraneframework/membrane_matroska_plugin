@@ -52,7 +52,6 @@ defmodule Membrane.WebM.Demuxer do
             timestamp_scale: non_neg_integer,
             # list of output buffers
             cache: list,
-            output_active: boolean,
             tracks: %{(id :: non_neg_integer) => track_t},
             parser_acc: binary,
             current_timecode: integer
@@ -61,7 +60,6 @@ defmodule Membrane.WebM.Demuxer do
     defstruct timestamp_scale: nil,
               cache: [],
               tracks_notified: false,
-              output_active: false,
               tracks: %{},
               parser_acc: <<>>,
               current_timecode: nil
@@ -78,7 +76,9 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   @impl true
-  def handle_demand(Pad.ref(:output, _id), _size, :buffers, context, state) do
+  def handle_demand(Pad.ref(:output, id), size, :buffers, context, state) do
+
+    IO.puts("demand pad #{id}: #{size}")
     # demuxer should output only as long as all pads are demanding
     demands =
       context.pads
@@ -89,7 +89,7 @@ defmodule Membrane.WebM.Demuxer do
     {to_send, to_cache} =
       if Enum.all?(state.tracks, fn {_id, track} -> track.active end) do
         # output buffers from cache as long as the destination pad demands it
-        split_cache(state.cache, demands)
+        split_cache(Enum.reverse(state.cache), demands)
       else
         {[], state.cache}
       end
@@ -102,8 +102,14 @@ defmodule Membrane.WebM.Demuxer do
         {:buffer, {{Membrane.Pad, :output, track_number}, buffers}}
       end)
 
+    IO.puts("to_send")
+    IO.inspect(to_send)
+    IO.puts("to_cache")
+    IO.inspect(to_cache)
+
     # if no buffers remain in cache then demand further bytes from input
     if to_cache == [] do
+      IO.puts("\tgive input")
       {{:ok, buffer_actions ++ [{:demand, :input}]}, %State{state | cache: to_cache}}
     else
       {{:ok, buffer_actions}, %State{state | cache: to_cache}}
@@ -181,12 +187,23 @@ defmodule Membrane.WebM.Demuxer do
     if parsed == [] or not state.tracks_notified do
       {{:ok, demand: :input}, %State{state | parser_acc: unparsed}}
     else
-      {{:ok, actions}, %State{state | parser_acc: unparsed}}
+      if state.cache != [] do
+        # czasem jak ma ponad 40 demandów to nie ogarnia ze powinien zawolac nowy demand i dzieki temu w handle_demand wyczyścić cache więc wołam tutaj oto explicite redemand'a...
+        id = hd(state.cache).metadata.track_number
+        if state.tracks[id].active do
+          {{:ok, actions ++ [{:redemand, Pad.ref(:output, id)}]}, %State{state | parser_acc: unparsed}}
+        else
+          {{:ok, actions}, %State{state | parser_acc: unparsed}}
+        end
+      else
+        {{:ok, actions}, %State{state | parser_acc: unparsed}}
+      end
     end
   end
 
   @impl true
   def handle_end_of_stream(:input, _context, state) do
+    IO.puts("<END END END>")
     actions =
       Enum.map(state.tracks, fn {id, _track_info} -> {:end_of_stream, Pad.ref(:output, id)} end)
 
@@ -206,7 +223,7 @@ defmodule Membrane.WebM.Demuxer do
 
   @spec process_element(atom, binary, State.t()) :: {list(Action.t()), State.t()}
   defp process_element(element_name, data, state) do
-    IO.puts(element_name)
+    unless element_name == :SimpleBlock, do: IO.puts(element_name)
 
     case element_name do
       :Info ->
@@ -228,7 +245,7 @@ defmodule Membrane.WebM.Demuxer do
           dts: (state.current_timecode + data.timecode) * state.timestamp_scale,
           metadata: %{track_number: data.track_number}
         }
-        IO.inspect((state.current_timecode + data.timecode) * state.timestamp_scale)
+        IO.puts("SimpleBlock #{data.track_number}")
         {[], %State{state | cache: [buffer | state.cache]}}
 
       _other_element ->
@@ -239,6 +256,8 @@ defmodule Membrane.WebM.Demuxer do
   @impl true
   def handle_pad_added(Pad.ref(:output, id), _context, %State{tracks: tracks} = state) do
     track = tracks[id]
+
+    IO.puts("activate pad #{id}")
 
     caps =
       case track.codec do
