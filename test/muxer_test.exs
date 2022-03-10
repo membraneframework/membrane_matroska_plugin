@@ -37,7 +37,6 @@ defmodule Membrane.WebM.MuxerTest do
             output: Testing.Source.output_from_buffers(buffers),
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
-          deserializer: Membrane.Element.IVF.Deserializer,
           muxer: Membrane.WebM.Muxer,
           sink: %Membrane.File.Sink{
             location: output_file
@@ -147,23 +146,23 @@ defmodule Membrane.WebM.MuxerTest do
     end)
   end
 
-  # @tag :tmp_dir
-  # test "mux single vp8", %{tmp_dir: tmp_dir} do
-  #   test_stream("1_vp8.ivf", "muxed_vp8.webm", tmp_dir)
-  # end
+  @tag :tmp_dir
+  test "mux single vp8", %{tmp_dir: tmp_dir} do
+    test_stream("1_vp8.ivf", "muxed_vp8.webm", tmp_dir)
+  end
 
-  # @tag :tmp_dir
-  # test "mux single vp9", %{tmp_dir: tmp_dir} do
-  #   test_stream("1_vp9.ivf", "muxed_vp9.webm", tmp_dir)
-  # end
+  @tag :tmp_dir
+  test "mux single vp9", %{tmp_dir: tmp_dir} do
+    test_stream("1_vp9.ivf", "muxed_vp9.webm", tmp_dir)
+  end
 
-  # @tag :tmp_dir
-  # test "mux opus from buffers", %{tmp_dir: tmp_dir} do
-  #   test_from_buffers(tmp_dir)
-  # end
+  @tag :tmp_dir
+  test "mux opus from buffers", %{tmp_dir: tmp_dir} do
+    test_from_buffers(tmp_dir)
+  end
 
-  # @tag :tmp_dir
-  # test "mux two streams into one file", %{tmp_dir: tmp_dir} do
-  #   test_many(tmp_dir)
-  # end
+  @tag :tmp_dir
+  test "mux two streams into one file", %{tmp_dir: tmp_dir} do
+    test_many(tmp_dir)
+  end
 end
