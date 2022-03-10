@@ -2,8 +2,13 @@ defmodule Membrane.WebM.Demuxer do
   @moduledoc """
   Filter element for demuxing WebM files.
 
-  It receives a bytestream in WebM format and outputs the constituent tracks onto separate output pads.
-  Streaming of each track occurs in chunks of up to 5 seconds an up to 5 mb of data.
+  It starts demanding a WebM bytestream until enough of it is parsed so that the parent
+  pipeline can be notified about what tracks constitute the WebM file.
+
+  It then waits for an output pad to be linked for every track in the WebM file.
+
+  Once all the output pads are linked it starts streaming with the speed adjusted to the
+  slowest of the output elements i.e. pausing when demands on that element's pad equal 0.
 
   WebM files can contain many:
     - VP8 or VP9 video tracks
@@ -50,9 +55,14 @@ defmodule Membrane.WebM.Demuxer do
 
     @type t :: %__MODULE__{
             timestamp_scale: non_neg_integer,
-            # list of output buffers
-            cache: list,
-            tracks: %{(id :: non_neg_integer) => track_t},
+            blocked?: boolean,
+            demands: %{(pad_id :: non_neg_integer) => demands_for_pad :: non_neg_integer},
+            # actions that can be sent now
+            actions: Qex.t(Action.t()),
+            # actions that must be sent later
+            cache: Qex.t(Action.t()),
+            stage: :waiting_for_tracks | :notified_about_tracks | :output_pads_active,
+            tracks: %{(pad_id :: non_neg_integer) => track_t},
             parser_acc: binary,
             current_timecode: integer
           }
@@ -60,8 +70,8 @@ defmodule Membrane.WebM.Demuxer do
     defstruct timestamp_scale: nil,
               blocked?: true,
               demands: %{},
-              cache: Qex.new(),
               actions: Qex.new(),
+              cache: Qex.new(),
               stage: :waiting_for_tracks,
               tracks: %{},
               parser_acc: <<>>,
@@ -79,28 +89,31 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   @impl true
+  def handle_end_of_stream(:input, _context, state) do
+    actions =
+      Enum.map(state.tracks, fn {id, _track_info} -> {:end_of_stream, Pad.ref(:output, id)} end)
+
+    {{:ok, actions}, state}
+  end
+
+  @impl true
   def handle_demand(Pad.ref(:output, _id), _size, :buffers, context, state) do
     if state.stage == :output_pads_active and state.blocked? do
-      # reconsider cached buffers for sending
-      %State{state | cache: Qex.new()}
+      # reconsider if cached buffers can now be sent
+      state
       |> update_demands(context)
-      |> then(fn state_param -> Enum.reduce(state.cache, state_param, &send_or_cache_buffer/2) end)
+      |> reclassify_cached_buffer_actions()
       |> demand_if_not_blocked()
-      |> send_it()
+      |> send_actions()
     else
       {:ok, state}
     end
   end
 
   @impl true
-  def handle_process(:input, %Buffer{payload: payload}, context, state) do
-    unparsed = state.parser_acc <> payload
-
-    {parsed, unparsed} =
-      Membrane.WebM.Parser.Helper.parse(
-        unparsed,
-        &Membrane.WebM.Schema.webm/1
-      )
+  def handle_process(:input, %Buffer{payload: bytes}, context, state) do
+    unparsed = state.parser_acc <> bytes
+    {parsed, unparsed} = parse(unparsed)
 
     state =
       %State{state | parser_acc: unparsed}
@@ -108,27 +121,13 @@ defmodule Membrane.WebM.Demuxer do
       |> process_elements(parsed)
 
     # if even one element couldn't be parsed then demand more data and try again
-
-    # if there is insufficient demand on any output pad then stop demanding more data
-    # buffer actions that couldn't be sent are saved in state.cache
-
-    # if there is sufficient demand for buffers then send everything and demand more data
-
     if parsed == [] or state.stage == :waiting_for_tracks do
       {{:ok, demand: :input}, state}
     else
       state
       |> demand_if_not_blocked()
-      |> send_it()
+      |> send_actions()
     end
-  end
-
-  @impl true
-  def handle_end_of_stream(:input, _context, state) do
-    actions =
-      Enum.map(state.tracks, fn {id, _track_info} -> {:end_of_stream, Pad.ref(:output, id)} end)
-
-    {{:ok, actions}, state}
   end
 
   defp process_elements(state, elements_list) do
@@ -167,7 +166,7 @@ defmodule Membrane.WebM.Demuxer do
               dts: (state.current_timecode + data.timecode) * state.timestamp_scale
             }}}
 
-        send_or_cache_buffer(buffer_action, state)
+        classify_buffer_action(buffer_action, state)
 
       _other_element ->
         state
@@ -194,7 +193,7 @@ defmodule Membrane.WebM.Demuxer do
     end
   end
 
-  defp send_or_cache_buffer(
+  defp classify_buffer_action(
          {:buffer, {{Membrane.Pad, :output, id}, _buffer}} = buffer_action,
          state
        ) do
@@ -206,7 +205,11 @@ defmodule Membrane.WebM.Demuxer do
     end
   end
 
-  defp send_it(state) do
+  defp reclassify_cached_buffer_actions(state) do
+    Enum.reduce(state.cache, %State{state | cache: Qex.new()}, &classify_buffer_action/2)
+  end
+
+  defp send_actions(state) do
     {{:ok, Enum.into(state.actions, [])}, %State{state | actions: Qex.new()}}
   end
 
@@ -272,5 +275,12 @@ defmodule Membrane.WebM.Demuxer do
 
       {track[:TrackNumber], info}
     end
+  end
+
+  defp parse(bytes) do
+    Membrane.WebM.Parser.Helper.parse(
+      bytes,
+      &Membrane.WebM.Schema.webm/1
+    )
   end
 end
