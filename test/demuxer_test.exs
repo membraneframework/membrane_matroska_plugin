@@ -104,23 +104,23 @@ defmodule Membrane.WebM.DemuxerTest do
     end
   end
 
-  # @tag :tmp_dir
-  # setup %{tmp_dir: tmp_dir} do
-  #   on_exit(fn ->
-  #     File.rm_rf!(tmp_dir)
-  #     :ok
-  #   end)
-  # end
+  @tag :tmp_dir
+  setup %{tmp_dir: tmp_dir} do
+    on_exit(fn ->
+      File.rm_rf!(tmp_dir)
+      :ok
+    end)
+  end
 
-  # @tag :tmp_dir
-  # test "demuxing webm containing opus", %{tmp_dir: tmp_dir} do
-  #   test_stream("muxed_opus.webm", ["1.ogg"], tmp_dir)
-  # end
+  @tag :tmp_dir
+  test "demuxing webm containing opus", %{tmp_dir: tmp_dir} do
+    test_stream("muxed_opus.webm", ["1.ogg"], tmp_dir)
+  end
 
-  # @tag :tmp_dir
-  # test "demuxing webm containing vp8 + opus", %{tmp_dir: tmp_dir} do
-  #   test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.ogg"], tmp_dir)
-  # end
+  @tag :tmp_dir
+  test "demuxing webm containing vp8 + opus", %{tmp_dir: tmp_dir} do
+    test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.ogg"], tmp_dir)
+  end
 
   @tag :tmp_dir
   test "demuxing webm containing vp9 + opus", %{tmp_dir: tmp_dir} do
