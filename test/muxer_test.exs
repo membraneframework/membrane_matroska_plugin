@@ -21,7 +21,7 @@ defmodule Membrane.WebM.MuxerTest do
   @pad_id_4 16_890_875_709_512_990_721
 
   defp test_from_buffers(tmp_dir) do
-    output_file = Path.join(tmp_dir, "output_webm")
+    output_file = Path.join(tmp_dir, "output.webm")
     reference_file = Path.join(@fixtures_dir, "muxed_opus.webm")
 
     buffers =

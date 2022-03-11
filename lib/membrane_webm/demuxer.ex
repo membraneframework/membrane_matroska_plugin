@@ -2,13 +2,23 @@ defmodule Membrane.WebM.Demuxer do
   @moduledoc """
   Filter element for demuxing WebM files.
 
-  It starts demanding a WebM bytestream until enough of it is parsed so that the parent
-  pipeline can be notified about what tracks constitute the WebM file.
+  Receives a bytestream in WebM file format as input and outputs the constituent tracks of that file
+  onto seperate pads.
 
-  It then waits for an output pad to be linked for every track in the WebM file.
+  Works in three phases:
 
-  Once all the output pads are linked it starts streaming with the speed adjusted to the
-  slowest of the output elements i.e. pausing when demands on that element's pad equal 0.
+  - :reading_header
+    Demands and parses the beginning bytes of the WebM file describing it's contents and sends:
+    `{:notify, {:new_track, {track_id, track_t}}}`
+    message to the parent pipeline for every track contained in the file.
+
+  - :notified_about_content
+    Pauses and waits for an output pad to be linked for every track in the file.
+    Expects elements to be linked via pad `Pad.ref(:output, track_id)`.
+
+  - :all_outputs_linked
+    Once all the expected output pads are linked it starts streaming the file's media with speed adjusted
+    to the slowest of the output elements i.e. pausing when demands on that element's pad equals 0.
 
   WebM files can contain many:
     - VP8 or VP9 video tracks
@@ -57,11 +67,11 @@ defmodule Membrane.WebM.Demuxer do
             timestamp_scale: non_neg_integer,
             blocked?: boolean,
             demands: %{(pad_id :: non_neg_integer) => demands_for_pad :: non_neg_integer},
-            # actions that can be sent now
+            # actions that can be sent from the current callback
             actions: Qex.t(Action.t()),
             # actions that must be sent later
             cache: Qex.t(Action.t()),
-            stage: :waiting_for_tracks | :notified_about_tracks | :output_pads_active,
+            phase: :reading_header | :notified_about_content | :all_outputs_linked,
             tracks: %{(pad_id :: non_neg_integer) => track_t},
             parser_acc: binary,
             current_timecode: integer
@@ -72,7 +82,7 @@ defmodule Membrane.WebM.Demuxer do
               demands: %{},
               actions: Qex.new(),
               cache: Qex.new(),
-              stage: :waiting_for_tracks,
+              phase: :reading_header,
               tracks: %{},
               parser_acc: <<>>,
               current_timecode: nil
@@ -97,17 +107,31 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   @impl true
-  def handle_demand(Pad.ref(:output, _id), _size, :buffers, context, state) do
-    if state.stage == :output_pads_active and state.blocked? do
-      # reconsider if cached buffers can now be sent
-      state
-      |> update_demands(context)
-      |> reclassify_cached_buffer_actions()
-      |> demand_if_not_blocked()
-      |> send_actions()
-    else
-      {:ok, state}
-    end
+  def handle_pad_added(Pad.ref(:output, id), _context, %State{tracks: tracks} = state) do
+    track = tracks[id]
+
+    caps =
+      case track.codec do
+        :opus ->
+          %Opus{channels: track.channels, self_delimiting?: false}
+
+        :vp8 ->
+          %VP8{width: track.width, height: track.height}
+
+        :vp9 ->
+          %VP9{width: track.width, height: track.height}
+      end
+
+    state = %State{state | tracks: put_in(tracks[id].active, true)}
+
+    state =
+      if Enum.all?(state.tracks, fn {_k, v} -> v.active end) do
+        %State{state | phase: :all_outputs_linked}
+      else
+        state
+      end
+
+    {{:ok, caps: {Pad.ref(:output, id), caps}}, state}
   end
 
   @impl true
@@ -121,12 +145,26 @@ defmodule Membrane.WebM.Demuxer do
       |> process_elements(parsed)
 
     # if even one element couldn't be parsed then demand more data and try again
-    if parsed == [] or state.stage == :waiting_for_tracks do
+    if parsed == [] or state.phase == :reading_header do
       {{:ok, demand: :input}, state}
     else
       state
       |> demand_if_not_blocked()
       |> send_actions()
+    end
+  end
+
+  @impl true
+  def handle_demand(Pad.ref(:output, _id), _size, :buffers, context, state) do
+    if state.phase == :all_outputs_linked and state.blocked? do
+      # reconsider if cached buffers can now be sent
+      state
+      |> update_demands(context)
+      |> reclassify_cached_buffer_actions()
+      |> demand_if_not_blocked()
+      |> send_actions()
+    else
+      {:ok, state}
     end
   end
 
@@ -145,13 +183,13 @@ defmodule Membrane.WebM.Demuxer do
 
       :Tracks ->
         tracks = identify_tracks(data, state.timestamp_scale)
-        actions = notify_about_new_track(tracks)
+        actions = notify_about_new_tracks(tracks)
 
         %State{
           state
-          | actions: Qex.join(state.actions, actions),
+          | actions: Qex.join(actions, state.actions),
             tracks: tracks,
-            stage: :notified_about_tracks
+            phase: :notified_about_content
         }
 
       :Timecode ->
@@ -180,16 +218,16 @@ defmodule Membrane.WebM.Demuxer do
       |> Enum.map(fn {{Membrane.Pad, :output, id}, pad_data} -> {id, pad_data.demand} end)
       |> Enum.into(%{})
 
-    blocked? = state.stage != :output_pads_active or Enum.any?(demands, fn {_k, v} -> v < 1 end)
+    blocked? = state.phase != :all_outputs_linked or Enum.any?(demands, fn {_k, v} -> v < 1 end)
     %State{state | demands: demands, blocked?: blocked?}
   end
 
   defp demand_if_not_blocked(state) do
-    if state.blocked? do
-      state
-    else
+    if not state.blocked? do
       actions = Qex.push(state.actions, {:demand, :input})
       %State{state | actions: actions}
+    else
+      state
     end
   end
 
@@ -213,35 +251,7 @@ defmodule Membrane.WebM.Demuxer do
     {{:ok, Enum.into(state.actions, [])}, %State{state | actions: Qex.new()}}
   end
 
-  @impl true
-  def handle_pad_added(Pad.ref(:output, id), _context, %State{tracks: tracks} = state) do
-    track = tracks[id]
-
-    caps =
-      case track.codec do
-        :opus ->
-          %Opus{channels: track.channels, self_delimiting?: false}
-
-        :vp8 ->
-          %VP8{width: track.width, height: track.height}
-
-        :vp9 ->
-          %VP9{width: track.width, height: track.height}
-      end
-
-    state = %State{state | tracks: put_in(tracks[id].active, true)}
-
-    state =
-      if Enum.all?(state.tracks, fn {_k, v} -> v.active end) do
-        %State{state | stage: :output_pads_active}
-      else
-        state
-      end
-
-    {{:ok, caps: {Pad.ref(:output, id), caps}}, state}
-  end
-
-  defp notify_about_new_track(tracks) do
+  defp notify_about_new_tracks(tracks) do
     tracks
     |> Enum.map(fn track -> {:notify, {:new_track, track}} end)
     |> Qex.new()
