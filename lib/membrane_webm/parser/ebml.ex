@@ -47,11 +47,11 @@ defmodule Membrane.WebM.Parser.EBML do
   @type t :: :integer | :uint | :float | :string | :utf_8 | :date | :master | :binary
 
   @doc """
-  Discards `element_id`, `element_data_size` and returns the available portion of `element_data`.
+  Discards `element_name`, `element_data_size` and returns the available portion of `element_data`.
   """
   @spec consume_element_header(binary) :: {:ok, binary} | {:error, :need_more_bytes}
   def consume_element_header(bytes) do
-    with {:ok, {_id, bytes}} <- decode_element_id(bytes),
+    with {:ok, {_name, bytes}} <- decode_element_name(bytes),
          {:ok, {_value, bytes}} <- decode_vint(bytes) do
       {:ok, bytes}
     end
@@ -64,33 +64,33 @@ defmodule Membrane.WebM.Parser.EBML do
           {:ok, {name :: atom, data :: binary, rest :: binary}}
           | {:error, :need_more_bytes}
   def decode_element(bytes) do
-    with {:ok, {id, bytes}} <- decode_element_id(bytes),
+    with {:ok, {name, bytes}} <- decode_element_name(bytes),
          {:ok, {data_size, bytes}} <- decode_vint(bytes),
          {:ok, {data, rest}} <- split_bytes(bytes, data_size) do
-      {:ok, {Schema.element_id_to_name(id), data, rest}}
+      {:ok, {name, data, rest}}
     end
   end
 
   @doc """
-  Returns the EBML ELEMENT_ID of the first Element in the input binary.
+  Returns the name associated with the EBML ELEMENT_ID of the first Element in the input binary.
 
   EMBL elements are identified by the hexadecimal representation of the entire leading VINT including WIDTH, MARKER and DATA
   """
-  @spec decode_element_id(binary) :: {:ok, {integer, binary}} | {:error, :need_more_bytes}
-  def decode_element_id(<<first_byte::unsigned-size(8), _rest::binary>> = element) do
+  @spec decode_element_name(binary) :: {:ok, {atom, binary}} | {:error, :need_more_bytes}
+  def decode_element_name(<<first_byte::unsigned-size(8), _rest::binary>> = element) do
     vint_width = get_vint_width(first_byte)
 
     case element do
       <<vint_bytes::binary-size(vint_width), rest::binary>> ->
         <<vint::integer-size(vint_width)-unit(8)>> = vint_bytes
-        {:ok, {vint, rest}}
+        {:ok, {Schema.element_id_to_name(vint), rest}}
 
       _too_short ->
         {:error, :need_more_bytes}
     end
   end
 
-  def decode_element_id(_too_short) do
+  def decode_element_name(_too_short) do
     {:error, :need_more_bytes}
   end
 

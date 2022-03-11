@@ -56,9 +56,9 @@ defmodule Membrane.WebM.Parser.Helper do
   @spec maybe_parse_element(binary, function) ::
           {:error, :need_more_bytes} | {:ok, {{atom, list}, binary}}
   defp maybe_parse_element(bytes, schema) do
-    with {:ok, {element_id, rest}} <- EBML.decode_element_id(bytes),
+    with {:ok, {element_name, rest}} <- EBML.decode_element_name(bytes),
          {:ok, {_element_width, rest}} <- EBML.decode_vint(rest) do
-      if element_id in schema.(:ApplyFlatParsing?) do
+      if schema.(element_name) == :ApplyFlatParsing do
         maybe_parse_element(rest, schema)
       else
         maybe_parse_recursively(bytes, schema)

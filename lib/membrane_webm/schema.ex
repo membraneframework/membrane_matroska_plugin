@@ -374,7 +374,7 @@ defmodule Membrane.WebM.Schema do
     DocTypeExtensionVersion: &EBML.parse_uint/1,
     # CRC_32: :crc_32,
     Void: &EBML.parse_binary/1,
-    Segment: &EBML.parse_master/2,
+    Segment: :ApplyFlatParsing,
     Cues: &EBML.parse_master/2,
     CuePoint: &EBML.parse_master/2,
     CueTime: &EBML.parse_uint/1,
@@ -384,7 +384,7 @@ defmodule Membrane.WebM.Schema do
     CueTrack: &EBML.parse_uint/1,
     CueDuration: &EBML.parse_uint/1,
     CueBlockNumber: &EBML.parse_uint/1,
-    Cluster: &EBML.parse_master/2,
+    Cluster: :ApplyFlatParsing,
     SimpleBlock: &WebM.parse_simple_block/1,
     Timecode: &EBML.parse_uint/1,
     PrevSize: &EBML.parse_uint/1,
@@ -501,9 +501,7 @@ defmodule Membrane.WebM.Schema do
     Seek: &EBML.parse_master/2,
     SeekPosition: &EBML.parse_uint/1,
     SeekID: &EBML.parse_binary/1,
-    Unknown: &EBML.parse_binary/1,
-    ApplyFlatParsing?: [0x18538067, 0x1F43B675]
-    # ApplyFlatParsing?: [Segment_ID, Cluster_ID]
+    Unknown: &EBML.parse_binary/1
   }
 
   @spec webm(atom) :: function
