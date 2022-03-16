@@ -182,11 +182,12 @@ defmodule Membrane.WebM.Demuxer do
         tracks = identify_tracks(data, state.timestamp_scale)
         new_actions = notify_about_new_tracks(tracks)
 
-        {Qex.join(new_actions, actions), %State{
-          state |
-            tracks: tracks,
-            phase: :notified_about_content
-        }}
+        {Qex.join(new_actions, actions),
+         %State{
+           state
+           | tracks: tracks,
+             phase: :notified_about_content
+         }}
 
       :Timecode ->
         {actions, %State{state | current_timecode: data}}
@@ -239,7 +240,11 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   defp reclassify_cached_buffer_actions({actions, state}) do
-    Enum.reduce(state.cache, {actions, %State{state | cache: Qex.new()}}, &classify_buffer_action/2)
+    Enum.reduce(
+      state.cache,
+      {actions, %State{state | cache: Qex.new()}},
+      &classify_buffer_action/2
+    )
   end
 
   defp send_actions({actions, state}) do

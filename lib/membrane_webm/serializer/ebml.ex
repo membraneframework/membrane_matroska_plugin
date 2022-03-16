@@ -40,7 +40,7 @@ defmodule Membrane.WebM.Serializer.EBML do
     |> serialize_element(name, schema)
   end
 
-  @spec serialize_date(:calendar.datetime, atom, function) :: binary
+  @spec serialize_date(:calendar.datetime(), atom, function) :: binary
   def serialize_date(date, name, schema) do
     :binary.encode_unsigned(date, :big)
     |> serialize_element(name, schema)
