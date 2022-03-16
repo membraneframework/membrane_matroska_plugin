@@ -2,6 +2,10 @@ defmodule Membrane.WebM.Muxer do
   @moduledoc """
   Filter element for muxing WebM files.
 
+  It accepts an arbitrary number of Opus, VP8 or VP9 streams and outputs a bytestream of a WebM file containing those streams.
+
+  The bytestream is sent in Buffers holding up to 5 megabytes and up to 5 seconds of data.
+
   Muxer guidelines
   https://www.webmproject.org/docs/container/
   """
@@ -10,12 +14,11 @@ defmodule Membrane.WebM.Muxer do
 
   use Membrane.Filter
 
-  alias Membrane.{Buffer}
+  alias Membrane.{Buffer, RemoteStream}
   alias Membrane.{Opus, VP8, VP9}
-  alias Membrane.WebM.Serializer
   alias Membrane.WebM.Parser.Codecs
-
-  alias Membrane.WebM.Serializer.Elements
+  alias Membrane.WebM.Serializer
+  alias Membrane.WebM.Serializer.Helper
 
   def_input_pad :input,
     availability: :on_request,
@@ -26,7 +29,7 @@ defmodule Membrane.WebM.Muxer do
   def_output_pad :output,
     availability: :always,
     mode: :pull,
-    caps: :any
+    caps: {RemoteStream, content_format: :WEBM}
 
   # 5 mb
   @cluster_bytes_limit 5_242_880
@@ -41,7 +44,7 @@ defmodule Membrane.WebM.Muxer do
               active_tracks: 0,
               accepting_pads: true,
               # cluster_acc holds: `serialized_list_of_blocks`, `cluster_timestamp`, `cluster_length_in_bytes`
-              cluster_acc: {Serializer.serialize({:Timecode, 0}), :infinity, 0},
+              cluster_acc: {Helper.serialize({:Timecode, 0}), :infinity, 0},
               cues: []
   end
 
@@ -90,32 +93,14 @@ defmodule Membrane.WebM.Muxer do
     state = put_in(state.tracks[id], track)
 
     if state.active_tracks == state.expected_tracks do
-      {segment_bytes, webm_header} = serialize_webm_header(state)
-      new_state = %State{state | segment_size: state.segment_size + segment_bytes}
+      {segment_size, webm_header} = Serializer.WebM.serialize_webm_header(state.tracks)
+      new_state = %State{state | segment_size: state.segment_size + segment_size}
 
       {{:ok, [buffer: {:output, %Buffer{payload: webm_header}}, demand: Pad.ref(:input, id)]},
        new_state}
     else
       {{:ok, demand: Pad.ref(:input, id)}, state}
     end
-  end
-
-  defp serialize_webm_header(state) do
-    ebml_header = Serializer.serialize(Elements.construct_ebml_header())
-
-    segment_header = Serializer.serialize_segment_header()
-
-    info = Elements.construct_info()
-    tracks = Elements.construct_tracks(state.tracks)
-    # tags = Elements.construct_tags()
-    seek_head = Elements.construct_seek_head([info, tracks])
-    void = Elements.construct_void(seek_head)
-
-    webm_header_elements = Serializer.serialize([seek_head, void, info, tracks])
-
-    segment_size = byte_size(webm_header_elements)
-
-    {segment_size, ebml_header <> segment_header <> webm_header_elements}
   end
 
   # demand all tracks for which the last frame is not cached
@@ -167,18 +152,6 @@ defmodule Membrane.WebM.Muxer do
     if returned_cluster == nil do
       {{:ok, redemand: :output}, %State{state | cluster_acc: new_cluster_acc}}
     else
-      # CueTime - absolute timestamp
-      # CueTrack - track number
-      # CueClusterPosition - SegmentPosition of the Cluster containing the associated Block
-
-      # Unless Matroska is used as a live stream, it SHOULD contain a Cues Element.
-      # For each video track, each keyframe SHOULD be referenced by a CuePoint Element.
-      # It is RECOMMENDED to not reference non-keyframes of video tracks in Cues unless it references a Cluster Element which contains a CodecState Element but no keyframes.
-      # For each subtitle track present, each subtitle frame SHOULD be referenced by a CuePoint Element with a CueDuration Element.
-      # References to audio tracks MAY be skipped in CuePoint Elements if a video track is present. When included the CuePoint Elements SHOULD reference audio keyframes at most once every 500 milliseconds.
-      # If the referenced frame is not stored within the first SimpleBlock, or first BlockGroup within its Cluster Element, then the CueRelativePosition Element SHOULD be written to reference where in the Cluster the reference frame is stored.
-      # If a CuePoint Element references Cluster Element that includes a CodecState Element, then that CuePoint Element MUST use a CueCodecState Element.
-      # CuePoint Elements SHOULD be numerically sorted in storage order by the value of the CueTime Element.
       # https://www.matroska.org/technical/cues.html
       new_cue =
         {:CuePoint,
@@ -189,7 +162,7 @@ defmodule Membrane.WebM.Muxer do
          ]}
 
       state = update_in(state.cues, fn cues -> [new_cue | cues] end)
-      cluster_bytes = Serializer.serialize({:Cluster, returned_cluster})
+      cluster_bytes = Helper.serialize({:Cluster, returned_cluster})
       new_segment_size = state.segment_size + byte_size(cluster_bytes)
 
       {{:ok, buffer: {:output, %Buffer{payload: cluster_bytes}}, redemand: :output},
@@ -197,24 +170,12 @@ defmodule Membrane.WebM.Muxer do
     end
   end
 
-  # Group Blocks into Clusters.
-
-  # A Matroska file SHOULD contain at least one Cluster Element.
-  # Cluster Elements contain frames of every track sorted by timestamp in monotonically increasing order.
-  # It is RECOMMENDED that the size of each individual Cluster Element be limited to store no more than 5 seconds or 5 megabytes (but 32.767 seconds is possible).
-
-  # Every Cluster Element MUST contain a Timestamp Element - occuring once per cluster placed at the very beginning.
-  # All Block timestamps inside the Cluster are relative to that Cluster's Timestamp:
-  # Absolute Timestamp = Block+Cluster
-  # Relative Timestamp = Block
-  # Raw Timestamp = (Block+Cluster)*TimestampScale
+  # Groups Blocks into Clusters.
+  #   All Block timestamps inside the Cluster are relative to that Cluster's Timestamp:
+  #   Absolute Timestamp = Block+Cluster
+  #   Relative Timestamp = Block
+  #   Raw Timestamp = (Block+Cluster)*TimestampScale
   # Matroska RFC https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-7-18
-
-  # Clusters MUST begin with a keyframe.
-  # Audio blocks that contain the video key frame's timecode MUST be in the same cluster as the video key frame block.
-  # Audio blocks that have the same absolute timecode as video blocks SHOULD be written before the video blocks.
-  # This implementation simply splits the stream on every video keyframe if a video track is present. Otherwise the 5mb/5s limits are used.
-
   # WebM Muxer Guidelines https://www.webmproject.org/docs/container/
   defp step_cluster(
          {absolute_time, data, track_number, type} = block,
@@ -236,7 +197,7 @@ defmodule Membrane.WebM.Muxer do
     if begin_new_cluster do
       timecode = {:Timecode, absolute_time}
       new_block = {:SimpleBlock, {0, data, track_number, type}}
-      new_cluster = Serializer.serialize([timecode, new_block])
+      new_cluster = Helper.serialize([timecode, new_block])
       bytes = byte_size(new_cluster)
       new_cluster_acc = {new_cluster, absolute_time, bytes}
 
@@ -247,7 +208,7 @@ defmodule Membrane.WebM.Muxer do
       end
     else
       new_block = {:SimpleBlock, {absolute_time - cluster_time, data, track_number, type}}
-      serialized_block = Serializer.serialize(new_block)
+      serialized_block = Helper.serialize(new_block)
       new_cluster = current_cluster <> serialized_block
       new_bytes = current_bytes + byte_size(serialized_block)
       new_cluster_acc = {new_cluster, cluster_time, new_bytes}
@@ -276,10 +237,10 @@ defmodule Membrane.WebM.Muxer do
 
     if state.active_tracks == 1 do
       {blocks, _timecode, _bytes} = state.cluster_acc
-      cluster_bytes = Serializer.serialize({:Cluster, blocks})
+      cluster_bytes = Helper.serialize({:Cluster, blocks})
       new_segment_size = state.segment_size + byte_size(cluster_bytes)
       state = %State{state | segment_size: new_segment_size}
-      cues_bytes = Serializer.serialize({:Cues, state.cues})
+      cues_bytes = Helper.serialize({:Cues, state.cues})
 
       {{:ok,
         buffer: {:output, %Buffer{payload: cluster_bytes <> cues_bytes}}, end_of_stream: :output},

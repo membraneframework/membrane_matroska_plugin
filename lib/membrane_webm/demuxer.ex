@@ -290,7 +290,7 @@ defmodule Membrane.WebM.Demuxer do
   defp parse(bytes) do
     Membrane.WebM.Parser.Helper.parse(
       bytes,
-      &Membrane.WebM.Schema.webm/1
+      &Membrane.WebM.Schema.deserialize_webm/1
     )
   end
 end
