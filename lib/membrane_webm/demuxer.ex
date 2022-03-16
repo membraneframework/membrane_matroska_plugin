@@ -67,9 +67,6 @@ defmodule Membrane.WebM.Demuxer do
             timestamp_scale: non_neg_integer,
             blocked?: boolean,
             demands: %{(pad_id :: non_neg_integer) => demands_for_pad :: non_neg_integer},
-            # actions that can be sent from the current callback
-            actions: Qex.t(Action.t()),
-            # actions that must be sent later
             cache: Qex.t(Action.t()),
             phase: :reading_header | :notified_about_content | :all_outputs_linked,
             tracks: %{(pad_id :: non_neg_integer) => track_t},
@@ -139,8 +136,8 @@ defmodule Membrane.WebM.Demuxer do
     unparsed = state.parser_acc <> bytes
     {parsed, unparsed} = parse(unparsed)
 
-    state =
-      %State{state | parser_acc: unparsed}
+    {actions, state} =
+      {Qex.new(), %State{state | parser_acc: unparsed}}
       |> update_demands(context)
       |> process_elements(parsed)
 
@@ -148,7 +145,7 @@ defmodule Membrane.WebM.Demuxer do
     if parsed == [] or state.phase == :reading_header do
       {{:ok, demand: :input}, state}
     else
-      state
+      {actions, state}
       |> demand_if_not_blocked()
       |> send_actions()
     end
@@ -158,7 +155,7 @@ defmodule Membrane.WebM.Demuxer do
   def handle_demand(Pad.ref(:output, _id), _size, :buffers, context, state) do
     if state.phase == :all_outputs_linked and state.blocked? do
       # reconsider if cached buffers can now be sent
-      state
+      {Qex.new(), state}
       |> update_demands(context)
       |> reclassify_cached_buffer_actions()
       |> demand_if_not_blocked()
@@ -168,32 +165,31 @@ defmodule Membrane.WebM.Demuxer do
     end
   end
 
-  defp process_elements(state, elements_list) do
+  defp process_elements({actions, state}, elements_list) do
     # TODO: make parser helper return Qex of elements instead of list
     elements_list = Enum.reverse(elements_list)
-    Enum.reduce(elements_list, state, &process_element/2)
+    Enum.reduce(elements_list, {actions, state}, &process_element/2)
   end
 
-  defp process_element({element_name, data} = _element, state) do
+  defp process_element({element_name, data} = _element, {actions, state}) do
     case element_name do
       :Info ->
         # scale of block timecodes in nanoseconds
         # should be 1_000_000 i.e. 1 ms
-        %State{state | timestamp_scale: data[:TimestampScale]}
+        {actions, %State{state | timestamp_scale: data[:TimestampScale]}}
 
       :Tracks ->
         tracks = identify_tracks(data, state.timestamp_scale)
-        actions = notify_about_new_tracks(tracks)
+        new_actions = notify_about_new_tracks(tracks)
 
-        %State{
-          state
-          | actions: Qex.join(actions, state.actions),
+        {Qex.join(new_actions, actions), %State{
+          state |
             tracks: tracks,
             phase: :notified_about_content
-        }
+        }}
 
       :Timecode ->
-        %State{state | current_timecode: data}
+        {actions, %State{state | current_timecode: data}}
 
       :SimpleBlock ->
         buffer_action =
@@ -204,14 +200,14 @@ defmodule Membrane.WebM.Demuxer do
               dts: (state.current_timecode + data.timecode) * state.timestamp_scale
             }}}
 
-        classify_buffer_action(buffer_action, state)
+        classify_buffer_action(buffer_action, {actions, state})
 
       _other_element ->
-        state
+        {actions, state}
     end
   end
 
-  defp update_demands(state, context) do
+  defp update_demands({actions, state}, context) do
     demands =
       context.pads
       |> Enum.filter(fn {id, _pad_data} -> id != :input end)
@@ -219,36 +215,35 @@ defmodule Membrane.WebM.Demuxer do
       |> Enum.into(%{})
 
     blocked? = state.phase != :all_outputs_linked or Enum.any?(demands, fn {_k, v} -> v < 1 end)
-    %State{state | demands: demands, blocked?: blocked?}
+    {actions, %State{state | demands: demands, blocked?: blocked?}}
   end
 
-  defp demand_if_not_blocked(state) do
+  defp demand_if_not_blocked({actions, state}) do
     if not state.blocked? do
-      actions = Qex.push(state.actions, {:demand, :input})
-      %State{state | actions: actions}
+      {Qex.push(actions, {:demand, :input}), %State{state | actions: actions}}
     else
-      state
+      {actions, state}
     end
   end
 
   defp classify_buffer_action(
          {:buffer, {{Membrane.Pad, :output, id}, _buffer}} = buffer_action,
-         state
+         {actions, state}
        ) do
     if not state.blocked? and state.demands[id] > 0 do
       new_demands = Map.update!(state.demands, id, &(&1 - 1))
-      %State{state | actions: Qex.push(state.actions, buffer_action), demands: new_demands}
+      {Qex.push(actions, buffer_action), %State{state | demands: new_demands}}
     else
-      %State{state | cache: Qex.push(state.cache, buffer_action), blocked?: true}
+      {actions, %State{state | cache: Qex.push(state.cache, buffer_action), blocked?: true}}
     end
   end
 
-  defp reclassify_cached_buffer_actions(state) do
-    Enum.reduce(state.cache, %State{state | cache: Qex.new()}, &classify_buffer_action/2)
+  defp reclassify_cached_buffer_actions({actions, state}) do
+    Enum.reduce(state.cache, {actions, %State{state | cache: Qex.new()}}, &classify_buffer_action/2)
   end
 
-  defp send_actions(state) do
-    {{:ok, Enum.into(state.actions, [])}, %State{state | actions: Qex.new()}}
+  defp send_actions({actions, state}) do
+    {{:ok, Enum.into(actions, [])}, state}
   end
 
   defp notify_about_new_tracks(tracks) do
