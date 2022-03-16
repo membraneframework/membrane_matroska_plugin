@@ -174,3 +174,6 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.gitignore.io/api/c,vim,linux,macos,elixir,windows,visualstudiocode
+
+/test/debug/
+/lib/membrane_webm/parser.ex
