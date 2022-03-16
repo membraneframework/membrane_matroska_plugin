@@ -47,17 +47,6 @@ defmodule Membrane.WebM.Parser.EBML do
   @type t :: :integer | :uint | :float | :string | :utf_8 | :date | :master | :binary
 
   @doc """
-  Discards `element_name`, `element_data_size` and returns the available portion of `element_data`.
-  """
-  @spec consume_element_header(binary) :: {:ok, binary} | {:error, :need_more_bytes}
-  def consume_element_header(bytes) do
-    with {:ok, {_name, bytes}} <- decode_element_name(bytes),
-         {:ok, {_value, bytes}} <- decode_vint(bytes) do
-      {:ok, bytes}
-    end
-  end
-
-  @doc """
   Returns an EBML element's name, type, and data
   """
   @spec decode_element(binary) ::

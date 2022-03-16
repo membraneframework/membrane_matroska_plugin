@@ -20,23 +20,6 @@ defmodule Membrane.WebM.Serializer.WebM do
     element_id <> element_data_size
   end
 
-  # this function creates Segment as an element with unknown width
-  # note that elements with unknown width other than Segment currently can't be parsed
-  @spec serialize_segment(list) :: binary
-  defp serialize_segment(child_elements) do
-    element_id = EBML.encode_element_id(:Segment)
-    element_data_size = <<0b11111111>>
-    schema = &Schema.serialize_webm/1
-
-    element_data =
-      Enum.reduce(child_elements, <<>>, fn {name, data}, acc ->
-        serializing_function = schema.(name)
-        serializing_function.(data, name, schema) <> acc
-      end)
-
-    element_id <> element_data_size <> element_data
-  end
-
   @spec serialize_void(non_neg_integer, atom, function) :: binary
   def serialize_void(length, _element_name, schema) do
     # it's impossible to create void elements with size 2^(7*n) +- 1 because element_width is a vint which takes up n bytes
@@ -72,7 +55,7 @@ defmodule Membrane.WebM.Serializer.WebM do
     EBML.serialize_element(content_bytes, :Cluster, schema)
   end
 
-  @spec serialize_webm_header(list) :: binary
+  @spec serialize_webm_header(list) :: {non_neg_integer, binary}
   def serialize_webm_header(tracks) do
     ebml_header = Helper.serialize(construct_ebml_header())
 

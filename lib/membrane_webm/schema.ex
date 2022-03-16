@@ -42,6 +42,9 @@ defmodule Membrane.WebM.Schema do
   │   ├── SimpleBlock
   │   ├── SimpleBlock
   │   └── SimpleBlock
+
+  Matroska elements and ID's https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#name-matroska-schema
+  WebM supported Matroska elements https://www.webmproject.org/docs/container/#EBML
   """
 
   alias Membrane.WebM.Parser

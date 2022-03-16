@@ -40,7 +40,7 @@ defmodule Membrane.WebM.Serializer.EBML do
     |> serialize_element(name, schema)
   end
 
-  @spec serialize_date(:calendar.datetime(), atom, function) :: binary
+  @spec serialize_date(non_neg_integer, atom, function) :: binary
   def serialize_date(date, name, schema) do
     :binary.encode_unsigned(date, :big)
     |> serialize_element(name, schema)
@@ -86,11 +86,8 @@ defmodule Membrane.WebM.Serializer.EBML do
     element_id <> element_data_size <> element_data
   end
 
-  @doc "
-  Encodes the provided number as a VINT ready for serialization
-
-  See https://datatracker.ietf.org/doc/html/rfc8794#section-4
-  "
+  # Encodes the provided number as a VINT ready for serialization
+  # See https://datatracker.ietf.org/doc/html/rfc8794#section-4
   @spec encode_vint(non_neg_integer) :: binary
   def encode_vint(number) do
     octets = Enum.find_index(@vint_value_limits, fn max_num -> number < max_num end) + 1
@@ -100,13 +97,8 @@ defmodule Membrane.WebM.Serializer.EBML do
     <<0::size(width_bits), 1::1, number::big-size(data_bits)>>
   end
 
-  @doc "
-  Returns the Element's ELEMENT_ID ready for serialization
-
-  See https://datatracker.ietf.org/doc/html/rfc8794#section-5
-  Matroska elements and id's https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#name-matroska-schema
-  WebM supported Matroska elements https://www.webmproject.org/docs/container/#EBML
-  "
+  # Returns the Element's ELEMENT_ID ready for serialization
+  # See https://datatracker.ietf.org/doc/html/rfc8794#section-5
   @spec encode_element_id(atom) :: binary
   def encode_element_id(name) do
     id = Schema.name_to_element_id(name)

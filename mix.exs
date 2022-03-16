@@ -52,7 +52,6 @@ defmodule Membrane.WebM.Plugin.Mixfile do
       {:membrane_file_plugin, "~> 0.7.0", only: :test, runtime: false},
       {:membrane_ogg_plugin,
        github: "membraneframework/membrane_ogg_plugin",
-       branch: "serial-number",
        only: :test,
        runtime: false},
       {:ex_doc, "~> 0.26", only: :dev, runtime: false},
