@@ -2,9 +2,7 @@ defmodule Membrane.WebM.Muxer do
   @moduledoc """
   Filter element for muxing WebM files.
 
-  It accepts an arbitrary number of Opus, VP8 or VP9 streams and outputs a bytestream of a WebM file containing those streams.
-
-  The bytestream is sent in Buffers holding up to 5 megabytes and up to 5 seconds of data.
+  It accepts an arbitrary number of Opus, VP8 or VP9 streams and outputs a bytestream in WebM format containing those streams.
 
   Muxer guidelines
   https://www.webmproject.org/docs/container/
@@ -42,7 +40,6 @@ defmodule Membrane.WebM.Muxer do
               segment_size: 0,
               expected_tracks: 0,
               active_tracks: 0,
-              accepting_pads: true,
               # cluster_acc holds: `serialized_list_of_blocks`, `cluster_timestamp`, `cluster_length_in_bytes`
               cluster_acc: {Helper.serialize({:Timecode, 0}), :infinity, 0},
               cues: []
@@ -54,13 +51,8 @@ defmodule Membrane.WebM.Muxer do
   end
 
   @impl true
-  def handle_prepared_to_playing(_context, state) do
-    {:ok, %State{state | accepting_pads: false}}
-  end
-
-  @impl true
-  def handle_pad_added(_pad, _context, state) do
-    if state.accepting_pads do
+  def handle_pad_added(_pad, context, state) do
+    if context.playback_state != :playing do
       {:ok, %State{state | expected_tracks: state.expected_tracks + 1}}
     else
       raise "Can only add new input pads to muxer in state :prepared!"
@@ -77,7 +69,7 @@ defmodule Membrane.WebM.Muxer do
         _other -> raise "unsupported codec #{inspect(caps)}"
       end
 
-    state = update_in(state.active_tracks, fn t -> t + 1 end)
+    state = update_in(state.active_tracks, &(&1 + 1))
     type = Codecs.type(codec)
 
     track = %{
@@ -129,13 +121,13 @@ defmodule Membrane.WebM.Muxer do
       # if there are active tracks without a cached frame then demand it
       {{:ok, redemand: :output}, state}
     else
-      consume_block(state)
+      process_next_block(state)
     end
   end
 
   # the cache contains one frame for each track
   # takes the frame that should come next and appends it to current cluster or creates a new cluster and outputs current cluster
-  defp consume_block(state) do
+  defp process_next_block(state) do
     # sort blocks according to which should be next in the cluster
     youngest_track =
       state.tracks
@@ -192,7 +184,7 @@ defmodule Membrane.WebM.Muxer do
     begin_new_cluster =
       current_bytes >= @cluster_bytes_limit or
         relative_time * @timestamp_scale >= @cluster_time_limit or
-        Codecs.is_video_keyframe(block)
+        Codecs.is_video_keyframe?(block)
 
     if begin_new_cluster do
       timecode = {:Timecode, absolute_time}
@@ -247,7 +239,7 @@ defmodule Membrane.WebM.Muxer do
        state}
     else
       {_track, state} = pop_in(state.tracks[id])
-      {actions, state} = consume_block(state)
+      {actions, state} = process_next_block(state)
 
       {actions,
        %State{

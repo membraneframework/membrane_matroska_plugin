@@ -1,31 +1,28 @@
 defmodule Membrane.WebM.Parser.Helper do
-  @moduledoc """
-  Module for parsing a WebM / MKV binary stream (such as from a file) used by `Membrane.WebM.Demuxer`.
+  @moduledoc false
 
-  A WebM file is defined as a Matroska file that contains one segment and satisfies strict constraints.
-  A Matroska file is an EBML file (Extendable-Binary-Meta-Language) satisfying certain other constraints.
+  # Module for parsing a WebM / MKV binary stream (such as from a file) used by `Membrane.WebM.Demuxer`.
 
-  Docs:
-    - EBML https://www.rfc-editor.org/rfc/rfc8794.html
-    - WebM https://www.webmproject.org/docs/container/
-    - Matroska https://matroska.org/technical/basics.html
+  # A WebM file is defined as a Matroska file that contains one segment and satisfies strict constraints.
+  # A Matroska file is an EBML file (Extendable-Binary-Meta-Language) satisfying certain other constraints.
 
-  The module extracts top level elements of the [WebM Segment](https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-7)
-  and incrementally passes these parsed elements forward.
-  All top level elements other than `Cluster` occur only once and contain metadata whereas a `Cluster` element holds all the tracks'
-  encoded frames grouped by timestamp. It is RECOMMENDED that the size of each individual Cluster Element be limited to store no more than
-  5 seconds or 5 megabytes.
+  # Docs:
+  #   - EBML https://www.rfc-editor.org/rfc/rfc8794.html
+  #   - WebM https://www.webmproject.org/docs/container/
+  #   - Matroska https://matroska.org/technical/basics.html
 
-  """
+  # The module extracts top level elements of the [WebM Segment](https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-7)
+  # and incrementally passes these parsed elements forward.
+  # All top level elements other than `Cluster` occur only once and contain metadata whereas a `Cluster` element holds all the tracks'
+  # encoded frames grouped by timestamp. It is RECOMMENDED that the size of each individual Cluster Element be limited to store no more than
+  # 5 seconds or 5 megabytes.
+
   alias Membrane.WebM.Parser.EBML
 
-  @doc """
-  Main function used for parsing a file
-  """
-  @spec parse(binary, function) :: {list, binary}
+  # Main function used for parsing a file
+  @spec parse(binary, function) :: {parsed :: list, unparsed :: binary}
   def parse(unparsed, schema) do
-    {parsed, unparsed} = parse_many([], unparsed, schema)
-    {parsed, unparsed}
+    parse_many([], unparsed, schema)
   end
 
   @spec parse_many!(list, binary, function) :: list
