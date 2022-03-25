@@ -46,6 +46,9 @@ defmodule Membrane.WebM.Parser.EBML do
 
   @type t :: :integer | :uint | :float | :string | :utf_8 | :date | :master | :binary
 
+  # https://datatracker.ietf.org/doc/html/rfc8794#section-7.6
+  @date_zero {{2001, 1, 1}, {0, 0, 0}}
+
   @doc """
   Returns an EBML element's name, type, and data
   """
@@ -190,11 +193,11 @@ defmodule Membrane.WebM.Parser.EBML do
   # per RFC https://datatracker.ietf.org/doc/html/rfc8794#section-7.6
   @spec parse_date(binary) :: :calendar.datetime()
   def parse_date(<<>>) do
-    {{2001, 1, 1}, {0, 0, 0}}
+    @date_zero
   end
 
   def parse_date(<<nanoseconds::big-signed>>) do
-    seconds_zero = :calendar.datetime_to_gregorian_seconds({{2001, 1, 1}, {0, 0, 0}})
+    seconds_zero = :calendar.datetime_to_gregorian_seconds(@date_zero)
     seconds = div(nanoseconds, Time.nanosecond()) + seconds_zero
     :calendar.gregorian_seconds_to_datetime(seconds)
   end

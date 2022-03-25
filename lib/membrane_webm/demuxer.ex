@@ -133,16 +133,14 @@ defmodule Membrane.WebM.Demuxer do
     unparsed = state.parser_acc <> bytes
     {parsed, unparsed} = parse(unparsed)
 
-    {actions, context, state} =
-      {Qex.new(), context, %State{state | parser_acc: unparsed}}
-      |> process_elements(parsed)
+    {actions, state} =
+      process_elements({Qex.new(), context, %State{state | parser_acc: unparsed}}, parsed)
 
     # if even one element couldn't be parsed then demand more data and try again
     if parsed == [] or state.phase == :reading_header do
       {{:ok, demand: :input}, state}
     else
-      {actions, context, state}
-      |> demand_if_not_blocked()
+      demand_if_not_blocked({actions, state})
     end
   end
 
@@ -150,8 +148,8 @@ defmodule Membrane.WebM.Demuxer do
   def handle_demand(Pad.ref(:output, _id), _size, :buffers, context, state) do
     if state.phase == :all_outputs_linked and blocked?(state) do
       # reconsider if cached buffers can now be sent
-      {Qex.new(), context, state}
-      |> reclassify_cached_buffer_actions()
+      {Qex.new(), state}
+      |> reclassify_cached_buffer_actions(context)
       |> demand_if_not_blocked()
     else
       {:ok, state}
@@ -159,7 +157,10 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   defp process_elements({actions, context, state}, elements_list) do
-    Enum.reduce(Enum.reverse(elements_list), {actions, context, state}, &process_element/2)
+    {actions, _context, state} =
+      Enum.reduce(Enum.reverse(elements_list), {actions, context, state}, &process_element/2)
+
+    {actions, state}
   end
 
   defp process_element({element_name, data} = _element, {actions, context, state}) do
@@ -199,7 +200,7 @@ defmodule Membrane.WebM.Demuxer do
     end
   end
 
-  defp demand_if_not_blocked({actions, _context, state}) do
+  defp demand_if_not_blocked({actions, state}) do
     if not blocked?(state) do
       actions = Qex.push(actions, {:demand, :input})
       {{:ok, Enum.into(actions, [])}, state}
@@ -225,12 +226,15 @@ defmodule Membrane.WebM.Demuxer do
     not Enum.empty?(state.cache) or state.phase != :all_outputs_linked
   end
 
-  defp reclassify_cached_buffer_actions({actions, context, state}) do
-    Enum.reduce(
-      state.cache,
-      {actions, context, %State{state | cache: Qex.new()}},
-      &classify_buffer_action/2
-    )
+  defp reclassify_cached_buffer_actions({actions, state}, context) do
+    {actions, _context, state} =
+      Enum.reduce(
+        state.cache,
+        {actions, context, %State{state | cache: Qex.new()}},
+        &classify_buffer_action/2
+      )
+
+    {actions, state}
   end
 
   defp notify_about_new_tracks(tracks) do

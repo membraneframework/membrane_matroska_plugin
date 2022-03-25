@@ -51,12 +51,13 @@ defmodule Membrane.WebM.Muxer do
   end
 
   @impl true
-  def handle_pad_added(_pad, context, state) do
-    if context.playback_state != :playing do
-      {:ok, %State{state | expected_tracks: state.expected_tracks + 1}}
-    else
-      raise "Can only add new input pads to muxer in state :prepared!"
-    end
+  def handle_pad_added(_pad, context, state) when context.playback_state != :playing do
+    {:ok, %State{state | expected_tracks: state.expected_tracks + 1}}
+  end
+
+  @impl true
+  def handle_pad_added(_pad, _context, _state) do
+    raise "Can't add new input pads to muxer in state :playing!"
   end
 
   @impl true
@@ -87,32 +88,33 @@ defmodule Membrane.WebM.Muxer do
     if state.active_tracks == state.expected_tracks do
       {segment_size, webm_header} = Serializer.WebM.serialize_webm_header(state.tracks)
       new_state = %State{state | segment_size: state.segment_size + segment_size}
-
-      {{:ok, [buffer: {:output, %Buffer{payload: webm_header}}, demand: Pad.ref(:input, id)]},
-       new_state}
-    else
-      {{:ok, demand: Pad.ref(:input, id)}, state}
-    end
-  end
-
-  # demand all tracks for which the last frame is not cached
-  @impl true
-  def handle_demand(:output, _size, :buffers, _context, state) do
-    if state.expected_tracks == state.active_tracks do
-      demands =
-        state.tracks
-        |> Enum.filter(fn {_id, info} -> info.last_block == nil end)
-        |> Enum.map(fn {id, _info} -> {:demand, Pad.ref(:input, id)} end)
-
-      {{:ok, demands}, state}
+      demands = Enum.map(state.tracks, fn {id, _track_data} -> {:demand, Pad.ref(:input, id)} end)
+      {{:ok, [{:buffer, {:output, %Buffer{payload: webm_header}}} | demands]}, new_state}
     else
       {:ok, state}
     end
   end
 
+  # demand all tracks for which the last frame is not cached
+  @impl true
+  def handle_demand(:output, _size, :buffers, _context, state)
+      when state.expected_tracks == state.active_tracks do
+    demands =
+      state.tracks
+      |> Enum.filter(fn {_id, info} -> info.last_block == nil end)
+      |> Enum.map(fn {id, _info} -> {:demand, Pad.ref(:input, id)} end)
+
+    {{:ok, demands}, state}
+  end
+
+  @impl true
+  def handle_demand(:output, _size, :buffers, _context, state) do
+    {:ok, state}
+  end
+
   @impl true
   def handle_process(Pad.ref(:input, id), %Buffer{payload: data} = buffer, _context, state) do
-    timestamp = Buffer.get_dts_or_pts(buffer) |> div(@timestamp_scale)
+    timestamp = div(Buffer.get_dts_or_pts(buffer), @timestamp_scale)
     state = put_in(state.tracks[id].last_timestamp, timestamp)
     block = {timestamp, data, state.tracks[id].track_number, state.tracks[id].codec}
     state = put_in(state.tracks[id].last_block, block)
@@ -129,17 +131,13 @@ defmodule Membrane.WebM.Muxer do
   # takes the frame that should come next and appends it to current cluster or creates a new cluster and outputs current cluster
   defp process_next_block(state) do
     # sort blocks according to which should be next in the cluster
-    youngest_track =
-      state.tracks
-      |> Enum.sort(&block_sorter/2)
-      |> hd()
-      |> elem(1)
+    {id, youngest_track} = hd(Enum.sort(state.tracks, &block_sorter/2))
 
     block = youngest_track.last_block
 
     {returned_cluster, new_cluster_acc} = step_cluster(block, state.cluster_acc)
 
-    state = put_in(state.tracks[youngest_track.id].last_block, nil)
+    state = put_in(state.tracks[id].last_block, nil)
 
     if returned_cluster == nil do
       {{:ok, redemand: :output}, %State{state | cluster_acc: new_cluster_acc}}
@@ -213,11 +211,7 @@ defmodule Membrane.WebM.Muxer do
     {time1, _data1, _track_number1, codec1} = track1.last_block
     {time2, _data2, _track_number2, codec2} = track2.last_block
 
-    if time1 < time2 do
-      true
-    else
-      Codecs.type(codec1) == :audio and Codecs.type(codec2) == :video
-    end
+    time1 < time2 or (Codecs.type(codec1) == :audio and Codecs.type(codec2) == :video)
   end
 
   @impl true

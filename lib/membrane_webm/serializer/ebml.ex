@@ -27,55 +27,53 @@ defmodule Membrane.WebM.Serializer.EBML do
 
   @spec serialize_master(list, atom, function) :: binary
   def serialize_master(child_elements, name, schema) do
-    Enum.reduce(child_elements, <<>>, fn {name, data}, acc ->
-      serializing_function = schema.(name)
-      serializing_function.(data, name, schema) <> acc
-    end)
-    |> serialize_element(name, schema)
+    data =
+      Enum.reduce(child_elements, <<>>, fn {name, data}, acc ->
+        serializing_function = schema.(name)
+        serializing_function.(data, name, schema) <> acc
+      end)
+
+    serialize_element(data, name, schema)
   end
 
   @spec serialize_uint(non_neg_integer, atom, function) :: binary
   def serialize_uint(number, name, schema) do
-    :binary.encode_unsigned(number, :big)
-    |> serialize_element(name, schema)
+    data = :binary.encode_unsigned(number, :big)
+    serialize_element(data, name, schema)
   end
 
   @spec serialize_date(non_neg_integer, atom, function) :: binary
   def serialize_date(date, name, schema) do
-    :binary.encode_unsigned(date, :big)
-    |> serialize_element(name, schema)
+    data = :binary.encode_unsigned(date, :big)
+    serialize_element(data, name, schema)
   end
 
   @spec serialize_integer(integer, atom, function) :: binary
   def serialize_integer(number, name, schema) do
     octets = Enum.find_index(@int_value_ranges, fn range -> number in range end) + 1
-
-    <<number::integer-signed-unit(8)-size(octets)>>
-    |> serialize_element(name, schema)
+    data = <<number::integer-signed-unit(8)-size(octets)>>
+    serialize_element(data, name, schema)
   end
 
   @spec serialize_string(binary, atom, function) :: binary
-  def serialize_string(string, name, schema) do
-    string
-    |> serialize_element(name, schema)
+  def serialize_string(data, name, schema) do
+    serialize_element(data, name, schema)
   end
 
   @spec serialize_utf8(binary, atom, function) :: binary
-  def serialize_utf8(string, name, schema) do
-    string
-    |> serialize_element(name, schema)
+  def serialize_utf8(data, name, schema) do
+    serialize_element(data, name, schema)
   end
 
   @spec serialize_float(float, atom, function) :: binary
   def serialize_float(number, name, schema) do
-    <<number::float-big>>
-    |> serialize_element(name, schema)
+    data = <<number::float-big>>
+    serialize_element(data, name, schema)
   end
 
   @spec serialize_binary(binary, atom, function) :: binary
-  def serialize_binary(bytes, name, schema) do
-    bytes
-    |> serialize_element(name, schema)
+  def serialize_binary(data, name, schema) do
+    serialize_element(data, name, schema)
   end
 
   @spec serialize_element(binary, atom, function) :: binary
