@@ -201,10 +201,10 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   defp demand_if_not_blocked({actions, state}) do
-    if not blocked?(state) do
-      actions = Qex.push(actions, {:demand, :input})
+    if blocked?(state) do
       {{:ok, Enum.into(actions, [])}, state}
     else
+      actions = Qex.push(actions, {:demand, :input})
       {{:ok, Enum.into(actions, [])}, state}
     end
   end
