@@ -1,4 +1,13 @@
-version: 2.0
+version: 2.1
+commands:
+  restore_mix_cache:
+    steps:
+      - restore_cache:
+          keys:
+            - mix-cache-{{ arch }}-{{ .Branch }}-{{ checksum "mix.lock" }}
+            - mix-cache-{{ arch }}-{{ .Branch }}
+            - mix-cache-{{ arch }}
+
 jobs:
   test:
     docker:
@@ -10,8 +19,12 @@ jobs:
 
     steps:
       - checkout
+      - restore_mix_cache
       - run: mix deps.get
       - run: mix compile --force --warnings-as-errors
+      - save_cache:
+          key: mix-cache-{{ arch }}-{{ .Branch }}-{{ checksum "mix.lock" }}
+          paths: ["deps", "_build"]
       - run: mix test
 
   lint:
@@ -24,11 +37,20 @@ jobs:
 
     steps:
       - checkout
+      - restore_mix_cache
       - run: mix deps.get
       - run: mix format --check-formatted
       - run: mix compile
       - run: mix credo
       - run: mix docs && mix docs 2>&1 | (! grep -q "warning:")
+      - run: asdf current elixir | awk '{print $2}' > .elixir_version
+      - restore_cache:
+          keys:
+            - dialyzer-cache-{{ arch }}-{{ checksum ".elixir_version" }}
+      - run: mix dialyzer
+      - save_cache:
+          key: dialyzer-cache-{{ arch }}-{{ checksum ".elixir_version" }}
+          paths: "priv/plts"
 
 workflows:
   version: 2
