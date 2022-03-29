@@ -392,7 +392,7 @@ defmodule Membrane.WebM.Schema do
     Timecode: &Parser.EBML.parse_uint/1,
     PrevSize: &Parser.EBML.parse_uint/1,
     BlockGroup: &Parser.EBML.parse_master/2,
-    Block: &Parser.EBML.parse_binary/1,
+    Block: &Parser.WebM.parse_block/1,
     BlockAdditions: &Parser.EBML.parse_master/2,
     BlockMore: &Parser.EBML.parse_master/2,
     BlockAddID: &Parser.EBML.parse_uint/1,

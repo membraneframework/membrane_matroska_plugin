@@ -106,6 +106,7 @@ defmodule Membrane.WebM.Serializer.WebM do
        # 2 for audio
        TrackType: 2,
        CodecID: "A_OPUS",
+       FlagLacing: 0,
        TrackUID: id,
        TrackNumber: track_number
      ]}
@@ -123,6 +124,7 @@ defmodule Membrane.WebM.Serializer.WebM do
        # 1 for video
        TrackType: 1,
        CodecID: "V_VP8",
+       FlagLacing: 0,
        TrackUID: id,
        TrackNumber: track_number
      ]}
@@ -140,6 +142,7 @@ defmodule Membrane.WebM.Serializer.WebM do
        # 1 for video
        TrackType: 1,
        CodecID: "V_VP9",
+       FlagLacing: 0,
        TrackUID: id,
        TrackNumber: track_number
      ]}

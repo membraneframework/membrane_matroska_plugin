@@ -100,9 +100,34 @@ defmodule Membrane.WebM.Parser.WebM do
     end
   end
 
-  # codec state is stored in :Block, :BlockGroup elements
-  # it probably contains information about the next I-frame or some such
-  # for now it seems that it can be safely ignored - every frame is inside a :SimpleBlock
+  @spec parse_block(binary) :: %{
+          data: binary,
+          header_flags: %{
+            discardable: boolean,
+            invisible: boolean,
+            lacing: :EBML_lacing | :Xiph_lacing | :fixed_size_lacing | :no_lacing
+          },
+          timecode: integer,
+          track_number: non_neg_integer
+        }
+  def parse_block(bytes) do
+    # track_number is a vint with size 1 or 2 bytes
+    {:ok, {track_number, body}} = EBML.decode_vint(bytes)
+
+    <<timecode::integer-signed-big-size(16), _reserved::3, invisible::1, lacing::2,
+      discardable::1, _unused::1, data::binary>> = body
+
+    %{
+      track_number: track_number,
+      timecode: timecode,
+      header_flags: %{
+        invisible: invisible == 1,
+        lacing: check_lacing_mode(lacing),
+        discardable: discardable == 1
+      },
+      data: data
+    }
+  end
 
   # https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#rfc.section.6.2.4.4
   @spec parse_simple_block(binary) :: %{
@@ -111,8 +136,7 @@ defmodule Membrane.WebM.Parser.WebM do
             discardable: boolean,
             invisible: boolean,
             keyframe: boolean,
-            lacing: :EBML_lacing | :Xiph_lacing | :fixed_size_lacing | :no_lacing,
-            reserved: 0
+            lacing: :EBML_lacing | :Xiph_lacing | :fixed_size_lacing | :no_lacing
           },
           timecode: integer,
           track_number: non_neg_integer
@@ -121,30 +145,35 @@ defmodule Membrane.WebM.Parser.WebM do
     # track_number is a vint with size 1 or 2 bytes
     {:ok, {track_number, body}} = EBML.decode_vint(bytes)
 
-    <<timecode::integer-signed-big-size(16), keyframe::1, reserved::3, invisible::1, lacing::2,
+    <<timecode::integer-signed-big-size(16), keyframe::1, _reserved::3, invisible::1, lacing::2,
       discardable::1, data::binary>> = body
-
-    lacing =
-      case lacing do
-        0b00 -> :no_lacing
-        0b01 -> :Xiph_lacing
-        0b11 -> :EBML_lacing
-        0b10 -> :fixed_size_lacing
-      end
-
-    # TODO: deal with lacing != 00 https://tools.ietf.org/id/draft-lhomme-cellar-matroska-04.html#laced-data-1
 
     %{
       track_number: track_number,
       timecode: timecode,
       header_flags: %{
         keyframe: keyframe == 1,
-        reserved: reserved,
         invisible: invisible == 1,
-        lacing: lacing,
+        lacing: check_lacing_mode(lacing),
         discardable: discardable == 1
       },
       data: data
     }
+  end
+
+  # TODO: handle laced data
+  # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-12.3
+  # https://github.com/ietf-wg-cellar/matroska-specification/blob/master/notes.md#laced-frames-timestamp
+  defp check_lacing_mode(mode) do
+    case mode do
+      0b00 ->
+        :no_lacing
+
+      _any_lacing ->
+        raise "Demuxing webm files with laced data is currently not supported"
+        # 0b01 -> :Xiph_lacing
+        # 0b11 -> :EBML_lacing
+        # 0b10 -> :fixed_size_lacing
+    end
   end
 end

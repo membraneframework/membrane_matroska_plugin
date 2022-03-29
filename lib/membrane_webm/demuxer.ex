@@ -184,7 +184,7 @@ defmodule Membrane.WebM.Demuxer do
       :Timecode ->
         {actions, context, %State{state | current_timecode: data}}
 
-      :SimpleBlock ->
+      name when name in [:Block, :SimpleBlock] ->
         buffer_action =
           {:buffer,
            {Pad.ref(:output, data.track_number),
