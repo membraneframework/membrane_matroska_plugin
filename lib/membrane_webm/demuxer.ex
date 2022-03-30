@@ -89,12 +89,16 @@ defmodule Membrane.WebM.Demuxer do
 
   @impl true
   def handle_end_of_stream(:input, context, state) do
-    actions =
+    IO.inspect(state, label: :end_of_stream)
+
+    cached_buffers = Enum.to_list(state.cache)
+
+    end_actions =
       context.pads
       |> Enum.filter(fn {_pad_ref, pad_data} -> pad_data.direction == :output end)
       |> Enum.map(fn {pad_ref, _pad_data} -> {:end_of_stream, pad_ref} end)
 
-    {{:ok, actions}, state}
+    {{:ok, cached_buffers ++ end_actions}, state}
   end
 
   @impl true
@@ -235,6 +239,12 @@ defmodule Membrane.WebM.Demuxer do
       )
 
     {actions, state}
+  end
+
+  defp end_of_stream_actiosn(context) do
+    context.pads
+    |> Enum.filter(fn {_pad_ref, pad_data} -> pad_data.direction == :output end)
+    |> Enum.map(fn {pad_ref, _pad_data} -> {:end_of_stream, pad_ref} end)
   end
 
   defp notify_about_new_tracks(tracks) do

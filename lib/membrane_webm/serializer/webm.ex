@@ -81,7 +81,8 @@ defmodule Membrane.WebM.Serializer.WebM do
       [
         DocTypeReadVersion: 2,
         DocTypeVersion: 4,
-        DocType: "webm",
+        # DocType: "webm",
+        DocType: "matroska",
         EBMLMaxSizeLength: 8,
         EBMLMaxIDLength: 4,
         EBMLReadVersion: 1,

@@ -98,9 +98,26 @@ defmodule Membrane.WebM.DemuxerTest do
     Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
     assert_pipeline_playback_changed(pipeline, _, :stopped)
 
+    # for reference <- references do
+    #   fixtures_list = :binary.bin_to_list(File.read!(Path.join(@fixtures_dir, reference)))
+    #   tmp_list = :binary.bin_to_list(File.read!(Path.join(tmp_dir, reference)))
+
+    #   zipped_with_indexes = fixtures_list |> Enum.zip(tmp_list) |> Enum.with_index()
+
+    #   for {{elem1, elem2}, idx} = _elem <- zipped_with_indexes do
+    #     if elem1 != elem2 do
+    #       raise "#{elem1} is not equal #{elem2} on index #{idx}"
+    #     end
+    #   end
+    # end
+
     for reference <- references do
-      assert File.read!(Path.join(@fixtures_dir, reference)) ==
-               File.read!(Path.join(tmp_dir, reference))
+      file1 = File.read!(Path.join(@fixtures_dir, reference))
+      file2 = File.read!(Path.join(tmp_dir, reference))
+
+      assert byte_size(file1) == byte_size(file2)
+
+      assert file1 == file2
     end
   end
 
@@ -113,17 +130,12 @@ defmodule Membrane.WebM.DemuxerTest do
   end
 
   @tag :tmp_dir
-  test "demuxing webm containing opus", %{tmp_dir: tmp_dir} do
-    test_stream("muxed_opus.webm", ["1.ogg"], tmp_dir)
+  test "demuxing mkv containing opus", %{tmp_dir: tmp_dir} do
+    test_stream("muxed_opus.mkv", ["1.ogg"], tmp_dir)
   end
 
   @tag :tmp_dir
-  test "demuxing webm containing vp8 + opus", %{tmp_dir: tmp_dir} do
-    test_stream("vp8_opus_video.webm", ["1_vp8.ivf", "2.ogg"], tmp_dir)
-  end
-
-  @tag :tmp_dir
-  test "demuxing webm containing vp9 + opus", %{tmp_dir: tmp_dir} do
-    test_stream("vp9_opus_video.webm", ["1_vp9.ivf", "2.ogg"], tmp_dir)
+  test "demuxing mkv file", %{tmp_dir: tmp_dir} do
+    test_stream("vp8_opus_video.mkv", ["1_vp8.ivf", "2.ogg"], tmp_dir)
   end
 end

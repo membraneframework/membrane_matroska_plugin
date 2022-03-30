@@ -187,12 +187,14 @@ defmodule Membrane.WebM.Muxer do
   end
 
   # https://www.matroska.org/technical/cues.html
-  defp add_cluster_cuepoint(state, track_number) do
+  def add_cluster_cuepoint(state, track_number) do
     new_cue =
       {:CuePoint,
        [
+         # Absolute timestamp according to the Segment time base.
          CueTime: state.cluster_time,
          CueTrack: track_number,
+         # The Segment Position of the Cluster containing the associated Block.
          CueClusterPosition: state.segment_position
        ]}
 
@@ -257,7 +259,6 @@ defmodule Membrane.WebM.Muxer do
       serialized_block = Helper.serialize(simple_block)
       state = update_in(state.cluster_acc, &(&1 <> serialized_block))
       state = update_in(state.cluster_size, &(&1 + byte_size(serialized_block)))
-      state = put_in(state.cluster_time, cluster_time)
 
       {state, <<>>}
     end

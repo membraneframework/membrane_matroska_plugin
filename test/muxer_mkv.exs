@@ -21,8 +21,8 @@ defmodule Membrane.WebM.MuxerTest do
   @pad_id_4 16_890_875_709_512_990_721
 
   defp test_from_buffers(tmp_dir) do
-    output_file = Path.join(tmp_dir, "output.webm")
-    reference_file = Path.join(@fixtures_dir, "muxed_opus.webm")
+    output_file = Path.join(tmp_dir, "output.mkv")
+    reference_file = Path.join(@fixtures_dir, "muxed_opus.mkv")
 
     buffers =
       Path.join(@fixtures_dir, "buffers_dump.opus")
@@ -37,7 +37,7 @@ defmodule Membrane.WebM.MuxerTest do
             output: Testing.Source.output_from_buffers(buffers),
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
-          muxer: %Membrane.WebM.Muxer{add_date?: false},
+          muxer: Membrane.WebM.Muxer,
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -56,7 +56,7 @@ defmodule Membrane.WebM.MuxerTest do
 
   defp test_stream(input_file, reference_file, tmp_dir) do
     input_file = Path.join(@fixtures_dir, input_file)
-    output_file = Path.join(tmp_dir, "output.webm")
+    output_file = Path.join(tmp_dir, "output.mkv")
     reference_file = Path.join(@fixtures_dir, reference_file)
 
     {:ok, pipeline} =
@@ -66,7 +66,7 @@ defmodule Membrane.WebM.MuxerTest do
             location: input_file
           },
           deserializer: Membrane.Element.IVF.Deserializer,
-          muxer: %Membrane.WebM.Muxer{add_date?: false},
+          muxer: Membrane.WebM.Muxer,
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -86,8 +86,8 @@ defmodule Membrane.WebM.MuxerTest do
 
   defp test_many(tmp_dir) do
     input_file = Path.join(@fixtures_dir, "1_vp8.ivf")
-    output_file = Path.join(tmp_dir, "output.webm")
-    reference_file = Path.join(@fixtures_dir, "combined.webm")
+    output_file = Path.join(tmp_dir, "output.mkv")
+    reference_file = Path.join(@fixtures_dir, "combined.mkv")
 
     buffers =
       Path.join(@fixtures_dir, "buffers_dump.opus")
@@ -106,7 +106,7 @@ defmodule Membrane.WebM.MuxerTest do
             output: Testing.Source.output_from_buffers(buffers),
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
-          muxer: %Membrane.WebM.Muxer{add_date?: false},
+          muxer: Membrane.WebM.Muxer,
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -151,12 +151,12 @@ defmodule Membrane.WebM.MuxerTest do
 
   @tag :tmp_dir
   test "mux single vp8", %{tmp_dir: tmp_dir} do
-    test_stream("1_vp8.ivf", "muxed_vp8.webm", tmp_dir)
+    test_stream("1_vp8.ivf", "muxed_vp8.mkv", tmp_dir)
   end
 
   @tag :tmp_dir
   test "mux single vp9", %{tmp_dir: tmp_dir} do
-    test_stream("1_vp9.ivf", "muxed_vp9.webm", tmp_dir)
+    test_stream("1_vp9.ivf", "muxed_vp9.mkv", tmp_dir)
   end
 
   @tag :tmp_dir

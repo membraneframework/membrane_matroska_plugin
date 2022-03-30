@@ -82,7 +82,8 @@ defmodule Membrane.WebM.Parser.WebM do
     text = EBML.parse_string(bytes)
 
     case text do
-      "webm" -> "webm"
+      # "webm" -> "webm"
+      "matroska" -> "matroska"
       type -> raise "The file DocType is '#{type}' but it MUST be 'webm'"
     end
   end
