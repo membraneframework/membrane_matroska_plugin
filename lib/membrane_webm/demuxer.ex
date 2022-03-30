@@ -163,7 +163,7 @@ defmodule Membrane.WebM.Demuxer do
     {actions, state}
   end
 
-  defp process_element({element_name, data} = _element, {actions, context, state}) do
+  defp process_element({element_name, data}, {actions, context, state}) do
     case element_name do
       :Info ->
         # scale of block timecodes in nanoseconds
