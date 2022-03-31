@@ -89,8 +89,6 @@ defmodule Membrane.WebM.Demuxer do
 
   @impl true
   def handle_end_of_stream(:input, context, state) do
-    IO.inspect(state, label: :end_of_stream)
-
     cached_buffers = Enum.to_list(state.cache)
 
     end_actions =

@@ -112,12 +112,23 @@ defmodule Membrane.WebM.DemuxerTest do
     # end
 
     for reference <- references do
-      file1 = File.read!(Path.join(@fixtures_dir, reference))
-      file2 = File.read!(Path.join(tmp_dir, reference))
+      reference_file = File.read!(Path.join(@fixtures_dir, reference))
+      result_file = File.read!(Path.join(tmp_dir, reference))
 
-      assert byte_size(file1) == byte_size(file2)
+      assert byte_size(reference_file) == byte_size(result_file)
 
-      assert file1 == file2
+      fixtures_list = :binary.bin_to_list(reference_file)
+      result_list = :binary.bin_to_list(result_file)
+
+      zipped_with_indexes = fixtures_list |> Enum.zip(result_list) |> Enum.with_index()
+
+      for {{elem1, elem2}, idx} = _elem <- zipped_with_indexes do
+        if elem1 != elem2 do
+          raise "#{elem1} is not equal #{elem2} on index #{idx}"
+        end
+      end
+
+      assert reference_file == result_file
     end
   end
 
