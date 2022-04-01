@@ -34,7 +34,7 @@ defmodule Membrane.WebM.Serializer.WebM do
   @spec serialize_simple_block(tuple, atom, function) :: binary
   def serialize_simple_block({timecode, data, track_number, _type} = block, _element_name, schema) do
     # Opus flags
-    #        value :: number_of_bits
+    #         value :: number_of_bits
     # keyframe:    1::0     # always 1    - no mention of keyframes in Opus RFC
     # reserved:    0::3     # always 000  - per Matroska RFC
     # invisible:   0::1     # always 0    - assumed
@@ -55,13 +55,13 @@ defmodule Membrane.WebM.Serializer.WebM do
     EBML.serialize_element(content_bytes, :Cluster, schema)
   end
 
-  @spec serialize_webm_header(list) :: {non_neg_integer, binary}
-  def serialize_webm_header(tracks) do
+  @spec serialize_webm_header(list, map) :: {non_neg_integer, binary}
+  def serialize_webm_header(tracks, options) do
     ebml_header = Helper.serialize(construct_ebml_header())
 
     segment_header = serialize_empty_segment()
 
-    info = construct_info()
+    info = construct_info(options)
     tracks = construct_tracks(tracks)
     # tags = construct_tags()
     seek_head = construct_seek_head([info, tracks])
@@ -180,26 +180,24 @@ defmodule Membrane.WebM.Serializer.WebM do
   end
 
   # this element MUST exist - because of TimestampScale
-  @spec construct_info() :: {atom, list}
-  defp construct_info() do
-    {
-      :Info,
-      [
-        # TODO: calculate Duration dynamically
-        Duration: 0,
-        WritingApp: "membrane_webm_plugin-#{@version}",
-        MuxingApp: "membrane_webm_plugin-#{@version}",
-        # TODO: add options to populate title fields
-        Title: "Membrane WebM file",
-        # TODO: add current date: breaks testing reproducibility:
-        # DateUTC:
-        #   :calendar.datetime_to_gregorian_seconds(:calendar.now_to_datetime(:erlang.timestamp())),
-        # hardcoded per RFC
-        # note that this requires all incoming buffer `dts` timestamps to be expressed in Membrane.Time (i.e. in nanoseconds)
-        # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#name-timestampscale-element
-        TimestampScale: @timestamp_scale
-      ]
-    }
+  @spec construct_info(map) :: {atom, list}
+  defp construct_info(options) do
+    info = [
+      # FIXME: off by last frame duration
+      Duration: options.duration * @timestamp_scale,
+      WritingApp: "membrane_webm_plugin-#{@version}",
+      MuxingApp: "membrane_webm_plugin-#{@version}",
+      Title: options.title,
+      DateUTC:
+        :calendar.datetime_to_gregorian_seconds(:calendar.now_to_datetime(:erlang.timestamp())),
+      TimestampScale: @timestamp_scale
+    ]
+
+    if options.add_date? do
+      {:Info, info}
+    else
+      {:Info, Keyword.drop(info, [:DateUTC])}
+    end
   end
 
   # TODO: add callback or option to supply tag values

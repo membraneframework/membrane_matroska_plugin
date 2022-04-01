@@ -37,7 +37,7 @@ defmodule Membrane.WebM.MuxerTest do
             output: Testing.Source.output_from_buffers(buffers),
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
-          muxer: Membrane.WebM.Muxer,
+          muxer: %Membrane.WebM.Muxer{add_date?: false},
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -66,7 +66,7 @@ defmodule Membrane.WebM.MuxerTest do
             location: input_file
           },
           deserializer: Membrane.Element.IVF.Deserializer,
-          muxer: Membrane.WebM.Muxer,
+          muxer: %Membrane.WebM.Muxer{add_date?: false},
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -106,7 +106,7 @@ defmodule Membrane.WebM.MuxerTest do
             output: Testing.Source.output_from_buffers(buffers),
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
-          muxer: Membrane.WebM.Muxer,
+          muxer: %Membrane.WebM.Muxer{add_date?: false},
           sink: %Membrane.File.Sink{
             location: output_file
           }

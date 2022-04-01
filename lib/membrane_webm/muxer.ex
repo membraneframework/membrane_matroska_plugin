@@ -18,6 +18,20 @@ defmodule Membrane.WebM.Muxer do
   alias Membrane.WebM.Serializer
   alias Membrane.WebM.Serializer.Helper
 
+  def_options title: [
+                spec: String.t(),
+                default: "Membrane WebM file",
+                description: "Title to be used in the `Segment/Info/Title` element"
+              ],
+              add_date?: [
+                spec: bool,
+                default: true,
+                description:
+                  "When true the file will include the `Segment/Info/DateUTC` element containing the datetime at file's creation."
+              ]
+
+  # tags:
+
   def_input_pad :input,
     availability: :on_request,
     mode: :pull,
@@ -43,12 +57,16 @@ defmodule Membrane.WebM.Muxer do
               cluster_acc: Helper.serialize({:Timecode, 0}),
               cluster_time: :infinity,
               cluster_size: 0,
-              cues: []
+              cues: [],
+              time_min: 0,
+              time_max: 0,
+              options: %{}
   end
 
   @impl true
-  def handle_init(_options) do
-    {:ok, %State{}}
+  def handle_init(options) do
+    options = Map.put(options, :duration, 0)
+    {:ok, %State{options: options}}
   end
 
   @impl true
@@ -81,16 +99,18 @@ defmodule Membrane.WebM.Muxer do
       caps: caps,
       type: type,
       last_timestamp: nil,
-      last_block: nil,
+      last_block: nil
     }
 
     state = put_in(state.tracks[id], track)
 
     if state.active_tracks == state.expected_tracks do
-      {segment_position, webm_header} = Serializer.WebM.serialize_webm_header(state.tracks)
-      new_state = %State{state | segment_position: state.segment_position + segment_position}
+      {segment_position, webm_header} =
+        Serializer.WebM.serialize_webm_header(state.tracks, state.options)
+
+      state = update_in(state.segment_position, &(&1 + segment_position))
       demands = Enum.map(state.tracks, fn {id, _track_data} -> {:demand, Pad.ref(:input, id)} end)
-      {{:ok, [{:buffer, {:output, %Buffer{payload: webm_header}}} | demands]}, new_state}
+      {{:ok, [{:buffer, {:output, %Buffer{payload: webm_header}}} | demands]}, state}
     else
       {:ok, state}
     end
@@ -125,10 +145,12 @@ defmodule Membrane.WebM.Muxer do
     end
   end
 
-  def ingest_buffer(state, Pad.ref(:input, id), %Buffer{payload: data} = buffer) do
+  defp ingest_buffer(state, Pad.ref(:input, id), %Buffer{payload: data} = buffer) do
     # update last timestamp
     timestamp = div(Buffer.get_dts_or_pts(buffer), @timestamp_scale)
     state = put_in(state.tracks[id].last_timestamp, timestamp)
+    state = update_in(state.time_min, &min(timestamp, &1))
+    state = update_in(state.time_max, &max(timestamp, &1))
     # cache last block
     block = {timestamp, data, state.tracks[id].track_number, state.tracks[id].codec}
     put_in(state.tracks[id].last_block, block)
@@ -142,18 +164,19 @@ defmodule Membrane.WebM.Muxer do
     |> step_cluster()
   end
 
-  def process_next_block_and_return(state) do
+  defp process_next_block_and_return(state) do
     {state, maybe_cluster} = process_next_block(state)
 
     case maybe_cluster do
       <<>> ->
         {{:ok, redemand: :output}, state}
+
       serialized_payload ->
         {{:ok, buffer: {:output, %Buffer{payload: serialized_payload}}, redemand: :output}, state}
     end
   end
 
-  def pop_next_block(state) do
+  defp pop_next_block(state) do
     # find next block
     {id, track} = hd(Enum.sort(state.tracks, &block_sorter/2))
     block = track.last_block
@@ -164,15 +187,14 @@ defmodule Membrane.WebM.Muxer do
   end
 
   # https://www.matroska.org/technical/cues.html
-  def add_cluster_cuepoint(state, track_number) do
-    new_cue = {:CuePoint,
-        [
-          # Absolute timestamp according to the Segment time base.
-          CueTime: state.cluster_time,
-          CueTrack: track_number,
-          # The Segment Position of the Cluster containing the associated Block.
-          CueClusterPosition: state.segment_position
-        ]}
+  defp add_cluster_cuepoint(state, track_number) do
+    new_cue =
+      {:CuePoint,
+       [
+         CueTime: state.cluster_time,
+         CueTrack: track_number,
+         CueClusterPosition: state.segment_position
+       ]}
 
     update_in(state.cues, fn cues -> [new_cue | cues] end)
   end
@@ -185,8 +207,11 @@ defmodule Membrane.WebM.Muxer do
   # Matroska RFC https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-7-18
   # WebM Muxer Guidelines https://www.webmproject.org/docs/container/
   defp step_cluster(
-          {%State{cluster_acc: current_cluster_acc, cluster_time: cluster_time, cluster_size: cluster_size} = state,
-         {absolute_time, data, track_number, type} = block}
+         {%State{
+            cluster_acc: current_cluster_acc,
+            cluster_time: cluster_time,
+            cluster_size: cluster_size
+          } = state, {absolute_time, data, track_number, type} = block}
        ) do
     cluster_time = min(cluster_time, absolute_time)
     relative_time = absolute_time - cluster_time
@@ -206,19 +231,23 @@ defmodule Membrane.WebM.Muxer do
       timecode = {:Timecode, absolute_time}
       simple_block = {:SimpleBlock, {0, data, track_number, type}}
       new_cluster = Helper.serialize([timecode, simple_block])
-      state = add_cluster_cuepoint(%State{
-        state |
-        cluster_acc: new_cluster,
-        cluster_time: absolute_time,
-        cluster_size: byte_size(new_cluster),
-      },
-      track_number)
+
+      state =
+        add_cluster_cuepoint(
+          %State{
+            state
+            | cluster_acc: new_cluster,
+              cluster_time: absolute_time,
+              cluster_size: byte_size(new_cluster)
+          },
+          track_number
+        )
 
       if current_cluster_acc == <<>> do
         {state, <<>>}
       else
         serialized_cluster = Helper.serialize({:Cluster, current_cluster_acc})
-        state = update_in(state.segment_position, & &1 + byte_size(serialized_cluster))
+        state = update_in(state.segment_position, &(&1 + byte_size(serialized_cluster)))
 
         # return serialized cluster
         {state, serialized_cluster}
@@ -226,8 +255,9 @@ defmodule Membrane.WebM.Muxer do
     else
       simple_block = {:SimpleBlock, {absolute_time - cluster_time, data, track_number, type}}
       serialized_block = Helper.serialize(simple_block)
-      state = update_in(state.cluster_acc, & &1 <> serialized_block)
-      state = update_in(state.cluster_size, & &1 + byte_size(serialized_block))
+      state = update_in(state.cluster_acc, &(&1 <> serialized_block))
+      state = update_in(state.cluster_size, &(&1 + byte_size(serialized_block)))
+      state = put_in(state.cluster_time, cluster_time)
 
       {state, <<>>}
     end
@@ -247,14 +277,14 @@ defmodule Membrane.WebM.Muxer do
 
     time1 < time2 or
       (time1 == time2 and
-      (Codecs.type(codec1) == :audio and Codecs.type(codec2) == :video))
+         (Codecs.type(codec1) == :audio and Codecs.type(codec2) == :video))
   end
 
   @impl true
   def handle_end_of_stream(Pad.ref(:input, id), _context, state) when state.active_tracks != 1 do
     {_track, state} = pop_in(state.tracks[id])
-    state = update_in(state.active_tracks, & &1 - 1)
-    state = update_in(state.expected_tracks, & &1 - 1)
+    state = update_in(state.active_tracks, &(&1 - 1))
+    state = update_in(state.expected_tracks, &(&1 - 1))
 
     process_next_block_and_return(state)
   end
@@ -265,11 +295,14 @@ defmodule Membrane.WebM.Muxer do
     cluster = Helper.serialize({:Cluster, state.cluster_acc})
     cues = Helper.serialize({:Cues, state.cues})
     _cues_segment_position = state.segment_position + byte_size(cluster)
+    state = put_in(state.options.duration, state.time_max - state.time_min)
+    # IO.inspect(state)
 
     # TODO: Now I know the location of Cues so Seek can reference it.
     # Seek was the first serialized Segment element returned by the muxer and updating Seek requires rewriting data
     # If I choose to rewrite it I could just as well insert Cues at the beginning of the WebM file
     # This provides superior seeking speed when playing the file
+    # Likewise the Info element's Duration field can now be known
     {{:ok, buffer: {:output, %Buffer{payload: cluster <> cues}}, end_of_stream: :output}, state}
   end
 end
