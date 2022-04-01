@@ -37,7 +37,7 @@ defmodule Membrane.WebM.Printer do
 
   @impl true
   def handle_end_of_stream(:input, _context, %{acc: acc}) do
-    {parsed, _unparsed} = Helper.parse(acc, &Membrane.WebM.Schema.deserialize_webm/1)
+    {parsed, _unparsed} = Helper.parse(acc, &Membrane.WebM.Schema.deserialize_webm_for_debug/1)
 
     {{:ok, buffer: {:output, to_buffers(parsed)}, end_of_stream: :output}, %{}}
   end

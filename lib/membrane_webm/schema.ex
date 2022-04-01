@@ -656,6 +656,15 @@ defmodule Membrane.WebM.Schema do
     @webm_deserializer_schema[name]
   end
 
+  @spec deserialize_webm_for_debug(atom) :: function
+  def deserialize_webm_for_debug(name) do
+    if name == :Cluster do
+      &Parser.EBML.parse_master/2
+    else
+      @webm_deserializer_schema[name]
+    end
+  end
+
   @spec serialize_webm(atom) :: function
   def serialize_webm(name) do
     @webm_serializer_schema[name]

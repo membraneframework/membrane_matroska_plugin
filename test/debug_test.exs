@@ -12,7 +12,7 @@ defmodule Membrane.WebM.DebugTest do
       %Testing.Pipeline.Options{
         module: PrinterPipeline,
         custom_args: %{
-          input_file: "test/fixtures/output.webm",
+          input_file: "test/fixtures/output_multiple_video.webm",
           output_dir: tmp_dir
         }
       }
