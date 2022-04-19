@@ -64,6 +64,8 @@ defmodule Membrane.WebM.Schema do
            {0x4283, :DocTypeExtensionName},
            {0x4284, :DocTypeExtensionVersion},
            {0xEC, :Void},
+           {0xBF, :CRC_32},
+
            ### Matroska elements
            {0x18538067, :Segment},
            # \Segment
@@ -79,17 +81,33 @@ defmodule Membrane.WebM.Schema do
            {0xF7, :CueTrack},
            {0xB2, :CueDuration},
            {0x5378, :CueBlockNumber},
+           {0xEA, :CueCodecState},
+           {0xDB, :CueReference},
+           {0x96, :CueRefTime},
+           {0x97, :CueRefCluster},
+           {0x535F, :CueRefNumber},
+           {0xEB, :CueRefCodecState},
            {0x1F43B675, :Cluster},
+           {0xA4, :BlockGroupCodecState},
            # \Segment\Cluster
            {0xA3, :SimpleBlock},
            {0xE7, :Timecode},
            {0xAB, :PrevSize},
            {0xA0, :BlockGroup},
+           {0xA7, :Position},
+           {0x5854, :SilentTracks},
+           {0xAF, :EncryptedBlock},
+           #  \Segment\Cluster\Silenttracks
+           {0x58D7, :SilentTrackNumber},
            # \Segment\Cluster\BlockGroup
            {0xA1, :Block},
            {0x75A1, :BlockAdditions},
-           # \Segment\Cluster\BlockGroup
            {0xA6, :BlockMore},
+           # Depracated {0xA2,:BlockVirtual},
+           {0xFA, :ReferencePriority},
+           {0xFD, :ReferenceVirtual},
+           {0xC8, :ReferenceFrame},
+           {0x8E, :Slices},
            # \Segment\Cluster\BlockGroup\BlockMore
            {0xEE, :BlockAddID},
            {0xA5, :BlockAdditional},
@@ -97,6 +115,17 @@ defmodule Membrane.WebM.Schema do
            {0xFB, :ReferenceBlock},
            {0x75A2, :DiscardPadding},
            {0x1254C367, :Tags},
+           # \Segment\Cluster\BlockGroup\Slices
+           # Depracated {0xE8,:TimeSlice},
+           # \Segment\Cluster\BlockGroup\Slices\TimeSlice
+           # Depracated {0xCC,:LaceNumber},
+           {0xCD, :FrameNumber},
+           {0xCB, :BlockAdditionID},
+           {0xCE, :Delay},
+           {0xCF, :SliceDuration},
+           # \Segment\Cluster\BlockGroup\ReferenceFrame
+           {0xC9, :ReferenceOffset},
+           {0xCA, :ReferenceTimestamp},
            # \Segment\Tags
            {0x7373, :Tag},
            # \Segment\Tags\Tag
@@ -131,18 +160,37 @@ defmodule Membrane.WebM.Schema do
            {0x63A2, :CodecPrivate},
            {0x258688, :CodecName},
            {0xE1, :Audio},
+           {0xE0, :Video},
            {0x23E383, :DefaultDuration},
+           {0x6DE7, :MinCache},
+           {0x6DF8, :MaxCache},
+           {0x234E7A, :DefaultDecodedFieldDuration},
+           {0x537F, :TrackOffset},
+           {0x55EE, :MaxBlockAdditionID},
+           {0x7446, :AttachmentLink},
+           {0x3A9697, :CodecSettings},
+           {0x3B4040, :CodecInfoURL},
+           {0x26B240, :CodecDownloadURL},
+           {0xAA, :CodecDecodeAll},
+           # Depracated {0x53B9,:OldStereoMode},
+           {0x6FAB, :TrackOverlay},
+           {0x6624, :TrackTranslate},
+
            # \Segment\Tracks\TrackEntry\Audio
            {0x9F, :Channels},
            {0xB5, :SamplingFrequency},
            {0x6264, :BitDepth},
-           {0xE0, :Video},
+           {0x7D7B, :ChannelPositions},
+
            # \Segment\Tracks\TrackEntry\Video
            {0xB0, :PixelWidth},
            {0xBA, :PixelHeight},
            {0x9A, :FlagInterlaced},
            {0x53B8, :StereoMode},
            {0x55B0, :Colour},
+           {0x2FB523, :GammaValue},
+           {0x2EB524, :ColourSpace},
+           # Depracated  {0x2383E3, :FrameRate},
            # \Segment\Tracks\TrackEntry\Video\Colour
            {0x55B7, :ChromaSitingHorz},
            {0x55B8, :ChromaSitingVert},
@@ -164,6 +212,9 @@ defmodule Membrane.WebM.Schema do
            {0x5031, :ContentEncodingOrder},
            {0x5032, :ContentEncodingScope},
            {0x5033, :ContentEncodingType},
+           {0x5034, :ContentCompression},
+           {0x4254, :ContentCompAlgo},
+           {0x4255, :ContentCompSettings},
            {0x5035, :ContentEncryption},
            {0x47E1, :ContentEncAlgo},
            {0x47E2, :ContentEncKeyID},
@@ -191,6 +242,10 @@ defmodule Membrane.WebM.Schema do
            {0x55D8, :WhitePointChromaticityY},
            {0x55D9, :LuminanceMax},
            {0x55DA, :LuminanceMin},
+           # \Segment\Tracks\TrackEntry\TrackTranslate
+           {0x66A5, :TrackTranslateTrackID},
+           {0x66BF, :TrackTranszlateCodec},
+           {0x66FC, :TrackTranslateEditionUID},
            # Chapters
            {0x1043A770, :Chapters},
            {0x45B9, :EditionEntry},
@@ -203,6 +258,9 @@ defmodule Membrane.WebM.Schema do
            {0x85, :ChapString},
            {0x437C, :ChapLanguage},
            {0x437E, :ChapCountry},
+           {0x45BC, :EditionUID},
+           {0x45DB, :EditionFlagDefault},
+           {0x45DD, :EditionFlagOrdered},
            {0x1549A966, :Info},
            # \Segment\Info
            {0x2AD7B1, :TimestampScale},
@@ -212,6 +270,18 @@ defmodule Membrane.WebM.Schema do
            {0x4489, :Duration},
            {0x4461, :DateUTC},
            {0x114D9B74, :SeekHead},
+           {0x73A4, :SegmentUID},
+           {0x7384, :SegmentFilename},
+           {0x3CB923, :PrevUID},
+           {0x3C83AB, :PrevFilename},
+           {0x3EB923, :NextUID},
+           {0x3E83BB, :NextFilename},
+           {0x4444, :SegmentFamily},
+           {0x6924, :ChapterTranslate},
+           {0x69A5, :ChapterTranslateID},
+           {0x69BF, :ChapterTranslateCodec},
+           {0x69FC, :ChapterTranslateEditionUID},
+
            # \Segment\SeekHead
            {0x4DBB, :Seek},
            # \Segment\SeekHead\Seek
@@ -653,7 +723,11 @@ defmodule Membrane.WebM.Schema do
 
   @spec deserialize_webm(atom) :: function
   def deserialize_webm(name) do
-    @webm_deserializer_schema[name]
+    if Map.has_key?(@webm_deserializer_schema, name) do
+      @webm_deserializer_schema[name]
+    else
+      &Parser.EBML.parse_binary/1
+    end
   end
 
   @spec deserialize_webm_for_debug(atom) :: function
@@ -661,13 +735,17 @@ defmodule Membrane.WebM.Schema do
     if name == :Cluster do
       &Parser.EBML.parse_master/2
     else
-      @webm_deserializer_schema[name]
+      deserialize_webm(name)
     end
   end
 
   @spec serialize_webm(atom) :: function
   def serialize_webm(name) do
-    @webm_serializer_schema[name]
+    if Map.has_key?(@webm_serializer_schema, name) do
+      @webm_serializer_schema[name]
+    else
+      &Serializer.EBML.serialize_binary/3
+    end
   end
 
   @spec element_type(atom) :: EBML.t()
@@ -678,8 +756,11 @@ defmodule Membrane.WebM.Schema do
   @spec element_id_to_name(integer) :: atom
   def element_id_to_name(element_id) do
     case BiMap.fetch(@bimap, element_id) do
-      {:ok, name} -> name
-      :error -> :Unknown
+      {:ok, name} ->
+        name
+
+      :error ->
+        :Unknown
     end
   end
 

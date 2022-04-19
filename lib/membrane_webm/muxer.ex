@@ -13,10 +13,11 @@ defmodule Membrane.WebM.Muxer do
   use Membrane.Filter
 
   alias Membrane.{Buffer, RemoteStream}
-  alias Membrane.{Opus, VP8, VP9}
+  alias Membrane.{Opus, VP8, VP9, MP4}
   alias Membrane.WebM.Parser.Codecs
   alias Membrane.WebM.Serializer
   alias Membrane.WebM.Serializer.Helper
+  alias Membrane.MP4.Payload.AVC1
 
   def_options title: [
                 spec: String.t(),
@@ -36,7 +37,7 @@ defmodule Membrane.WebM.Muxer do
     availability: :on_request,
     mode: :pull,
     demand_unit: :buffers,
-    caps: [Opus, VP8, VP9]
+    caps: [Opus, VP8, VP9, MP4.Payload]
 
   def_output_pad :output,
     availability: :always,
@@ -60,7 +61,8 @@ defmodule Membrane.WebM.Muxer do
               cues: [],
               time_min: 0,
               time_max: 0,
-              options: %{}
+              options: %{},
+              keyframe_occurs?: false
   end
 
   @impl true
@@ -83,10 +85,20 @@ defmodule Membrane.WebM.Muxer do
   def handle_caps(Pad.ref(:input, id), caps, _context, state) do
     codec =
       case caps do
-        %VP8{} -> :vp8
-        %VP9{} -> :vp9
-        %Opus{} -> :opus
-        _other -> raise "unsupported codec #{inspect(caps)}"
+        %VP8{} ->
+          :vp8
+
+        %VP9{} ->
+          :vp9
+
+        %Opus{} ->
+          :opus
+
+        %MP4.Payload{content: %AVC1{}} ->
+          :h264
+
+        _other ->
+          raise "unsupported codec #{inspect(caps)}"
       end
 
     state = update_in(state.active_tracks, &(&1 + 1))
@@ -145,14 +157,39 @@ defmodule Membrane.WebM.Muxer do
     end
   end
 
-  defp ingest_buffer(state, Pad.ref(:input, id), %Buffer{payload: data} = buffer) do
+  @impl true
+  def handle_end_of_stream(Pad.ref(:input, id), _context, state) when state.active_tracks != 1 do
+    {_track, state} = pop_in(state.tracks[id])
+    state = update_in(state.active_tracks, &(&1 - 1))
+    state = update_in(state.expected_tracks, &(&1 - 1))
+
+    process_next_block_and_return(state)
+  end
+
+  @impl true
+  def handle_end_of_stream(_pad_ref, _context, state) do
+    # all blocks have now been processed
+    cluster = Helper.serialize({:Cluster, state.cluster_acc})
+    cues = Helper.serialize({:Cues, state.cues})
+    _cues_segment_position = state.segment_position + byte_size(cluster)
+    state = put_in(state.options.duration, state.time_max - state.time_min)
+
+    # TODO: Now I know the location of Cues so Seek can reference it.
+    # Seek was the first serialized Segment element returned by the muxer and updating Seek requires rewriting data
+    # If I choose to rewrite it I could just as well insert Cues at the beginning of the WebM file
+    # This provides superior seeking speed when playing the file
+    # Likewise the Info element's Duration field can now be known
+    {{:ok, buffer: {:output, %Buffer{payload: cluster <> cues}}, end_of_stream: :output}, state}
+  end
+
+  defp ingest_buffer(state, Pad.ref(:input, id), %Buffer{} = buffer) do
     # update last timestamp
     timestamp = div(Buffer.get_dts_or_pts(buffer), @timestamp_scale)
     state = put_in(state.tracks[id].last_timestamp, timestamp)
     state = update_in(state.time_min, &min(timestamp, &1))
     state = update_in(state.time_max, &max(timestamp, &1))
     # cache last block
-    block = {timestamp, data, state.tracks[id].track_number, state.tracks[id].codec}
+    block = {timestamp, buffer, state.tracks[id].track_number, state.tracks[id].codec}
     put_in(state.tracks[id].last_block, block)
   end
 
@@ -213,7 +250,7 @@ defmodule Membrane.WebM.Muxer do
             cluster_acc: current_cluster_acc,
             cluster_time: cluster_time,
             cluster_size: cluster_size
-          } = state, {absolute_time, data, track_number, type} = block}
+          } = state, {absolute_time, buffer, track_number, type} = block}
        ) do
     cluster_time = min(cluster_time, absolute_time)
     relative_time = absolute_time - cluster_time
@@ -223,15 +260,20 @@ defmodule Membrane.WebM.Muxer do
       IO.warn("Simpleblock timecode overflow. Still writing but some data will be lost.")
     end
 
+    simple_block = {:SimpleBlock, {relative_time, buffer, track_number, type}}
+    serialized_block = Helper.serialize(simple_block)
+
     # FIXME: The new cluster should be created BEFORE this condition is met
     begin_new_cluster =
-      cluster_size >= @cluster_bytes_limit or
+      cluster_size + byte_size(serialized_block) >= @cluster_bytes_limit or
         relative_time * @timestamp_scale >= @cluster_time_limit or
-        Codecs.is_video_keyframe?(block)
+        (state.keyframe_occurs? and Codecs.is_video_keyframe?(block))
+
+    state = Map.update!(state, :keyframe_occurs?, &(&1 or Codecs.is_video_keyframe?(block)))
 
     if begin_new_cluster do
       timecode = {:Timecode, absolute_time}
-      simple_block = {:SimpleBlock, {0, data, track_number, type}}
+      simple_block = {:SimpleBlock, {0, buffer, track_number, type}}
       new_cluster = Helper.serialize([timecode, simple_block])
 
       state =
@@ -240,7 +282,8 @@ defmodule Membrane.WebM.Muxer do
             state
             | cluster_acc: new_cluster,
               cluster_time: absolute_time,
-              cluster_size: byte_size(new_cluster)
+              cluster_size: byte_size(new_cluster),
+              keyframe_occurs?: false
           },
           track_number
         )
@@ -255,13 +298,18 @@ defmodule Membrane.WebM.Muxer do
         {state, serialized_cluster}
       end
     else
-      simple_block = {:SimpleBlock, {absolute_time - cluster_time, data, track_number, type}}
-      serialized_block = Helper.serialize(simple_block)
+      # simple_block = {:SimpleBlock, {relative_time, data, track_number, type}}
+      # serialized_block = Helper.serialize(simple_block)
       state = update_in(state.cluster_acc, &(&1 <> serialized_block))
       state = update_in(state.cluster_size, &(&1 + byte_size(serialized_block)))
+      state = put_in(state.cluster_time, cluster_time)
 
       {state, <<>>}
     end
+  end
+
+  defp step_cluster({%State{} = state, nil}) do
+    {state, <<>>}
   end
 
   # Blocks are written in timestamp order.
@@ -279,31 +327,5 @@ defmodule Membrane.WebM.Muxer do
     time1 < time2 or
       (time1 == time2 and
          (Codecs.type(codec1) == :audio and Codecs.type(codec2) == :video))
-  end
-
-  @impl true
-  def handle_end_of_stream(Pad.ref(:input, id), _context, state) when state.active_tracks != 1 do
-    {_track, state} = pop_in(state.tracks[id])
-    state = update_in(state.active_tracks, &(&1 - 1))
-    state = update_in(state.expected_tracks, &(&1 - 1))
-
-    process_next_block_and_return(state)
-  end
-
-  @impl true
-  def handle_end_of_stream(_pad_ref, _context, state) do
-    # all blocks have now been processed
-    cluster = Helper.serialize({:Cluster, state.cluster_acc})
-    cues = Helper.serialize({:Cues, state.cues})
-    _cues_segment_position = state.segment_position + byte_size(cluster)
-    state = put_in(state.options.duration, state.time_max - state.time_min)
-    # IO.inspect(state)
-
-    # TODO: Now I know the location of Cues so Seek can reference it.
-    # Seek was the first serialized Segment element returned by the muxer and updating Seek requires rewriting data
-    # If I choose to rewrite it I could just as well insert Cues at the beginning of the WebM file
-    # This provides superior seeking speed when playing the file
-    # Likewise the Info element's Duration field can now be known
-    {{:ok, buffer: {:output, %Buffer{payload: cluster <> cues}}, end_of_stream: :output}, state}
   end
 end

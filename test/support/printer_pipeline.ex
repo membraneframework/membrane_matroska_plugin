@@ -3,6 +3,8 @@ defmodule Membrane.WebM.DebugTest.PrinterPipeline do
 
   @impl true
   def handle_init(options) do
+    output_file = Path.basename(options.input_file) <> ".ex"
+
     children = [
       source: %Membrane.File.Source{
         location: options.input_file,
@@ -10,7 +12,7 @@ defmodule Membrane.WebM.DebugTest.PrinterPipeline do
       },
       printer: Membrane.WebM.Printer,
       sink: %Membrane.File.Sink{
-        location: Path.join(options.output_dir, "output.ex")
+        location: Path.join(options.output_dir, output_file)
       }
     ]
 

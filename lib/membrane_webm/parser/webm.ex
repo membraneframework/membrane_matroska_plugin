@@ -83,7 +83,7 @@ defmodule Membrane.WebM.Parser.WebM do
 
     case text do
       "webm" -> "webm"
-      # "matroska" -> "matroska"
+      "matroska" -> "matroska"
       type -> raise "The file DocType is '#{type}' but it MUST be 'webm'"
     end
   end
@@ -97,6 +97,7 @@ defmodule Membrane.WebM.Parser.WebM do
       "A_VORBIS" -> :vorbis
       "V_VP8" -> :vp8
       "V_VP9" -> :vp9
+      "V_MPEG4/ISO/AVC" -> :h264
       codec -> raise "WebM contains illegal codec #{codec}"
     end
   end

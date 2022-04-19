@@ -26,7 +26,7 @@ defmodule Membrane.WebM.Demuxer do
   use Membrane.Filter
 
   alias Membrane.{Buffer, Time, Pipeline.Action}
-  alias Membrane.{Opus, RemoteStream, VP8, VP9}
+  alias Membrane.{Opus, RemoteStream, VP8, VP9, H264}
 
   def_input_pad :input,
     availability: :always,
@@ -37,7 +37,7 @@ defmodule Membrane.WebM.Demuxer do
   def_output_pad :output,
     availability: :on_request,
     mode: :pull,
-    caps: [VP8, VP9, Opus]
+    caps: [VP8, VP9, Opus, H264.RemoteStream]
 
   defmodule State do
     @moduledoc false
@@ -113,6 +113,12 @@ defmodule Membrane.WebM.Demuxer do
 
         :vp9 ->
           %VP9{width: track.width, height: track.height}
+
+        :h264 ->
+          %H264.RemoteStream{
+            decoder_configuration_record: track.codec_private,
+            stream_format: :byte_stream
+          }
 
         :vorbis ->
           raise "Track #{id} is encoded with Vorbis which is not supported by the demuxer"
@@ -191,7 +197,7 @@ defmodule Membrane.WebM.Demuxer do
           {:buffer,
            {Pad.ref(:output, data.track_number),
             %Buffer{
-              payload: data.data,
+              payload: process_codec_specific(data.data, state.tracks[data.track_number].codec),
               dts: (state.current_timecode + data.timecode) * state.timestamp_scale
             }}}
 
@@ -239,12 +245,6 @@ defmodule Membrane.WebM.Demuxer do
     {actions, state}
   end
 
-  defp end_of_stream_actiosn(context) do
-    context.pads
-    |> Enum.filter(fn {_pad_ref, pad_data} -> pad_data.direction == :output end)
-    |> Enum.map(fn {pad_ref, _pad_data} -> {:end_of_stream, pad_ref} end)
-  end
-
   defp notify_about_new_tracks(tracks) do
     tracks
     |> Enum.map(fn track -> {:notify, {:new_track, track}} end)
@@ -267,6 +267,7 @@ defmodule Membrane.WebM.Demuxer do
 
           :video ->
             %{
+              codec_private: track[:CodecPrivate],
               codec: track[:CodecID],
               uid: track[:TrackUID],
               active: false,
@@ -286,5 +287,23 @@ defmodule Membrane.WebM.Demuxer do
       bytes,
       &Membrane.WebM.Schema.deserialize_webm/1
     )
+  end
+
+  defp process_codec_specific(data, codec) do
+    case codec do
+      :h264 ->
+        convert_to_annexb(data)
+
+      _ ->
+        data
+    end
+  end
+
+  defp convert_to_annexb(<<size::32, data::binary-size(size), rest::binary>>) do
+    <<0, 0, 1>> <> data <> convert_to_annexb(rest)
+  end
+
+  defp convert_to_annexb(<<>>) do
+    <<>>
   end
 end

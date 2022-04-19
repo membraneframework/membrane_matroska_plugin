@@ -39,7 +39,7 @@ defmodule Membrane.WebM.DemuxerTest do
               serial_number: 4_210_672_757
             },
             {:sink, track_id} => %Membrane.File.Sink{
-              location: Path.join(state.output_dir, "#{track_id}.ogg")
+              location: Path.join(state.output_dir, "#{track_id}_mkv.ogg")
             }
           }
 
@@ -58,7 +58,7 @@ defmodule Membrane.WebM.DemuxerTest do
           children = %{
             {:serializer, track_id} => Membrane.Element.IVF.Serializer,
             {:sink, track_id} => %Membrane.File.Sink{
-              location: Path.join(state.output_dir, "#{track_id}_#{codec}.ivf")
+              location: Path.join(state.output_dir, "#{track_id}_#{codec}_mkv.ivf")
             }
           }
 
@@ -70,6 +70,28 @@ defmodule Membrane.WebM.DemuxerTest do
           ]
 
           {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
+
+        track_info.codec == :h264 ->
+          codec = Atom.to_string(track_info.codec)
+
+          children = %{
+            :parser => %Membrane.H264.FFmpeg.Parser{alignment: :au, framerate: {30, 1}},
+            {:sink, track_id} => %Membrane.File.Sink{
+              location: Path.join(state.output_dir, "video.h264")
+            }
+          }
+
+          links = [
+            link(:demuxer)
+            |> via_out(Pad.ref(:output, track_id))
+            |> to(:parser)
+            |> to({:sink, track_id})
+          ]
+
+          {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
+
+        true ->
+          raise "Unsupported codec #{track_info.codec}"
       end
     end
   end
@@ -98,35 +120,11 @@ defmodule Membrane.WebM.DemuxerTest do
     Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
     assert_pipeline_playback_changed(pipeline, _, :stopped)
 
-    # for reference <- references do
-    #   fixtures_list = :binary.bin_to_list(File.read!(Path.join(@fixtures_dir, reference)))
-    #   tmp_list = :binary.bin_to_list(File.read!(Path.join(tmp_dir, reference)))
-
-    #   zipped_with_indexes = fixtures_list |> Enum.zip(tmp_list) |> Enum.with_index()
-
-    #   for {{elem1, elem2}, idx} = _elem <- zipped_with_indexes do
-    #     if elem1 != elem2 do
-    #       raise "#{elem1} is not equal #{elem2} on index #{idx}"
-    #     end
-    #   end
-    # end
-
     for reference <- references do
       reference_file = File.read!(Path.join(@fixtures_dir, reference))
       result_file = File.read!(Path.join(tmp_dir, reference))
 
       assert byte_size(reference_file) == byte_size(result_file)
-
-      fixtures_list = :binary.bin_to_list(reference_file)
-      result_list = :binary.bin_to_list(result_file)
-
-      zipped_with_indexes = fixtures_list |> Enum.zip(result_list) |> Enum.with_index()
-
-      for {{elem1, elem2}, idx} = _elem <- zipped_with_indexes do
-        if elem1 != elem2 do
-          raise "#{elem1} is not equal #{elem2} on index #{idx}"
-        end
-      end
 
       assert reference_file == result_file
     end
@@ -140,13 +138,26 @@ defmodule Membrane.WebM.DemuxerTest do
     end)
   end
 
-  @tag :tmp_dir
-  test "demuxing mkv containing opus", %{tmp_dir: tmp_dir} do
-    test_stream("muxed_opus.mkv", ["1.ogg"], tmp_dir)
-  end
+  # @tag :tmp_dir
+  # test "demuxing mkv containing opus", %{tmp_dir: tmp_dir} do
+  #   test_stream("muxed_opus.mkv", ["1_mkv.ogg"], tmp_dir)
+  # end
+
+  # @tag :tmp_dir
+  # test "demuxing mkv file", %{tmp_dir: tmp_dir} do
+  #   tmp_dir = "./tmp/"
+  #   test_stream("vp8_opus_video.mkv", ["1_vp8_mkv.ivf", "2_mkv.ogg"], tmp_dir)
+  # end
 
   @tag :tmp_dir
   test "demuxing mkv file", %{tmp_dir: tmp_dir} do
-    test_stream("vp8_opus_video.mkv", ["1_vp8.ivf", "2.ogg"], tmp_dir)
+    tmp_dir = "./tmp/"
+    test_stream("vp9_opus_video.mkv", ["1_vp9_mkv.ivf", "2_mkv.ogg"], tmp_dir)
   end
+
+  # @tag :tmp_dir
+  # test "demuxing mkv file", %{tmp_dir: tmp_dir} do
+  #   tmp_dir = "./tmp/"
+  #   test_stream("combined_h264.mkv", ["video.h264", "2.ogg"], tmp_dir)
+  # end
 end

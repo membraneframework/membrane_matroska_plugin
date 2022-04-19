@@ -6,6 +6,8 @@ defmodule Membrane.WebM.Parser.Codecs do
 
   # Extracts the keyframe flag from a VP8 stream buffer.
   # See https://datatracker.ietf.org/doc/html/rfc6386#section-9
+
+  alias Membrane.Buffer
   @spec vp8_frame_is_keyframe(binary) :: boolean
   def vp8_frame_is_keyframe(<<frame_tag::binary-size(3), _rest::bitstring>>) do
     <<size_0::3, _show_frame::1, _version::3, frame_type::1, size_1, size_2>> = frame_tag
@@ -43,7 +45,15 @@ defmodule Membrane.WebM.Parser.Codecs do
     frame_type == 0
   end
 
-  @spec is_video_keyframe?({integer, binary, non_neg_integer, atom}) :: boolean
+  @spec h264_frame_is_keyframe(binary) :: boolean
+  def h264_frame_is_keyframe(<<frame_tag::binary-size(3), _rest::bitstring>>) do
+    <<size_0::3, _show_frame::1, _version::3, frame_type::1, size_1, size_2>> = frame_tag
+    <<_size::19>> = <<size_2, size_1, size_0::3>>
+
+    frame_type == 0
+  end
+
+  @spec is_video_keyframe?({integer, Buffer.t(), non_neg_integer, atom}) :: boolean
   def is_video_keyframe?({_timecode, _data, _track_number, codec} = block) do
     type(codec) == :video and keyframe_bit(block) == 1
   end
@@ -54,17 +64,30 @@ defmodule Membrane.WebM.Parser.Codecs do
       :opus -> :audio
       :vp8 -> :video
       :vp9 -> :video
+      :h264 -> :video
     end
   end
 
-  @spec keyframe_bit({integer, binary, non_neg_integer, atom}) :: 0 | 1
-  def keyframe_bit({_timecode, data, _track_number, codec} = _block) do
+  @spec keyframe_bit({integer, Buffer.t(), non_neg_integer, atom}) :: 0 | 1
+  def keyframe_bit({_timecode, %Buffer{payload: data} = buffer, _track_number, codec} = _block) do
     case codec do
-      :vp8 -> vp8_frame_is_keyframe(data) |> boolean_to_integer
-      :vp9 -> vp9_frame_is_keyframe(data) |> boolean_to_integer
-      :opus -> 1
-      :vorbis -> raise "Vorbis is unsupported"
-      _other -> raise "illegal codec #{inspect(codec)}"
+      :vp8 ->
+        vp8_frame_is_keyframe(data) |> boolean_to_integer
+
+      :vp9 ->
+        vp9_frame_is_keyframe(data) |> boolean_to_integer
+
+      :h264 ->
+        buffer.metadata.h264.key_frame? |> boolean_to_integer
+
+      :opus ->
+        1
+
+      :vorbis ->
+        raise "Vorbis is unsupported"
+
+      _other ->
+        raise "illegal codec #{inspect(codec)}"
     end
   end
 

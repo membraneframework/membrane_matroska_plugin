@@ -4,10 +4,11 @@ defmodule Membrane.WebM.Serializer.WebM do
   # Module for constructing the top-level elements constituting a WebM file Segment
   # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-7
 
+  alias Membrane.Buffer
   alias Membrane.WebM.Parser.Codecs
   alias Membrane.WebM.Serializer.Helper
   alias Membrane.WebM.Serializer.EBML
-  alias Membrane.{Opus, VP8, VP9}
+  alias Membrane.{Opus, VP8, VP9, MP4}
 
   @timestamp_scale Membrane.Time.millisecond()
   @version Membrane.WebM.Plugin.Mixfile.project()[:version]
@@ -32,7 +33,11 @@ defmodule Membrane.WebM.Serializer.WebM do
   end
 
   @spec serialize_simple_block(tuple, atom, function) :: binary
-  def serialize_simple_block({timecode, data, track_number, _type} = block, _element_name, schema) do
+  def serialize_simple_block(
+        {timecode, %Buffer{payload: data}, track_number, _type} = block,
+        _element_name,
+        schema
+      ) do
     # Opus flags
     #         value :: number_of_bits
     # keyframe:    1::0     # always 1    - no mention of keyframes in Opus RFC
@@ -81,8 +86,8 @@ defmodule Membrane.WebM.Serializer.WebM do
       [
         DocTypeReadVersion: 2,
         DocTypeVersion: 4,
-        DocType: "webm",
-        # DocType: "matroska",
+        # DocType: "webm",
+        DocType: "matroska",
         EBMLMaxSizeLength: 8,
         EBMLMaxIDLength: 4,
         EBMLReadVersion: 1,
@@ -143,6 +148,35 @@ defmodule Membrane.WebM.Serializer.WebM do
        # 1 for video
        TrackType: 1,
        CodecID: "V_VP9",
+       FlagLacing: 0,
+       TrackUID: id,
+       TrackNumber: track_number
+     ]}
+  end
+
+  defp construct_track_entry(
+         {id,
+          %{
+            caps: %MP4.Payload{
+              content: %Membrane.MP4.Payload.AVC1{
+                avcc: codec_private
+              },
+              width: width,
+              height: height
+            },
+            track_number: track_number
+          }}
+       ) do
+    {:TrackEntry,
+     [
+       CodecPrivate: codec_private,
+       Video: [
+         PixelHeight: width,
+         PixelWidth: height
+       ],
+       # 1 for video
+       TrackType: 1,
+       CodecID: "V_MPEG4/ISO/AVC",
        FlagLacing: 0,
        TrackUID: id,
        TrackNumber: track_number

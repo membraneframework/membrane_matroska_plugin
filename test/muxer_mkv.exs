@@ -21,7 +21,7 @@ defmodule Membrane.WebM.MuxerTest do
   @pad_id_4 16_890_875_709_512_990_721
 
   defp test_from_buffers(tmp_dir) do
-    output_file = Path.join(tmp_dir, "output.mkv")
+    output_file = Path.join(tmp_dir, "output_muxed_opus.mkv")
     reference_file = Path.join(@fixtures_dir, "muxed_opus.mkv")
 
     buffers =
@@ -37,7 +37,7 @@ defmodule Membrane.WebM.MuxerTest do
             output: Testing.Source.output_from_buffers(buffers),
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
-          muxer: Membrane.WebM.Muxer,
+          muxer: %Membrane.WebM.Muxer{add_date?: false},
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -66,7 +66,7 @@ defmodule Membrane.WebM.MuxerTest do
             location: input_file
           },
           deserializer: Membrane.Element.IVF.Deserializer,
-          muxer: Membrane.WebM.Muxer,
+          muxer: %Membrane.WebM.Muxer{add_date?: false},
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -84,10 +84,10 @@ defmodule Membrane.WebM.MuxerTest do
     play_and_validate(pipeline, reference_file, output_file)
   end
 
-  defp test_many(tmp_dir) do
-    input_file = Path.join(@fixtures_dir, "1_vp8.ivf")
-    output_file = Path.join(tmp_dir, "output.webm")
-    reference_file = Path.join(@fixtures_dir, "combined.webm")
+  defp test_many(tmp_dir, codec) when codec in [:vp8, :vp9] do
+    input_file = Path.join(@fixtures_dir, "1_#{Atom.to_string(codec)}.ivf")
+    output_file = Path.join(tmp_dir, "output.mkv")
+    reference_file = Path.join(@fixtures_dir, "combined_#{Atom.to_string(codec)}.mkv")
 
     buffers =
       Path.join(@fixtures_dir, "buffers_dump.opus")
@@ -106,7 +106,7 @@ defmodule Membrane.WebM.MuxerTest do
             output: Testing.Source.output_from_buffers(buffers),
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
-          muxer: Membrane.WebM.Muxer,
+          muxer: %Membrane.WebM.Muxer{add_date?: false},
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -114,6 +114,53 @@ defmodule Membrane.WebM.MuxerTest do
         links: [
           link(:vpx_source)
           |> to(:deserializer)
+          |> via_in(Pad.ref(:input, @pad_id_3))
+          |> to(:muxer),
+          link(:opus_source)
+          |> via_in(Pad.ref(:input, @pad_id_4))
+          |> to(:muxer),
+          link(:muxer)
+          |> to(:sink)
+        ]
+      }
+      |> Testing.Pipeline.start_link()
+
+    play_and_validate(pipeline, reference_file, output_file)
+  end
+
+  defp test_many(tmp_dir, :h264) do
+    input_file = Path.join(@fixtures_dir, "video.h264")
+    output_file = Path.join(tmp_dir, "output_h264.mkv")
+    reference_file = Path.join(@fixtures_dir, "combined_h264.mkv")
+
+    buffers =
+      Path.join(@fixtures_dir, "buffers_dump.opus")
+      |> File.read!()
+      |> :erlang.binary_to_term()
+      |> Enum.reverse()
+
+    {:ok, pipeline} =
+      %Testing.Pipeline.Options{
+        elements: [
+          h264_source: %Membrane.File.Source{location: input_file},
+          parser: %Membrane.H264.FFmpeg.Parser{
+            framerate: {60, 1},
+            attach_nalus?: true
+          },
+          opus_source: %Testing.Source{
+            output: Testing.Source.output_from_buffers(buffers),
+            caps: %Opus{channels: 2, self_delimiting?: false}
+          },
+          mp4_payloader: Membrane.MP4.Payloader.H264,
+          muxer: %Membrane.WebM.Muxer{add_date?: false},
+          sink: %Membrane.File.Sink{
+            location: output_file
+          }
+        ],
+        links: [
+          link(:h264_source)
+          |> to(:parser)
+          |> to(:mp4_payloader)
           |> via_in(Pad.ref(:input, @pad_id_3))
           |> to(:muxer),
           link(:opus_source)
@@ -150,7 +197,8 @@ defmodule Membrane.WebM.MuxerTest do
       end
     end
 
-    assert byte_size(reference_file) - byte_size(result_file) == 0
+    assert byte_size(reference_file) == byte_size(result_file)
+    assert reference_file == result_file
   end
 
   @tag :tmp_dir
@@ -161,24 +209,33 @@ defmodule Membrane.WebM.MuxerTest do
     end)
   end
 
-  # @tag :tmp_dir
-  # test "mux single vp8", %{tmp_dir: tmp_dir} do
-  #   test_stream("1_vp8.ivf", "muxed_vp8.mkv", tmp_dir)
-  # end
-
-  # @tag :tmp_dir
-  # test "mux single vp9", %{tmp_dir: tmp_dir} do
-  #   test_stream("1_vp9.ivf", "muxed_vp9.mkv", tmp_dir)
-  # end
-
-  # @tag :tmp_dir
-  # test "mux opus from buffers", %{tmp_dir: tmp_dir} do
-  #   test_from_buffers(tmp_dir)
-  # end
+  @tag :tmp_dir
+  test "mux single vp8", %{tmp_dir: tmp_dir} do
+    test_stream("1_vp8.ivf", "muxed_vp8.mkv", tmp_dir)
+  end
 
   @tag :tmp_dir
-  test "mux two streams into one file", %{tmp_dir: tmp_dir} do
-    tmp_dir = "./tmp/"
-    test_many(tmp_dir)
+  test "mux single vp9", %{tmp_dir: tmp_dir} do
+    test_stream("1_vp9.ivf", "muxed_vp9.mkv", tmp_dir)
+  end
+
+  @tag :tmp_dir
+  test "mux opus from buffers", %{tmp_dir: tmp_dir} do
+    test_from_buffers(tmp_dir)
+  end
+
+  @tag :tmp_dir
+  test "mux two streams (opus, vp8) into one file", %{tmp_dir: tmp_dir} do
+    test_many(tmp_dir, :vp8)
+  end
+
+  @tag :tmp_dir
+  test "mux two streams (opus, vp9) into one file", %{tmp_dir: tmp_dir} do
+    test_many(tmp_dir, :vp9)
+  end
+
+  @tag :tmp_dir
+  test "mux two streams (opus, h264) into one file", %{tmp_dir: tmp_dir} do
+    test_many(tmp_dir, :h264)
   end
 end
