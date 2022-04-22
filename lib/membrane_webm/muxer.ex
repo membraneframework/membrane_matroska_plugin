@@ -250,7 +250,7 @@ defmodule Membrane.WebM.Muxer do
             cluster_acc: current_cluster_acc,
             cluster_time: cluster_time,
             cluster_size: cluster_size
-          } = state, {absolute_time, buffer, track_number, type} = block}
+          } = state, {absolute_time, data, track_number, type} = block}
        ) do
     cluster_time = min(cluster_time, absolute_time)
     relative_time = absolute_time - cluster_time
@@ -260,20 +260,15 @@ defmodule Membrane.WebM.Muxer do
       IO.warn("Simpleblock timecode overflow. Still writing but some data will be lost.")
     end
 
-    simple_block = {:SimpleBlock, {relative_time, buffer, track_number, type}}
-    serialized_block = Helper.serialize(simple_block)
-
     # FIXME: The new cluster should be created BEFORE this condition is met
     begin_new_cluster =
-      cluster_size + byte_size(serialized_block) >= @cluster_bytes_limit or
+      cluster_size >= @cluster_bytes_limit or
         relative_time * @timestamp_scale >= @cluster_time_limit or
-        (state.keyframe_occurs? and Codecs.is_video_keyframe?(block))
-
-    state = Map.update!(state, :keyframe_occurs?, &(&1 or Codecs.is_video_keyframe?(block)))
+        Codecs.is_video_keyframe?(block)
 
     if begin_new_cluster do
       timecode = {:Timecode, absolute_time}
-      simple_block = {:SimpleBlock, {0, buffer, track_number, type}}
+      simple_block = {:SimpleBlock, {0, data, track_number, type}}
       new_cluster = Helper.serialize([timecode, simple_block])
 
       state =
@@ -282,8 +277,7 @@ defmodule Membrane.WebM.Muxer do
             state
             | cluster_acc: new_cluster,
               cluster_time: absolute_time,
-              cluster_size: byte_size(new_cluster),
-              keyframe_occurs?: false
+              cluster_size: byte_size(new_cluster)
           },
           track_number
         )
@@ -298,8 +292,8 @@ defmodule Membrane.WebM.Muxer do
         {state, serialized_cluster}
       end
     else
-      # simple_block = {:SimpleBlock, {relative_time, data, track_number, type}}
-      # serialized_block = Helper.serialize(simple_block)
+      simple_block = {:SimpleBlock, {absolute_time - cluster_time, data, track_number, type}}
+      serialized_block = Helper.serialize(simple_block)
       state = update_in(state.cluster_acc, &(&1 <> serialized_block))
       state = update_in(state.cluster_size, &(&1 + byte_size(serialized_block)))
       state = put_in(state.cluster_time, cluster_time)
@@ -308,6 +302,7 @@ defmodule Membrane.WebM.Muxer do
     end
   end
 
+  # FIXME: Why in h264 it happens
   defp step_cluster({%State{} = state, nil}) do
     {state, <<>>}
   end

@@ -193,6 +193,8 @@ defmodule Membrane.WebM.Demuxer do
         {actions, context, %State{state | current_timecode: data}}
 
       name when name in [:Block, :SimpleBlock] ->
+        track = state.tracks[data.track_number]
+
         buffer_action =
           {:buffer,
            {Pad.ref(:output, data.track_number),
@@ -255,6 +257,9 @@ defmodule Membrane.WebM.Demuxer do
     tracks = Keyword.get_values(tracks, :TrackEntry)
 
     for track <- tracks, into: %{} do
+      codec_delay = track[:CodecDelay]
+      codec_delay = if codec_delay == nil, do: 0, else: codec_delay
+
       info =
         case track[:TrackType] do
           :audio ->
@@ -262,13 +267,15 @@ defmodule Membrane.WebM.Demuxer do
               codec: track[:CodecID],
               uid: track[:TrackUID],
               active: false,
-              channels: track[:Audio][:Channels]
+              channels: track[:Audio][:Channels],
+              codec_delay: codec_delay
             }
 
           :video ->
             %{
               codec_private: track[:CodecPrivate],
               codec: track[:CodecID],
+              codec_delay: codec_delay,
               uid: track[:TrackUID],
               active: false,
               height: track[:Video][:PixelHeight],

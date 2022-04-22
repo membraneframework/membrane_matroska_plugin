@@ -574,6 +574,7 @@ defmodule Membrane.WebM.Schema do
     Seek: &Parser.EBML.parse_master/2,
     SeekPosition: &Parser.EBML.parse_uint/1,
     SeekID: &Parser.EBML.parse_binary/1,
+    TrackOffset: &Parser.EBML.parse_uint/1,
     Unknown: &Parser.EBML.parse_binary/1
   }
 
@@ -718,6 +719,7 @@ defmodule Membrane.WebM.Schema do
     Seek: &Serializer.EBML.serialize_master/3,
     SeekPosition: &Serializer.EBML.serialize_uint/3,
     SeekID: &Serializer.EBML.serialize_binary/3,
+    TrackOffset: &Serializer.EBML.serialize_uint/3,
     Unknown: &Serializer.EBML.serialize_binary/3
   }
 

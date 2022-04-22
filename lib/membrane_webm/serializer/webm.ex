@@ -124,8 +124,8 @@ defmodule Membrane.WebM.Serializer.WebM do
     {:TrackEntry,
      [
        Video: [
-         PixelHeight: width,
-         PixelWidth: height
+         PixelHeight: height,
+         PixelWidth: width
        ],
        # 1 for video
        TrackType: 1,
@@ -142,8 +142,8 @@ defmodule Membrane.WebM.Serializer.WebM do
     {:TrackEntry,
      [
        Video: [
-         PixelHeight: width,
-         PixelWidth: height
+         PixelHeight: height,
+         PixelWidth: width
        ],
        # 1 for video
        TrackType: 1,
@@ -171,8 +171,8 @@ defmodule Membrane.WebM.Serializer.WebM do
      [
        CodecPrivate: codec_private,
        Video: [
-         PixelHeight: width,
-         PixelWidth: height
+         PixelHeight: height,
+         PixelWidth: width
        ],
        # 1 for video
        TrackType: 1,

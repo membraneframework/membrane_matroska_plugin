@@ -84,7 +84,7 @@ defmodule Membrane.WebM.Parser.WebM do
     case text do
       "webm" -> "webm"
       "matroska" -> "matroska"
-      type -> raise "The file DocType is '#{type}' but it MUST be 'webm'"
+      type -> raise "The file DocType is '#{type}' but it MUST be 'matroska' or 'webm' "
     end
   end
 
