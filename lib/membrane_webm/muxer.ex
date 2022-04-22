@@ -224,7 +224,7 @@ defmodule Membrane.WebM.Muxer do
   end
 
   # https://www.matroska.org/technical/cues.html
-  def add_cluster_cuepoint(state, track_number) do
+  defp add_cluster_cuepoint(state, track_number) do
     new_cue =
       {:CuePoint,
        [

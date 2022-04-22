@@ -1,4 +1,5 @@
 defmodule Membrane.WebM.DebugTest.PrinterPipeline do
+  @moduledoc false
   use Membrane.Pipeline
 
   @impl true

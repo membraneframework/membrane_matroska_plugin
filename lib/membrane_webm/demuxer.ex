@@ -193,8 +193,6 @@ defmodule Membrane.WebM.Demuxer do
         {actions, context, %State{state | current_timecode: data}}
 
       name when name in [:Block, :SimpleBlock] ->
-        track = state.tracks[data.track_number]
-
         buffer_action =
           {:buffer,
            {Pad.ref(:output, data.track_number),
@@ -301,7 +299,7 @@ defmodule Membrane.WebM.Demuxer do
       :h264 ->
         convert_to_annexb(data)
 
-      _ ->
+      _data ->
         data
     end
   end

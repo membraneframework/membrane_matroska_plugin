@@ -167,6 +167,11 @@ defmodule Membrane.WebM.DemuxerTest do
   end
 
   @tag :tmp_dir
+  test "demuxing webm file (vp8,opus)", %{tmp_dir: tmp_dir} do
+    test_stream("vp8_opus_video.webm", %{1 => "1_vp8.ivf", 2 => "2.ogg"}, tmp_dir)
+  end
+
+  @tag :tmp_dir
   test "demuxing muxed file", %{tmp_dir: tmp_dir} do
     test_stream("combined_vp8.mkv", %{2 => "1_vp8.ivf", 1 => "1.ogg"}, tmp_dir)
   end
@@ -174,6 +179,11 @@ defmodule Membrane.WebM.DemuxerTest do
   @tag :tmp_dir
   test "demuxing mkv file (vp9,opus)", %{tmp_dir: tmp_dir} do
     test_stream("vp9_opus_video.mkv", %{1 => "1_vp9_mkv.ivf", 2 => "2.ogg"}, tmp_dir)
+  end
+
+  @tag :tmp_dir
+  test "demuxing webm file (vp9,opus)", %{tmp_dir: tmp_dir} do
+    test_stream("vp9_opus_video.webm", %{1 => "1_vp9.ivf", 2 => "2.ogg"}, tmp_dir)
   end
 
   @tag :tmp_dir
