@@ -1,7 +1,7 @@
-defmodule Membrane.WebM.Serializer.EBML do
+defmodule Membrane.Matroska.Serializer.EBML do
   @moduledoc false
 
-  alias Membrane.WebM.Schema
+  alias Membrane.Matroska.Schema
 
   @int_value_ranges [
     (-2 ** 7)..(2 ** 7 - 1),

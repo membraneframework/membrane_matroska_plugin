@@ -1,4 +1,4 @@
-defmodule Membrane.WebM.DemuxerTest do
+defmodule Membrane.Matroska.DemuxerTest do
   use ExUnit.Case
 
   import Membrane.Testing.Assertions
@@ -17,7 +17,7 @@ defmodule Membrane.WebM.DemuxerTest do
           location: options.input_file,
           chunk_size: 4096
         },
-        demuxer: Membrane.WebM.Demuxer
+        demuxer: Membrane.Matroska.Demuxer
       ]
 
       links = [

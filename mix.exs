@@ -1,4 +1,4 @@
-defmodule Membrane.WebM.Plugin.Mixfile do
+defmodule Membrane.Matroska.Plugin.Mixfile do
   use Mix.Project
 
   @version "0.1.0"
@@ -6,7 +6,7 @@ defmodule Membrane.WebM.Plugin.Mixfile do
 
   def project do
     [
-      app: :membrane_webm_plugin,
+      app: :membrane_matroska_plugin,
       version: @version,
       elixir: "~> 1.13",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -14,11 +14,11 @@ defmodule Membrane.WebM.Plugin.Mixfile do
       deps: deps(),
 
       # hex
-      description: "WebM Plugin for Membrane Multimedia Framework",
+      description: "Matroska Plugin for Membrane Multimedia Framework",
       package: package(),
 
       # docs
-      name: "Membrane WebM plugin",
+      name: "Membrane Matroska plugin",
       source_url: @github_url,
       homepage_url: "https://membraneframework.org",
       docs: docs()
@@ -78,7 +78,7 @@ defmodule Membrane.WebM.Plugin.Mixfile do
       main: "readme",
       extras: ["README.md", "LICENSE"],
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [Membrane.WebM]
+      nest_modules_by_prefix: [Membrane.Matroska]
     ]
   end
 end

@@ -1,4 +1,4 @@
-defmodule Membrane.WebM.Parser.EBML do
+defmodule Membrane.Matroska.Parser.EBML do
   @moduledoc false
 
   # Helper functions for decoding and encoding EBML elements.
@@ -41,7 +41,7 @@ defmodule Membrane.WebM.Parser.EBML do
 
   use Bitwise
 
-  alias Membrane.WebM.Schema
+  alias Membrane.Matroska.Schema
   alias Membrane.Time
 
   @type t :: :integer | :uint | :float | :string | :utf_8 | :date | :master | :binary
@@ -212,7 +212,7 @@ defmodule Membrane.WebM.Parser.EBML do
     if byte_size(bytes) == 0 do
       []
     else
-      Membrane.WebM.Parser.Helper.parse_many!([], bytes, schema)
+      Membrane.Matroska.Parser.Helper.parse_many!([], bytes, schema)
     end
   end
 end

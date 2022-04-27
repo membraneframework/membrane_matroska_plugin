@@ -1,4 +1,4 @@
-defmodule Membrane.WebM.DebugTest.PrinterPipeline do
+defmodule Membrane.Matroska.DebugTest.PrinterPipeline do
   @moduledoc false
   use Membrane.Pipeline
 
@@ -11,7 +11,7 @@ defmodule Membrane.WebM.DebugTest.PrinterPipeline do
         location: options.input_file,
         chunk_size: 4096
       },
-      printer: Membrane.WebM.Printer,
+      printer: Membrane.Matroska.Printer,
       sink: %Membrane.File.Sink{
         location: Path.join(options.output_dir, output_file)
       }

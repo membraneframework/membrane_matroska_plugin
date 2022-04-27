@@ -1,8 +1,8 @@
-defmodule Membrane.WebM.Parser.Codecs do
+defmodule Membrane.Matroska.Parser.Codecs do
   @moduledoc false
 
-  # Utility module containing functions for interacting with WebM codecs.
-  # These functions should be provided by VP8, VP9 and Opus plugins but they aren't.
+  # Utility module containing functions for interacting with Matroska codecs.
+  # These functions should be provided by VP8, VP9, Opus, H264 plugins but they aren't.
 
   # Extracts the keyframe flag from a VP8 stream buffer.
   # See https://datatracker.ietf.org/doc/html/rfc6386#section-9

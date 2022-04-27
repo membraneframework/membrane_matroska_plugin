@@ -1,9 +1,9 @@
-defmodule Membrane.WebM.Parser.WebM do
+defmodule Membrane.Matroska.Parser.Matroska do
   @moduledoc false
   # special parsing rules for matroska elements
   # note that when matroska and webm conflict webm takes precedence
 
-  alias Membrane.WebM.Parser.EBML
+  alias Membrane.Matroska.Parser.EBML
 
   @spec parse_track_type(binary) :: atom
   def parse_track_type(<<type::unsigned-integer-size(8)>>) do
@@ -52,7 +52,7 @@ defmodule Membrane.WebM.Parser.WebM do
   @spec parse_stereo_mode(binary) :: atom
   def parse_stereo_mode(<<type::unsigned-integer-size(8)>>) do
     # Stereo-3D video mode.
-    # WebM Supported Modes: 0, 1, 2, 3, 11
+    # Matroska Supported Modes: 0, 1, 2, 3, 11
     # See https://www.webmproject.org/docs/container/#StereoMode
 
     case type do
@@ -98,7 +98,7 @@ defmodule Membrane.WebM.Parser.WebM do
       "V_VP8" -> :vp8
       "V_VP9" -> :vp9
       "V_MPEG4/ISO/AVC" -> :h264
-      codec -> raise "WebM contains illegal codec #{codec}"
+      codec -> raise "Matroska contains illegal codec #{codec}"
     end
   end
 

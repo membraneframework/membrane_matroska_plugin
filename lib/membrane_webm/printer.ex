@@ -1,11 +1,11 @@
-defmodule Membrane.WebM.Printer do
+defmodule Membrane.Matroska.Printer do
   @moduledoc """
   Implementation of a standalone parser of a webm bytestream (you shouldn't need to use this, no other element uses this).
   """
   use Membrane.Filter
 
   alias Membrane.Buffer
-  alias Membrane.WebM.Parser.Helper
+  alias Membrane.Matroska.Parser.Helper
 
   def_input_pad :input,
     availability: :always,
@@ -37,7 +37,8 @@ defmodule Membrane.WebM.Printer do
 
   @impl true
   def handle_end_of_stream(:input, _context, %{acc: acc}) do
-    {parsed, _unparsed} = Helper.parse(acc, &Membrane.WebM.Schema.deserialize_webm_for_debug/1)
+    {parsed, _unparsed} =
+      Helper.parse(acc, &Membrane.Matroska.Schema.deserialize_webm_for_debug/1)
 
     {{:ok, buffer: {:output, to_buffers(parsed)}, end_of_stream: :output}, %{}}
   end

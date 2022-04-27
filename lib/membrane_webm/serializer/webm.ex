@@ -1,17 +1,17 @@
-defmodule Membrane.WebM.Serializer.WebM do
+defmodule Membrane.Matroska.Serializer.Matroska do
   @moduledoc false
 
-  # Module for constructing the top-level elements constituting a WebM file Segment
+  # Module for constructing the top-level elements constituting a Matroska file Segment
   # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-7
 
   alias Membrane.Buffer
-  alias Membrane.WebM.Parser.Codecs
-  alias Membrane.WebM.Serializer.Helper
-  alias Membrane.WebM.Serializer.EBML
+  alias Membrane.Matroska.Parser.Codecs
+  alias Membrane.Matroska.Serializer.Helper
+  alias Membrane.Matroska.Serializer.EBML
   alias Membrane.{Opus, VP8, VP9, MP4}
 
   @timestamp_scale Membrane.Time.millisecond()
-  @version Membrane.WebM.Plugin.Mixfile.project()[:version]
+  @version Membrane.Matroska.Plugin.Mixfile.project()[:version]
   @seekhead_bytes 160
 
   @spec serialize_empty_segment() :: binary
@@ -220,8 +220,8 @@ defmodule Membrane.WebM.Serializer.WebM do
     info = [
       # FIXME: off by last frame duration
       Duration: options.duration * @timestamp_scale,
-      WritingApp: "membrane_webm_plugin-#{@version}",
-      MuxingApp: "membrane_webm_plugin-#{@version}",
+      WritingApp: "membrane_matroska_plugin-#{@version}",
+      MuxingApp: "membrane_matroska_plugin-#{@version}",
       Title: options.title,
       DateUTC:
         :calendar.datetime_to_gregorian_seconds(:calendar.now_to_datetime(:erlang.timestamp())),

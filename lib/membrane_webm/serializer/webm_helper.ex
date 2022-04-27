@@ -1,11 +1,11 @@
-defmodule Membrane.WebM.Serializer.Helper do
+defmodule Membrane.Matroska.Serializer.Helper do
   @moduledoc false
 
-  # Module for serializing WebM elements into writable bytes.
+  # Module for serializing Matroska elements into writable bytes.
 
   use Bitwise
 
-  alias Membrane.WebM.Schema
+  alias Membrane.Matroska.Schema
 
   @spec serialize({atom, any}) :: binary
   def serialize({name, data}) do

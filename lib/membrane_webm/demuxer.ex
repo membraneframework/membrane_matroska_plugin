@@ -1,8 +1,8 @@
-defmodule Membrane.WebM.Demuxer do
+defmodule Membrane.Matroska.Demuxer do
   @moduledoc """
-  Filter element for demuxing WebM files.
+  Filter element for demuxing Matroska files.
 
-  Receives a bytestream in WebM file format as input and outputs the constituent tracks of that file
+  Receives a bytestream in Matroska file format as input and outputs the constituent tracks of that file
   onto seperate pads.
 
   This demuxer is only capable of demuxing tracks encoded with VP8, VP9 or Opus.
@@ -11,7 +11,7 @@ defmodule Membrane.WebM.Demuxer do
   # Works in three phases:
 
   # - :reading_header
-  #   Demands and parses the beginning bytes of the WebM file describing it's contents and sends:
+  #   Demands and parses the beginning bytes of the Matroska file describing it's contents and sends:
   #   `{:notify, {:new_track, {track_id, track_t}}}`
   #   notification to the parent pipeline for every track contained in the file.
 
@@ -288,9 +288,9 @@ defmodule Membrane.WebM.Demuxer do
   end
 
   defp parse(bytes) do
-    Membrane.WebM.Parser.Helper.parse(
+    Membrane.Matroska.Parser.Helper.parse(
       bytes,
-      &Membrane.WebM.Schema.deserialize_webm/1
+      &Membrane.Matroska.Schema.deserialize_webm/1
     )
   end
 

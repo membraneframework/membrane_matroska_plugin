@@ -1,13 +1,13 @@
-defmodule Membrane.WebM.Schema do
+defmodule Membrane.Matroska.Schema do
   @moduledoc """
-  WebM structure schema for muxing and demuxing
+  Matroska structure schema for muxing and demuxing
 
   Docs:
     - EBML https://www.rfc-editor.org/rfc/rfc8794.html
-    - WebM https://www.webmproject.org/docs/container/
+    - Matroska https://www.webmproject.org/docs/container/
     - Matroska https://matroska.org/technical/basics.html
 
-  A typical WebM file has the following structure:
+  A typical Matroska file has the following structure:
 
   EBML
   Segment
@@ -44,11 +44,11 @@ defmodule Membrane.WebM.Schema do
   │   └── SimpleBlock
 
   Matroska elements and ID's https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#name-matroska-schema
-  WebM supported Matroska elements https://www.webmproject.org/docs/container/#EBML
+  Matroska supported Matroska elements https://www.webmproject.org/docs/container/#EBML
   """
 
-  alias Membrane.WebM.Parser
-  alias Membrane.WebM.Serializer
+  alias Membrane.Matroska.Parser
+  alias Membrane.Matroska.Serializer
 
   @bimap BiMap.new([
            ### EBML elements
@@ -439,7 +439,7 @@ defmodule Membrane.WebM.Schema do
     EBMLReadVersion: &Parser.EBML.parse_uint/1,
     EBMLMaxIDLength: &Parser.EBML.parse_uint/1,
     EBMLMaxSizeLength: &Parser.EBML.parse_uint/1,
-    DocType: &Parser.WebM.parse_doc_type/1,
+    DocType: &Parser.Matroska.parse_doc_type/1,
     DocTypeVersion: &Parser.EBML.parse_uint/1,
     DocTypeReadVersion: &Parser.EBML.parse_uint/1,
     DocTypeExtension: &Parser.EBML.parse_master/2,
@@ -458,11 +458,11 @@ defmodule Membrane.WebM.Schema do
     CueDuration: &Parser.EBML.parse_uint/1,
     CueBlockNumber: &Parser.EBML.parse_uint/1,
     Cluster: :ApplyFlatParsing,
-    SimpleBlock: &Parser.WebM.parse_simple_block/1,
+    SimpleBlock: &Parser.Matroska.parse_simple_block/1,
     Timecode: &Parser.EBML.parse_uint/1,
     PrevSize: &Parser.EBML.parse_uint/1,
     BlockGroup: &Parser.EBML.parse_master/2,
-    Block: &Parser.WebM.parse_block/1,
+    Block: &Parser.Matroska.parse_block/1,
     BlockAdditions: &Parser.EBML.parse_master/2,
     BlockMore: &Parser.EBML.parse_master/2,
     BlockAddID: &Parser.EBML.parse_uint/1,
@@ -491,11 +491,11 @@ defmodule Membrane.WebM.Schema do
     FlagForced: &Parser.EBML.parse_uint/1,
     FlagLacing: &Parser.EBML.parse_uint/1,
     Language: &Parser.EBML.parse_string/1,
-    CodecID: &Parser.WebM.parse_codec_id/1,
+    CodecID: &Parser.Matroska.parse_codec_id/1,
     CodecDelay: &Parser.EBML.parse_uint/1,
     SeekPreRoll: &Parser.EBML.parse_uint/1,
     Name: &Parser.EBML.parse_utf8/1,
-    TrackType: &Parser.WebM.parse_track_type/1,
+    TrackType: &Parser.Matroska.parse_track_type/1,
     CodecPrivate: &Parser.EBML.parse_binary/1,
     CodecName: &Parser.EBML.parse_utf8/1,
     Audio: &Parser.EBML.parse_master/2,
@@ -503,11 +503,11 @@ defmodule Membrane.WebM.Schema do
     Video: &Parser.EBML.parse_master/2,
     PixelWidth: &Parser.EBML.parse_uint/1,
     PixelHeight: &Parser.EBML.parse_uint/1,
-    FlagInterlaced: &Parser.WebM.parse_flag_interlaced/1,
-    StereoMode: &Parser.WebM.parse_stereo_mode/1,
+    FlagInterlaced: &Parser.Matroska.parse_flag_interlaced/1,
+    StereoMode: &Parser.Matroska.parse_stereo_mode/1,
     Colour: &Parser.EBML.parse_master/2,
-    ChromaSitingHorz: &Parser.WebM.parse_chroma_siting_horz/1,
-    ChromaSitingVert: &Parser.WebM.parse_chroma_siting_vert/1,
+    ChromaSitingHorz: &Parser.Matroska.parse_chroma_siting_horz/1,
+    ChromaSitingVert: &Parser.Matroska.parse_chroma_siting_vert/1,
     AlphaMode: &Parser.EBML.parse_uint/1,
     PixelCropBottom: &Parser.EBML.parse_uint/1,
     PixelCropTop: &Parser.EBML.parse_uint/1,
@@ -591,7 +591,7 @@ defmodule Membrane.WebM.Schema do
     DocTypeExtensionName: &Serializer.EBML.serialize_string/3,
     DocTypeExtensionVersion: &Serializer.EBML.serialize_uint/3,
     # CRC_32: :crc_32,
-    Void: &Serializer.WebM.serialize_void/3,
+    Void: &Serializer.Matroska.serialize_void/3,
     Segment: &Serializer.EBML.serialize_master/3,
     Cues: &Serializer.EBML.serialize_master/3,
     CuePoint: &Serializer.EBML.serialize_master/3,
@@ -602,8 +602,8 @@ defmodule Membrane.WebM.Schema do
     CueTrack: &Serializer.EBML.serialize_uint/3,
     CueDuration: &Serializer.EBML.serialize_uint/3,
     CueBlockNumber: &Serializer.EBML.serialize_uint/3,
-    Cluster: &Serializer.WebM.serialize_cluster/3,
-    SimpleBlock: &Serializer.WebM.serialize_simple_block/3,
+    Cluster: &Serializer.Matroska.serialize_cluster/3,
+    SimpleBlock: &Serializer.Matroska.serialize_simple_block/3,
     Timecode: &Serializer.EBML.serialize_uint/3,
     PrevSize: &Serializer.EBML.serialize_uint/3,
     BlockGroup: &Serializer.EBML.serialize_master/3,

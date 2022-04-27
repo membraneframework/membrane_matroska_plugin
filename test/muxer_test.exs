@@ -1,4 +1,4 @@
-defmodule Membrane.WebM.MuxerTest do
+defmodule Membrane.Matroska.MuxerTest do
   # note that input pad ids should be set to a random value:
   # :random.uniform(1 <<< 64)
   # here numbers are hardcoded to achieve reproducibility
@@ -37,7 +37,7 @@ defmodule Membrane.WebM.MuxerTest do
             output: Testing.Source.output_from_buffers(buffers),
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
-          muxer: %Membrane.WebM.Muxer{add_date?: false},
+          muxer: %Membrane.Matroska.Muxer{add_date?: false},
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -66,7 +66,7 @@ defmodule Membrane.WebM.MuxerTest do
             location: input_file
           },
           deserializer: Membrane.Element.IVF.Deserializer,
-          muxer: %Membrane.WebM.Muxer{add_date?: false},
+          muxer: %Membrane.Matroska.Muxer{add_date?: false},
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -106,7 +106,7 @@ defmodule Membrane.WebM.MuxerTest do
             output: Testing.Source.output_from_buffers(buffers),
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
-          muxer: %Membrane.WebM.Muxer{add_date?: false},
+          muxer: %Membrane.Matroska.Muxer{add_date?: false},
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -152,7 +152,7 @@ defmodule Membrane.WebM.MuxerTest do
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
           mp4_payloader: Membrane.MP4.Payloader.H264,
-          muxer: %Membrane.WebM.Muxer{add_date?: false},
+          muxer: %Membrane.Matroska.Muxer{add_date?: false},
           sink: %Membrane.File.Sink{
             location: output_file
           }

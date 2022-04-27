@@ -1,8 +1,8 @@
-defmodule Membrane.WebM.Muxer do
+defmodule Membrane.Matroska.Muxer do
   @moduledoc """
-  Filter element for muxing WebM files.
+  Filter element for muxing Matroska files.
 
-  It accepts an arbitrary number of Opus, VP8 or VP9 streams and outputs a bytestream in WebM format containing those streams.
+  It accepts an arbitrary number of Opus, VP8 or VP9 streams and outputs a bytestream in Matroska format containing those streams.
 
   Muxer guidelines
   https://www.webmproject.org/docs/container/
@@ -14,14 +14,14 @@ defmodule Membrane.WebM.Muxer do
 
   alias Membrane.{Buffer, RemoteStream}
   alias Membrane.{Opus, VP8, VP9, MP4}
-  alias Membrane.WebM.Parser.Codecs
-  alias Membrane.WebM.Serializer
-  alias Membrane.WebM.Serializer.Helper
+  alias Membrane.Matroska.Parser.Codecs
+  alias Membrane.Matroska.Serializer
+  alias Membrane.Matroska.Serializer.Helper
   alias Membrane.MP4.Payload.AVC1
 
   def_options title: [
                 spec: String.t(),
-                default: "Membrane WebM file",
+                default: "Membrane Matroska file",
                 description: "Title to be used in the `Segment/Info/Title` element"
               ],
               add_date?: [
@@ -118,7 +118,7 @@ defmodule Membrane.WebM.Muxer do
 
     if state.active_tracks == state.expected_tracks do
       {segment_position, webm_header} =
-        Serializer.WebM.serialize_webm_header(state.tracks, state.options)
+        Serializer.Matroska.serialize_webm_header(state.tracks, state.options)
 
       state = update_in(state.segment_position, &(&1 + segment_position))
       demands = Enum.map(state.tracks, fn {id, _track_data} -> {:demand, Pad.ref(:input, id)} end)
@@ -176,7 +176,7 @@ defmodule Membrane.WebM.Muxer do
 
     # TODO: Now I know the location of Cues so Seek can reference it.
     # Seek was the first serialized Segment element returned by the muxer and updating Seek requires rewriting data
-    # If I choose to rewrite it I could just as well insert Cues at the beginning of the WebM file
+    # If I choose to rewrite it I could just as well insert Cues at the beginning of the Matroska file
     # This provides superior seeking speed when playing the file
     # Likewise the Info element's Duration field can now be known
     {{:ok, buffer: {:output, %Buffer{payload: cluster <> cues}}, end_of_stream: :output}, state}
@@ -244,7 +244,7 @@ defmodule Membrane.WebM.Muxer do
   #   Relative Timestamp = Block
   #   Raw Timestamp = (Block+Cluster)*TimestampScale
   # Matroska RFC https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-7-18
-  # WebM Muxer Guidelines https://www.webmproject.org/docs/container/
+  # Matroska Muxer Guidelines https://www.webmproject.org/docs/container/
   defp step_cluster(
          {%State{
             cluster_acc: current_cluster_acc,
@@ -308,7 +308,7 @@ defmodule Membrane.WebM.Muxer do
   end
 
   # Blocks are written in timestamp order.
-  # Per WebM Muxer Guidelines:
+  # Per Matroska Muxer Guidelines:
   # FIXME: this condition is not supported
   # - Audio blocks that contain the video key frame's timecode SHOULD be in the same cluster
   #   as the video key frame block.
