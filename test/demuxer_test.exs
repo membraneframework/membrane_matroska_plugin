@@ -120,8 +120,8 @@ defmodule Membrane.Matroska.DemuxerTest do
     if Enum.count(references) == 1 do
       assert_end_of_stream(pipeline, {:sink, 1})
     else
-      assert_end_of_stream(pipeline, {:sink, 1})
-      assert_end_of_stream(pipeline, {:sink, 2})
+      assert_end_of_stream(pipeline, {:sink, 1}, :input)
+      assert_end_of_stream(pipeline, {:sink, 2}, :input)
     end
 
     Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
@@ -131,20 +131,9 @@ defmodule Membrane.Matroska.DemuxerTest do
       reference_file = File.read!(Path.join(@fixtures_dir, reference))
       result_file = File.read!(Path.join(tmp_dir, reference))
 
-      assert byte_size(reference_file) == byte_size(result_file), "Different size: #{reference}"
+      assert byte_size(reference_file) == byte_size(result_file)
 
-      fixtures_list = :binary.bin_to_list(reference_file)
-      result_list = :binary.bin_to_list(result_file)
-
-      zipped_with_indexes = fixtures_list |> Enum.zip(result_list) |> Enum.with_index()
-
-      for {{elem1, elem2}, idx} = _elem <- zipped_with_indexes do
-        if elem1 != elem2 do
-          raise "#{elem1} is not equal #{elem2} on index #{idx}"
-        end
-      end
-
-      assert reference_file == result_file, "Different file: #{reference} "
+      assert reference_file == result_file
     end
   end
 
@@ -188,6 +177,11 @@ defmodule Membrane.Matroska.DemuxerTest do
 
   @tag :tmp_dir
   test "demuxing mkv file (h264,opus)", %{tmp_dir: tmp_dir} do
+    test_stream("h264_opus_video.mkv", %{1 => "video.h264", 2 => "2.ogg"}, tmp_dir)
+  end
+
+  @tag :tmp_dir
+  test "demuxing muxed file (h264,opus)", %{tmp_dir: tmp_dir} do
     test_stream("combined_h264.mkv", %{2 => "video.h264", 1 => "1.ogg"}, tmp_dir)
   end
 end
