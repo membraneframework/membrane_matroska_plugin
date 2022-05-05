@@ -19,6 +19,7 @@ defmodule Membrane.Matroska.MuxerTest do
   @pad_id_2 13_337_737_628_113_408_001
   @pad_id_3 11_020_961_587_148_742_657
   @pad_id_4 16_890_875_709_512_990_721
+  # @pad_id_5 16_890_875_709_512_990_721
 
   defp test_from_buffers(tmp_dir) do
     output_file = Path.join(tmp_dir, "output_muxed_opus.mkv")
@@ -129,7 +130,8 @@ defmodule Membrane.Matroska.MuxerTest do
   end
 
   defp test_many(tmp_dir, :h264) do
-    input_file = Path.join(@fixtures_dir, "video.h264")
+    input_file = Path.join(@fixtures_dir, "h264.flv")
+    # input_file = Path.join(@fixtures_dir, "video.h264")
     output_file = Path.join(tmp_dir, "output_h264.mkv")
     reference_file = Path.join(@fixtures_dir, "combined_h264.mkv")
 
@@ -143,6 +145,7 @@ defmodule Membrane.Matroska.MuxerTest do
       %Testing.Pipeline.Options{
         elements: [
           h264_source: %Membrane.File.Source{location: input_file},
+          flv_demuxer: Membrane.FLV.Demuxer,
           parser: %Membrane.H264.FFmpeg.Parser{
             framerate: {60, 1},
             attach_nalus?: true
@@ -159,6 +162,8 @@ defmodule Membrane.Matroska.MuxerTest do
         ],
         links: [
           link(:h264_source)
+          |> to(:flv_demuxer)
+          |> via_out(Pad.ref(:video, 0))
           |> to(:parser)
           |> to(:mp4_payloader)
           |> via_in(Pad.ref(:input, @pad_id_3))
@@ -209,33 +214,34 @@ defmodule Membrane.Matroska.MuxerTest do
     end)
   end
 
-  @tag :tmp_dir
-  test "mux single vp8", %{tmp_dir: tmp_dir} do
-    test_stream("1_vp8.ivf", "muxed_vp8.mkv", tmp_dir)
-  end
+  # @tag :tmp_dir
+  # test "mux single vp8", %{tmp_dir: tmp_dir} do
+  #   test_stream("1_vp8.ivf", "muxed_vp8.mkv", tmp_dir)
+  # end
 
-  @tag :tmp_dir
-  test "mux single vp9", %{tmp_dir: tmp_dir} do
-    test_stream("1_vp9.ivf", "muxed_vp9.mkv", tmp_dir)
-  end
+  # @tag :tmp_dir
+  # test "mux single vp9", %{tmp_dir: tmp_dir} do
+  #   test_stream("1_vp9.ivf", "muxed_vp9.mkv", tmp_dir)
+  # end
 
-  @tag :tmp_dir
-  test "mux opus from buffers", %{tmp_dir: tmp_dir} do
-    test_from_buffers(tmp_dir)
-  end
+  # @tag :tmp_dir
+  # test "mux opus from buffers", %{tmp_dir: tmp_dir} do
+  #   test_from_buffers(tmp_dir)
+  # end
 
-  @tag :tmp_dir
-  test "mux two streams (opus, vp8) into one file", %{tmp_dir: tmp_dir} do
-    test_many(tmp_dir, :vp8)
-  end
+  # @tag :tmp_dir
+  # test "mux two streams (opus, vp8) into one file", %{tmp_dir: tmp_dir} do
+  #   test_many(tmp_dir, :vp8)
+  # end
 
-  @tag :tmp_dir
-  test "mux two streams (opus, vp9) into one file", %{tmp_dir: tmp_dir} do
-    test_many(tmp_dir, :vp9)
-  end
+  # @tag :tmp_dir
+  # test "mux two streams (opus, vp9) into one file", %{tmp_dir: tmp_dir} do
+  #   test_many(tmp_dir, :vp9)
+  # end
 
   @tag :tmp_dir
   test "mux two streams (opus, h264) into one file", %{tmp_dir: tmp_dir} do
+    tmp_dir = "./tmp"
     test_many(tmp_dir, :h264)
   end
 end

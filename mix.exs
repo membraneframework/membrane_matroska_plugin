@@ -48,8 +48,10 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
        github: "membraneframework/membrane_vp8_format", branch: "add-stream-params"},
       {:membrane_vp9_format,
        github: "membraneframework/membrane_vp9_format", branch: "add-stream-params"},
+      {:membrane_mp4_format, "~> 0.5.0", override: true},
       {:membrane_ffmpeg_swresample_plugin, "~> 0.10.0", only: :test, runtime: false},
       {:membrane_file_plugin, "~> 0.8.0", runtime: false},
+      {:membrane_flv_plugin, "~> 0.1.0"},
       {:membrane_ogg_plugin,
        github: "membraneframework/membrane_ogg_plugin", only: :test, runtime: false},
       {:membrane_h264_ffmpeg_plugin, "~> 0.18.0"},
@@ -57,7 +59,7 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
       {:membrane_common_c, "~> 0.11.0", override: true},
       {:ex_doc, "~> 0.26", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
-      {:credo, "~> 1.5", only: :dev, runtime: false},
+      {:credo, "~> 1.5", only: :dev, runtime: false, override: true},
       {:qex, "~> 0.5.1"}
     ]
   end

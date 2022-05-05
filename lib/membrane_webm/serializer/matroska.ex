@@ -60,8 +60,8 @@ defmodule Membrane.Matroska.Serializer.Matroska do
     EBML.serialize_element(content_bytes, :Cluster, schema)
   end
 
-  @spec serialize_webm_header(list, map) :: {non_neg_integer, binary}
-  def serialize_webm_header(tracks, options) do
+  @spec serialize_matroska_header(list, map) :: {non_neg_integer, binary}
+  def serialize_matroska_header(tracks, options) do
     ebml_header = Helper.serialize(construct_ebml_header())
 
     segment_header = serialize_empty_segment()
@@ -72,11 +72,11 @@ defmodule Membrane.Matroska.Serializer.Matroska do
     seek_head = construct_seek_head([info, tracks])
     void = construct_void(seek_head)
 
-    webm_header_elements = Helper.serialize([seek_head, void, info, tracks])
+    matroska_header_elements = Helper.serialize([seek_head, void, info, tracks])
 
-    segment_size = byte_size(webm_header_elements)
+    segment_size = byte_size(matroska_header_elements)
 
-    {segment_size, ebml_header <> segment_header <> webm_header_elements}
+    {segment_size, ebml_header <> segment_header <> matroska_header_elements}
   end
 
   @spec construct_ebml_header() :: {atom, list}
@@ -86,7 +86,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
       [
         DocTypeReadVersion: 2,
         DocTypeVersion: 4,
-        # DocType: "webm",
+        # DocType: "matroska",
         DocType: "matroska",
         EBMLMaxSizeLength: 8,
         EBMLMaxIDLength: 4,
