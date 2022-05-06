@@ -131,10 +131,15 @@ defmodule Membrane.Matroska.Muxer do
   @impl true
   def handle_demand(:output, _size, :buffers, _context, state)
       when state.expected_tracks == state.active_tracks do
-    demands =
-      state.tracks
-      |> Enum.filter(fn {_id, track} -> enough_cached_blocks?(track) end)
-      |> Enum.map(fn {id, _info} -> {:demand, Pad.ref(:input, id)} end)
+    demands = get_demands(state)
+
+    {demands, state} =
+      if demands == [] do
+        {state, _maybe_cluster} = process_next_block(state)
+        {get_demands(state), state}
+      else
+        {demands, state}
+      end
 
     {{:ok, demands}, state}
   end
@@ -147,29 +152,34 @@ defmodule Membrane.Matroska.Muxer do
   @impl true
   def handle_process(pad_ref, buffer, _context, state) do
     state = ingest_buffer(state, pad_ref, buffer)
-
-    # if there are active tracks without a cached block then demand it
-    if Enum.any?(state.tracks, fn {_id, track} -> enough_cached_blocks?(track) end) do
-      {{:ok, redemand: :output}, state}
-    else
-      process_next_block_and_return(state)
-    end
+    blocks = state.tracks |> Map.values() |> Enum.map(& &1.cached_blocks)
+    process_next_block_or_redemand(state)
   end
 
   @impl true
   def handle_end_of_stream(Pad.ref(:input, id), _context, state) when state.active_tracks != 1 do
     state = update_in(state.active_tracks, &(&1 - 1))
     state = update_in(state.expected_tracks, &(&1 - 1))
-    {_track, state} = pop_in(state.tracks[id])
-    # state = update_in(state.tracks[id].cached_blocks, &(&1 ++ [:end_stream]))
+    # {_track, state} = pop_in(state.tracks[id])
+    state = update_in(state.tracks[id].cached_blocks, &(&1 ++ [:end_stream]))
 
-    process_next_block_and_return(state)
+    process_next_block_or_redemand(state)
   end
 
   @impl true
   def handle_end_of_stream(_pad_ref, _context, state) do
-    # all blocks have now been processed
-    cluster = Helper.serialize({:Cluster, state.cluster_acc})
+    # process last_block
+    {state, maybe_cluster} = process_next_block(state)
+
+    cluster =
+      case maybe_cluster do
+        <<>> ->
+          Helper.serialize({:Cluster, state.cluster_acc})
+
+        serialized_payload ->
+          serialized_payload
+      end
+
     cues = Helper.serialize({:Cues, state.cues})
     _cues_segment_position = state.segment_position + byte_size(cluster)
     state = put_in(state.options.duration, state.time_max - state.time_min)
@@ -185,8 +195,6 @@ defmodule Membrane.Matroska.Muxer do
   defp ingest_buffer(state, Pad.ref(:input, id), %Buffer{} = buffer) do
     # update last timestamp
     timestamp = div(Buffer.get_dts_or_pts(buffer), @timestamp_scale)
-
-    # IO.inspect({state.tracks[id].codec, buffer.dts, buffer.pts, timestamp}, label: :bufer)
 
     state = update_in(state.time_min, &min(timestamp, &1))
     state = update_in(state.time_max, &max(timestamp, &1))
@@ -220,12 +228,11 @@ defmodule Membrane.Matroska.Muxer do
   defp pop_next_block(state) do
     # find next block
     sorted = Enum.sort(state.tracks, &block_sorter/2)
-    # IO.inspect(sorted, label: :sorted_tracks)
     {id, track} = hd(sorted)
     [block | rest] = track.cached_blocks
     # delete the block from state
     state = put_in(state.tracks[id].cached_blocks, rest)
-    # {_track, state} = if rest == [:end_stream], do: pop_in(state.tracks[id]), else: {nil, state}
+    {_track, state} = if rest == [:end_stream], do: pop_in(state.tracks[id]), else: {nil, state}
 
     {state, block}
   end
@@ -266,8 +273,6 @@ defmodule Membrane.Matroska.Muxer do
     if relative_time * @timestamp_scale > Membrane.Time.milliseconds(32_767) do
       IO.warn("Simpleblock timecode overflow. Still writing but some data will be lost.")
     end
-
-    # IO.inspect({type, absolute_time, cluster_time, relative_time}, label: :step_cluster)
 
     # FIXME: The new cluster should be created BEFORE this condition is met
     begin_new_cluster =
@@ -326,7 +331,7 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   defp enough_cached_blocks?(track) do
-    Enum.count(track.cached_blocks) != 2
+    Enum.count(track.cached_blocks) != 2 and Enum.at(track.cached_blocks, -1) != :end_stream
   end
 
   # Blocks are written in timestamp order.
@@ -370,4 +375,18 @@ defmodule Membrane.Matroska.Muxer do
 
   defp get_next_block_time(:end_stream), do: :infinity
   defp get_next_block_time({time, _data, _track_number, _codec}), do: time
+
+  defp process_next_block_or_redemand(state) do
+    if Enum.any?(state.tracks, fn {_id, track} -> enough_cached_blocks?(track) end) do
+      {{:ok, redemand: :output}, state}
+    else
+      process_next_block_and_return(state)
+    end
+  end
+
+  defp get_demands(state) do
+    state.tracks
+    |> Enum.filter(fn {_id, track} -> enough_cached_blocks?(track) end)
+    |> Enum.map(fn {id, _info} -> {:demand, Pad.ref(:input, id)} end)
+  end
 end
