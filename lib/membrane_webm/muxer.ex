@@ -167,8 +167,9 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   @impl true
-  def handle_end_of_stream(_pad_ref, _context, state) do
+  def handle_end_of_stream(Pad.ref(:input, id), _context, state) do
     # process last_block
+    state = update_in(state.tracks[id].cached_blocks, &(&1 ++ [:end_stream]))
     {state, maybe_cluster} = process_next_block(state)
 
     cluster =
@@ -268,6 +269,11 @@ defmodule Membrane.Matroska.Muxer do
        ) do
     cluster_time = if cluster_time == nil, do: absolute_time, else: cluster_time
     relative_time = absolute_time - cluster_time
+
+    # IO.inspect({type, relative_time}, label: :block)
+    if relative_time < 0 do
+      IO.inspect({type, cluster_time, relative_time, absolute_time}, label: :fuckedup)
+    end
 
     # 32767 is max valid value of a simpleblock timecode (max signed_int16)
     if relative_time * @timestamp_scale > Membrane.Time.milliseconds(32_767) do
