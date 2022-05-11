@@ -154,7 +154,7 @@ defmodule Membrane.Matroska.Demuxer do
 
   @impl true
   def handle_demand(Pad.ref(:output, _id), _size, :buffers, context, state) do
-    if state.phase == :all_outputs_linked and blocked?(state) do
+    if state.phase == :all_outputs_linked do
       # reconsider if cached buffers can now be sent
       {Qex.new(), state}
       |> reclassify_cached_buffer_actions(context)

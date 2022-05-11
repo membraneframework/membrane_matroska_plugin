@@ -77,9 +77,7 @@ defmodule Membrane.Matroska.DemuxerTest do
           codec = Atom.to_string(track_info.codec)
 
           children = %{
-            :parser => %Membrane.H264.FFmpeg.Parser{
-              framerate: {60, 1}
-            },
+            :parser => %Membrane.H264.FFmpeg.Parser{skip_until_parameters?: false},
             {:sink, track_id} => %Membrane.File.Sink{
               location: Path.join(state.output_dir, output_file)
             }
@@ -182,6 +180,6 @@ defmodule Membrane.Matroska.DemuxerTest do
 
   @tag :tmp_dir
   test "demuxing muxed file (h264,opus)", %{tmp_dir: tmp_dir} do
-    test_stream("combined_h264.mkv", %{2 => "video.h264", 1 => "1.ogg"}, tmp_dir)
+    test_stream("combined_h264.mkv", %{2 => "video_baseline.h264", 1 => "1.ogg"}, tmp_dir)
   end
 end

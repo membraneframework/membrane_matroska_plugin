@@ -270,11 +270,6 @@ defmodule Membrane.Matroska.Muxer do
     cluster_time = if cluster_time == nil, do: absolute_time, else: cluster_time
     relative_time = absolute_time - cluster_time
 
-    # IO.inspect({type, relative_time}, label: :block)
-    if relative_time < 0 do
-      IO.inspect({type, cluster_time, relative_time, absolute_time}, label: :fuckedup)
-    end
-
     # 32767 is max valid value of a simpleblock timecode (max signed_int16)
     if relative_time * @timestamp_scale > Membrane.Time.milliseconds(32_767) do
       IO.warn("Simpleblock timecode overflow. Still writing but some data will be lost.")

@@ -7,6 +7,8 @@ bundlex.bat
 # Edit at https://www.gitignore.io/?templates=c,vim,linux,macos,elixir,windows,visualstudiocode
 
 *.dump
+*.packets
+*.frames
 
 ### C ###
 # Prerequisites

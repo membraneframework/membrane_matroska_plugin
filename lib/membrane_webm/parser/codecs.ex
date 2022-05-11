@@ -81,7 +81,7 @@ defmodule Membrane.Matroska.Parser.Codecs do
         buffer.metadata.h264.key_frame? |> boolean_to_integer
 
       :opus ->
-        1
+        0
 
       :vorbis ->
         raise "Vorbis is unsupported"
