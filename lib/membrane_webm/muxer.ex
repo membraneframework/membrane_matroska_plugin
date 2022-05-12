@@ -195,7 +195,8 @@ defmodule Membrane.Matroska.Muxer do
 
   defp ingest_buffer(state, Pad.ref(:input, id), %Buffer{} = buffer) do
     # update last timestamp
-    timestamp = div(Buffer.get_dts_or_pts(buffer), @timestamp_scale)
+    # timestamp = div(Buffer.get_dts_or_pts(buffer), @timestamp_scale)
+    timestamp = div(buffer.pts, @timestamp_scale)
 
     state = update_in(state.time_min, &min(timestamp, &1))
     state = update_in(state.time_max, &max(timestamp, &1))
