@@ -110,7 +110,7 @@ defmodule Membrane.Matroska.Muxer do
       codec: codec,
       caps: caps,
       type: type,
-      cached_blocks: [],
+      cached_block: nil,
       offset: nil,
       which_timestamp: nil
     }
@@ -155,7 +155,6 @@ defmodule Membrane.Matroska.Muxer do
   @impl true
   def handle_process(pad_ref, buffer, _context, state) do
     state = ingest_buffer(state, pad_ref, buffer)
-    blocks = state.tracks |> Map.values() |> Enum.map(& &1.cached_blocks)
     process_next_block_or_redemand(state)
   end
 
@@ -163,27 +162,15 @@ defmodule Membrane.Matroska.Muxer do
   def handle_end_of_stream(Pad.ref(:input, id), _context, state) when state.active_tracks != 1 do
     state = update_in(state.active_tracks, &(&1 - 1))
     state = update_in(state.expected_tracks, &(&1 - 1))
-    # {_track, state} = pop_in(state.tracks[id])
-    state = update_in(state.tracks[id].cached_blocks, &(&1 ++ [:end_stream]))
+    {_track, state} = pop_in(state.tracks[id])
+    # state = update_in(state.tracks[id].cached_blocks, &(&1 ++ [:end_stream]))
 
     process_next_block_or_redemand(state)
   end
 
   @impl true
-  def handle_end_of_stream(Pad.ref(:input, id), _context, state) do
-    # process last_block
-    state = update_in(state.tracks[id].cached_blocks, &(&1 ++ [:end_stream]))
-    {state, maybe_cluster} = process_next_block(state)
-
-    cluster =
-      case maybe_cluster do
-        <<>> ->
-          Helper.serialize({:Cluster, state.cluster_acc})
-
-        serialized_payload ->
-          serialized_payload
-      end
-
+  def handle_end_of_stream(Pad.ref(:input, _id), _context, state) do
+    cluster = Helper.serialize({:Cluster, state.cluster_acc})
     cues = Helper.serialize({:Cues, state.cues})
     _cues_segment_position = state.segment_position + byte_size(cluster)
     state = put_in(state.options.duration, state.time_max - state.time_min)
@@ -220,7 +207,7 @@ defmodule Membrane.Matroska.Muxer do
 
     block = {timestamp, buffer, state.tracks[id].track_number, state.tracks[id].codec}
 
-    update_in(state.tracks[id].cached_blocks, fn blocks -> blocks ++ [block] end)
+    put_in(state.tracks[id].cached_block, block)
   end
 
   # one block is cached for each track
@@ -247,16 +234,11 @@ defmodule Membrane.Matroska.Muxer do
     # find next block
     sorted = Enum.sort(state.tracks, &block_sorter/2)
     {id, track} = hd(sorted)
-    [block | rest] = track.cached_blocks
+    block = track.cached_block
     # delete the block from state
-    state = put_in(state.tracks[id].cached_blocks, rest)
+    state = put_in(state.tracks[id].cached_block, nil)
 
-    {track, state} =
-      if rest == [:end_stream],
-        do: pop_in(state.tracks[id]),
-        else: {state.tracks[id], state}
-
-    {state, block, track}
+    {state, block, track[id]}
   end
 
   # https://www.matroska.org/technical/cues.html
@@ -361,7 +343,8 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   defp enough_cached_blocks?(track) do
-    Enum.count(track.cached_blocks) != 2 and Enum.at(track.cached_blocks, -1) != :end_stream
+    # Enum.count(track.cached_blocks) != 2 and Enum.at(track.cached_blocks, -1) != :end_stream
+    track.cached_block != nil
   end
 
   # Blocks are written in timestamp order.
@@ -373,27 +356,17 @@ defmodule Membrane.Matroska.Muxer do
   #   the video blocks.
   # See https://www.matroskaproject.org/docs/container/
   defp block_sorter({_id1, track1}, {_id2, track2}) do
-    [first_block_track1, second_block_track1 | _rest] = track1.cached_blocks
-    [first_block_track2, second_block_track2 | _rest] = track2.cached_blocks
+    block_track1 = track1.cached_block
+    block_track2 = track2.cached_block
 
-    {start_time1, _data1, _track_number1, codec1} = first_block_track1
-    end_time1 = get_next_block_time(second_block_track1)
-    {start_time2, _data2, _track_number2, codec2} = first_block_track2
-    end_time2 = get_next_block_time(second_block_track2)
+    {start_time1, _data1, _track_number1, codec1} = block_track1
+    {start_time2, _data2, _track_number2, codec2} = block_track2
 
     cond do
-      # Block from track 1 finish before block from track 2 start
-      # end_time1 < start_time2 ->
-      #   true
-
-      # # Block from track 2 finish before block from track 1 start
-      # end_time2 < start_time1 ->
-      #   false
-
-      Codecs.is_video_keyframe?(first_block_track1) ->
+      Codecs.is_video_keyframe?(block_track1) ->
         true
 
-      Codecs.is_video_keyframe?(first_block_track2) ->
+      Codecs.is_video_keyframe?(block_track2) ->
         false
 
       true ->
@@ -402,9 +375,6 @@ defmodule Membrane.Matroska.Muxer do
              (Codecs.type(codec1) == :video and Codecs.type(codec2) == :audio))
     end
   end
-
-  defp get_next_block_time(:end_stream), do: :infinity
-  defp get_next_block_time({time, _data, _track_number, _codec}), do: time
 
   defp process_next_block_or_redemand(state) do
     if Enum.any?(state.tracks, fn {_id, track} -> enough_cached_blocks?(track) end) do
