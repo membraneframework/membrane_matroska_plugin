@@ -12,7 +12,7 @@ defmodule Membrane.Matroska.MuxerTest do
   require Membrane.Pad
 
   alias Membrane.Testing
-  alias Membrane.{Opus, Pad}
+  alias Membrane.{Opus, FLV, RemoteStream, Pad}
 
   @fixtures_dir "./test/fixtures/"
   @pad_id_1 17_447_232_417_024_423_937
@@ -144,10 +144,14 @@ defmodule Membrane.Matroska.MuxerTest do
     {:ok, pipeline} =
       %Testing.Pipeline.Options{
         elements: [
-          h264_source: %Membrane.File.Source{location: input_file},
+          h264_source: %Membrane.File.Source{
+            location: input_file,
+            caps: %RemoteStream{content_format: FLV, type: :bytestream}
+          },
           flv_demuxer: Membrane.FLV.Demuxer,
           parser: %Membrane.H264.FFmpeg.Parser{
-            attach_nalus?: true
+            attach_nalus?: true,
+            skip_until_parameters?: false
           },
           opus_source: %Testing.Source{
             output: Testing.Source.output_from_buffers(buffers),

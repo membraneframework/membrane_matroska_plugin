@@ -62,7 +62,7 @@ defmodule Membrane.Matroska.Muxer do
               time_min: 0,
               time_max: 0,
               options: %{},
-              keyframe_occurs?: false
+              track_number_to_id: %{}
   end
 
   @impl true
@@ -110,10 +110,13 @@ defmodule Membrane.Matroska.Muxer do
       codec: codec,
       caps: caps,
       type: type,
-      cached_blocks: []
+      cached_blocks: [],
+      offset: nil,
+      which_timestamp: nil
     }
 
     state = put_in(state.tracks[id], track)
+    state = put_in(state.track_number_to_id[state.active_tracks], id)
 
     if state.active_tracks == state.expected_tracks do
       {segment_position, matroska_header} =
@@ -195,8 +198,21 @@ defmodule Membrane.Matroska.Muxer do
 
   defp ingest_buffer(state, Pad.ref(:input, id), %Buffer{} = buffer) do
     # update last timestamp
-    # timestamp = div(Buffer.get_dts_or_pts(buffer), @timestamp_scale)
-    timestamp = div(buffer.pts, @timestamp_scale)
+
+    track = state.tracks[id]
+
+    track =
+      if track.offset == nil do
+        which_timestamp = if buffer.pts == nil, do: :dts, else: :pts
+        offset = buffer.pts || buffer.dts
+        %{track | which_timestamp: which_timestamp, offset: offset}
+      else
+        track
+      end
+
+    state = put_in(state.tracks[id], track)
+    timestamp = div(Buffer.get_dts_or_pts(buffer) - track.offset, @timestamp_scale)
+    # timestamp = get_proper_timestamp(buffer, track)
 
     state = update_in(state.time_min, &min(timestamp, &1))
     state = update_in(state.time_max, &max(timestamp, &1))
@@ -234,9 +250,13 @@ defmodule Membrane.Matroska.Muxer do
     [block | rest] = track.cached_blocks
     # delete the block from state
     state = put_in(state.tracks[id].cached_blocks, rest)
-    {_track, state} = if rest == [:end_stream], do: pop_in(state.tracks[id]), else: {nil, state}
 
-    {state, block}
+    {track, state} =
+      if rest == [:end_stream],
+        do: pop_in(state.tracks[id]),
+        else: {state.tracks[id], state}
+
+    {state, block, track}
   end
 
   # https://www.matroska.org/technical/cues.html
@@ -266,8 +286,10 @@ defmodule Membrane.Matroska.Muxer do
             cluster_acc: current_cluster_acc,
             cluster_time: cluster_time,
             cluster_size: cluster_size
-          } = state, {absolute_time, data, track_number, type} = block}
+          } = state, {_absolute_time, data, track_number, type} = block, track}
        ) do
+    absolute_time = get_proper_timestamp(data, track)
+
     cluster_time = if cluster_time == nil, do: absolute_time, else: cluster_time
     relative_time = absolute_time - cluster_time
 
@@ -328,8 +350,14 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   # FIXME: Why in h264 it happens
-  defp step_cluster({%State{} = state, nil}) do
+  defp step_cluster({%State{} = state, nil, _track}) do
     {state, <<>>}
+  end
+
+  defp get_proper_timestamp(buffer, track) do
+    buffer_timestamp = Map.get(buffer, track.which_timestamp)
+
+    div(buffer_timestamp - track.offset, @timestamp_scale)
   end
 
   defp enough_cached_blocks?(track) do
@@ -355,12 +383,12 @@ defmodule Membrane.Matroska.Muxer do
 
     cond do
       # Block from track 1 finish before block from track 2 start
-      end_time1 < start_time2 ->
-        true
+      # end_time1 < start_time2 ->
+      #   true
 
-      # Block from track 2 finish before block from track 1 start
-      end_time2 < start_time1 ->
-        false
+      # # Block from track 2 finish before block from track 1 start
+      # end_time2 < start_time1 ->
+      #   false
 
       Codecs.is_video_keyframe?(first_block_track1) ->
         true
@@ -371,7 +399,7 @@ defmodule Membrane.Matroska.Muxer do
       true ->
         start_time1 < start_time2 or
           (start_time1 == start_time2 and
-             (Codecs.type(codec1) == :audio and Codecs.type(codec2) == :video))
+             (Codecs.type(codec1) == :video and Codecs.type(codec2) == :audio))
     end
   end
 
