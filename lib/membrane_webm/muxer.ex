@@ -237,8 +237,7 @@ defmodule Membrane.Matroska.Muxer do
     block = track.cached_block
     # delete the block from state
     state = put_in(state.tracks[id].cached_block, nil)
-
-    {state, block, track[id]}
+    {state, block, state.tracks[id]}
   end
 
   # https://www.matroska.org/technical/cues.html
@@ -344,7 +343,7 @@ defmodule Membrane.Matroska.Muxer do
 
   defp enough_cached_blocks?(track) do
     # Enum.count(track.cached_blocks) != 2 and Enum.at(track.cached_blocks, -1) != :end_stream
-    track.cached_block != nil
+    track.cached_block == nil
   end
 
   # Blocks are written in timestamp order.
@@ -362,18 +361,9 @@ defmodule Membrane.Matroska.Muxer do
     {start_time1, _data1, _track_number1, codec1} = block_track1
     {start_time2, _data2, _track_number2, codec2} = block_track2
 
-    cond do
-      Codecs.is_video_keyframe?(block_track1) ->
-        true
-
-      Codecs.is_video_keyframe?(block_track2) ->
-        false
-
-      true ->
-        start_time1 < start_time2 or
-          (start_time1 == start_time2 and
-             (Codecs.type(codec1) == :video and Codecs.type(codec2) == :audio))
-    end
+    start_time1 < start_time2 or
+      (start_time1 == start_time2 and
+         (Codecs.type(codec1) == :video and Codecs.type(codec2) == :audio))
   end
 
   defp process_next_block_or_redemand(state) do

@@ -32,7 +32,9 @@ defmodule Membrane.Matroska.Demuxer do
     availability: :always,
     mode: :pull,
     demand_unit: :buffers,
-    caps: {RemoteStream, content_format: :WEBM}
+    caps:
+      {RemoteStream,
+       content_format: Membrane.Caps.Matcher.one_of([nil, :WEBM, :MKV]), type: :bytestream}
 
   def_output_pad :output,
     availability: :on_request,
