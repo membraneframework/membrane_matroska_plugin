@@ -145,8 +145,7 @@ defmodule Membrane.Matroska.MuxerTest do
       %Testing.Pipeline.Options{
         elements: [
           h264_source: %Membrane.File.Source{
-            location: input_file,
-            caps: %RemoteStream{content_format: FLV, type: :bytestream}
+            location: input_file
           },
           flv_demuxer: Membrane.FLV.Demuxer,
           parser: %Membrane.H264.FFmpeg.Parser{
@@ -232,10 +231,11 @@ defmodule Membrane.Matroska.MuxerTest do
   #   test_from_buffers(tmp_dir)
   # end
 
-  # @tag :tmp_dir
-  # test "mux two streams (opus, vp8) into one file", %{tmp_dir: tmp_dir} do
-  #   test_many(tmp_dir, :vp8)
-  # end
+  @tag :tmp_dir
+  test "mux two streams (opus, vp8) into one file", %{tmp_dir: tmp_dir} do
+    tmp_dir = "./tmp"
+    test_many(tmp_dir, :vp8)
+  end
 
   # @tag :tmp_dir
   # test "mux two streams (opus, vp9) into one file", %{tmp_dir: tmp_dir} do

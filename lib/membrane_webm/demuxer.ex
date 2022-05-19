@@ -111,10 +111,12 @@ defmodule Membrane.Matroska.Demuxer do
           %Opus{channels: track.channels, self_delimiting?: false}
 
         :vp8 ->
-          %VP8{width: track.width, height: track.height}
+          # %VP8{width: track.width, height: track.height}
+          %VP8{}
 
         :vp9 ->
-          %VP9{width: track.width, height: track.height}
+          # %VP9{width: track.width, height: track.height}
+          %VP9{}
 
         :h264 ->
           %H264.RemoteStream{

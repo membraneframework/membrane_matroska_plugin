@@ -8,7 +8,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   alias Membrane.Matroska.Parser.Codecs
   alias Membrane.Matroska.Serializer.Helper
   alias Membrane.Matroska.Serializer.EBML
-  alias Membrane.{Opus, VP8, VP9, MP4}
+  alias Membrane.{Opus, VP8, VP9, MP4, RemoteStream}
 
   @timestamp_scale Membrane.Time.millisecond()
   @version Membrane.Matroska.Plugin.Mixfile.project()[:version]
@@ -119,13 +119,13 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   end
 
   defp construct_track_entry(
-         {id, %{caps: %VP8{width: width, height: height}, track_number: track_number}}
+         {id, %{caps: %RemoteStream{content_format: VP8}, track_number: track_number}}
        ) do
     {:TrackEntry,
      [
        Video: [
-         PixelHeight: height,
-         PixelWidth: width
+         #  PixelHeight: height,
+         #  PixelWidth: width
        ],
        # 1 for video
        TrackType: 1,
@@ -137,13 +137,13 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   end
 
   defp construct_track_entry(
-         {id, %{caps: %VP9{width: width, height: height}, track_number: track_number}}
+         {id, %{caps: %RemoteStream{content_format: VP9}, track_number: track_number}}
        ) do
     {:TrackEntry,
      [
        Video: [
-         PixelHeight: height,
-         PixelWidth: width
+         #  PixelHeight: height,
+         #  PixelWidth: width
        ],
        # 1 for video
        TrackType: 1,

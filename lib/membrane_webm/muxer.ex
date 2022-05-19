@@ -37,7 +37,11 @@ defmodule Membrane.Matroska.Muxer do
     availability: :on_request,
     mode: :pull,
     demand_unit: :buffers,
-    caps: [Opus, VP8, VP9, MP4.Payload]
+    caps: [
+      Opus,
+      {RemoteStream, content_format: Membrane.Caps.Matcher.one_of([VP8, VP9]), type: :packetized},
+      MP4.Payload
+    ]
 
   def_output_pad :output,
     availability: :always,
@@ -85,10 +89,10 @@ defmodule Membrane.Matroska.Muxer do
   def handle_caps(Pad.ref(:input, id), caps, _context, state) do
     codec =
       case caps do
-        %VP8{} ->
+        %RemoteStream{content_format: VP8} ->
           :vp8
 
-        %VP9{} ->
+        %RemoteStream{content_format: VP9} ->
           :vp9
 
         %Opus{} ->
