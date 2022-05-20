@@ -37,8 +37,7 @@ defmodule Membrane.Matroska.DebugTest do
       %Testing.Pipeline.Options{
         module: PrinterPipeline,
         custom_args: %{
-          input_file: "test/fixtures/combined_h264_flv_ffmpeg.mkv",
-          # input_file: "tmp/output_h264.mkv",
+          input_file: "test/fixtures/combined_h264.mkv",
           output_dir: tmp_dir
         }
       }

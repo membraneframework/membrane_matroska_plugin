@@ -25,8 +25,9 @@ defmodule Membrane.Matroska.DemuxerTest do
         |> to(:demuxer)
       ]
 
-      {{:ok, spec: %ParentSpec{children: children, links: links}},
-       %{output_dir: options.output_dir, track_id_to_file: options.track_id_to_output_file}}
+      state = %{output_dir: options.output_dir, track_id_to_file: options.track_id_to_output_file}
+
+      {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
     end
 
     @impl true
@@ -135,7 +136,7 @@ defmodule Membrane.Matroska.DemuxerTest do
       assert byte_size(reference_file) == byte_size(result_file),
              "#{reference} #{byte_size(reference_file)} == #{byte_size(result_file)}"
 
-      assert reference_file == result_file, "#{reference}"
+      assert reference_file == result_file, "#{reference} not same files"
     end
   end
 
@@ -154,12 +155,12 @@ defmodule Membrane.Matroska.DemuxerTest do
 
   @tag :tmp_dir
   test "demuxing mkv file (vp8,opus)", %{tmp_dir: tmp_dir} do
-    test_stream("vp8_opus_video.mkv", %{1 => "1_vp8_mkv.ivf", 2 => "2.ogg"}, tmp_dir)
+    test_stream("vp8_opus_video.mkv", %{1 => "2_vp8.ivf", 2 => "2.ogg"}, tmp_dir)
   end
 
   @tag :tmp_dir
   test "demuxing webm file (vp8,opus)", %{tmp_dir: tmp_dir} do
-    test_stream("vp8_opus_video.webm", %{1 => "1_vp8.ivf", 2 => "2.ogg"}, tmp_dir)
+    test_stream("vp8_opus_video.webm", %{1 => "2_vp8.ivf", 2 => "2.ogg"}, tmp_dir)
   end
 
   @tag :tmp_dir
@@ -169,7 +170,7 @@ defmodule Membrane.Matroska.DemuxerTest do
 
   @tag :tmp_dir
   test "demuxing mkv file (vp9,opus)", %{tmp_dir: tmp_dir} do
-    test_stream("vp9_opus_video.mkv", %{1 => "1_vp9_mkv.ivf", 2 => "2.ogg"}, tmp_dir)
+    test_stream("vp9_opus_video.mkv", %{1 => "1_vp9.ivf", 2 => "2.ogg"}, tmp_dir)
   end
 
   @tag :tmp_dir
