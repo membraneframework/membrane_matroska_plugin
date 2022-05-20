@@ -39,7 +39,11 @@ defmodule Membrane.Matroska.Demuxer do
   def_output_pad :output,
     availability: :on_request,
     mode: :pull,
-    caps: [VP8, VP9, Opus, H264.RemoteStream]
+    caps: [
+      {RemoteStream, content_format: Membrane.Caps.Matcher.one_of([VP8, VP9]), type: :packetized},
+      Opus,
+      H264.RemoteStream
+    ]
 
   defmodule State do
     @moduledoc false
@@ -112,11 +116,11 @@ defmodule Membrane.Matroska.Demuxer do
 
         :vp8 ->
           # %VP8{width: track.width, height: track.height}
-          %VP8{}
+          %RemoteStream{content_format: VP8, type: :packetized}
 
         :vp9 ->
           # %VP9{width: track.width, height: track.height}
-          %VP9{}
+          %RemoteStream{content_format: VP9, type: :packetized}
 
         :h264 ->
           %H264.RemoteStream{
@@ -197,12 +201,14 @@ defmodule Membrane.Matroska.Demuxer do
         {actions, context, %State{state | current_timecode: data}}
 
       name when name in [:Block, :SimpleBlock] ->
+        # IO.inspect({state.current_timecode, data.timecode}, label: :buffer)
+
         buffer_action =
           {:buffer,
            {Pad.ref(:output, data.track_number),
             %Buffer{
               payload: process_codec_specific(data.data, state.tracks[data.track_number].codec),
-              dts: (state.current_timecode + data.timecode) * state.timestamp_scale
+              pts: (state.current_timecode + data.timecode) * state.timestamp_scale
             }}}
 
         classify_buffer_action(buffer_action, {actions, context, state})
