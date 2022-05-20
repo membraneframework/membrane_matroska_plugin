@@ -216,35 +216,33 @@ defmodule Membrane.Matroska.MuxerTest do
     end)
   end
 
-  # @tag :tmp_dir
-  # test "mux single vp8", %{tmp_dir: tmp_dir} do
-  #   test_stream("1_vp8.ivf", "muxed_vp8.mkv", tmp_dir)
-  # end
+  @tag :tmp_dir
+  test "mux single vp8", %{tmp_dir: tmp_dir} do
+    test_stream("1_vp8.ivf", "muxed_vp8.mkv", tmp_dir)
+  end
 
-  # @tag :tmp_dir
-  # test "mux single vp9", %{tmp_dir: tmp_dir} do
-  #   test_stream("1_vp9.ivf", "muxed_vp9.mkv", tmp_dir)
-  # end
+  @tag :tmp_dir
+  test "mux single vp9", %{tmp_dir: tmp_dir} do
+    test_stream("1_vp9.ivf", "muxed_vp9.mkv", tmp_dir)
+  end
 
-  # @tag :tmp_dir
-  # test "mux opus from buffers", %{tmp_dir: tmp_dir} do
-  #   test_from_buffers(tmp_dir)
-  # end
+  @tag :tmp_dir
+  test "mux opus from buffers", %{tmp_dir: tmp_dir} do
+    test_from_buffers(tmp_dir)
+  end
 
   @tag :tmp_dir
   test "mux two streams (opus, vp8) into one file", %{tmp_dir: tmp_dir} do
-    tmp_dir = "./tmp"
     test_many(tmp_dir, :vp8)
   end
 
-  # @tag :tmp_dir
-  # test "mux two streams (opus, vp9) into one file", %{tmp_dir: tmp_dir} do
-  #   test_many(tmp_dir, :vp9)
-  # end
+  @tag :tmp_dir
+  test "mux two streams (opus, vp9) into one file", %{tmp_dir: tmp_dir} do
+    test_many(tmp_dir, :vp9)
+  end
 
   @tag :tmp_dir
   test "mux two streams (opus, h264) into one file", %{tmp_dir: tmp_dir} do
-    tmp_dir = "./tmp"
     test_many(tmp_dir, :h264)
   end
 end

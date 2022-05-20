@@ -132,7 +132,8 @@ defmodule Membrane.Matroska.DemuxerTest do
       reference_file = File.read!(Path.join(@fixtures_dir, reference))
       result_file = File.read!(Path.join(tmp_dir, reference))
 
-      assert byte_size(reference_file) == byte_size(result_file), "#{reference}"
+      assert byte_size(reference_file) == byte_size(result_file),
+             "#{reference} #{byte_size(reference_file)} == #{byte_size(result_file)}"
 
       assert reference_file == result_file, "#{reference}"
     end
