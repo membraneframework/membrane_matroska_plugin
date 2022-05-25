@@ -9,6 +9,7 @@ bundlex.bat
 *.dump
 *.packets
 *.frames
+./test/debug_test.exs
 
 ### C ###
 # Prerequisites

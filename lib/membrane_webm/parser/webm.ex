@@ -1,7 +1,5 @@
 defmodule Membrane.Matroska.Parser.Matroska do
   @moduledoc false
-  # special parsing rules for matroska elements
-  # note that when matroska and webm conflict webm takes precedence
 
   alias Membrane.Matroska.Parser.EBML
 
@@ -75,8 +73,6 @@ defmodule Membrane.Matroska.Parser.Matroska do
     end
   end
 
-  # The demuxer MUST only open "webm" DocType files.
-  # per demuxer guidelines https://www.webmproject.org/docs/container/
   @spec parse_doc_type(binary) :: binary
   def parse_doc_type(bytes) do
     text = EBML.parse_string(bytes)
@@ -163,16 +159,13 @@ defmodule Membrane.Matroska.Parser.Matroska do
     }
   end
 
-  # TODO: handle laced data
-  # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-12.3
-  # https://github.com/ietf-wg-cellar/matroska-specification/blob/master/notes.md#laced-frames-timestamp
   defp check_lacing_mode(mode) do
     case mode do
       0b00 ->
         :no_lacing
 
       _any_lacing ->
-        raise "Demuxing webm files with laced data is currently not supported"
+        raise "Demuxing matroska files with laced data is currently not supported"
         # 0b01 -> :Xiph_lacing
         # 0b11 -> :EBML_lacing
         # 0b10 -> :fixed_size_lacing

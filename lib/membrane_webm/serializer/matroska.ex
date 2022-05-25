@@ -69,7 +69,9 @@ defmodule Membrane.Matroska.Serializer.Matroska do
     info = construct_info(options)
     tracks = construct_tracks(tracks)
     # tags = construct_tags()
-    seek_head = construct_seek_head([info, tracks])
+
+    seek_head = [info, tracks] |> construct_seek_head() |> add_cues_seek(options.clusters_size)
+
     void = construct_void(seek_head)
 
     matroska_header_elements = Helper.serialize([seek_head, void, info, tracks])
@@ -189,23 +191,33 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   defp construct_seek_head(elements) do
     seeks =
       elements
-      |> Enum.reduce({[], @seekhead_bytes + 1}, fn element, acc ->
-        {name, data} = element
-        {results, offset} = acc
-        new_acc = [{name, offset} | results]
-        new_offset = offset + byte_size(Helper.serialize({name, data}))
-        {new_acc, new_offset}
+      |> Enum.reduce({[], @seekhead_bytes + 1}, fn
+        {name, data}, acc ->
+          {results, offset} = acc
+          new_acc = [{name, offset} | results]
+          new_offset = offset + byte_size(Helper.serialize({name, data}))
+          {new_acc, new_offset}
       end)
       |> elem(0)
-      |> Enum.map(fn {name, offset} ->
-        {:Seek,
-         [
-           {:SeekPosition, offset},
-           {:SeekID, EBML.encode_element_id(name)}
-         ]}
-      end)
+      |> Enum.map(fn {name, offset} -> create_seek(offset, name) end)
 
     {:SeekHead, seeks}
+  end
+
+  defp create_seek(offset, name) do
+    {:Seek,
+     [
+       {:SeekPosition, offset},
+       {:SeekID, EBML.encode_element_id(name)}
+     ]}
+  end
+
+  defp add_cues_seek(seek_head, clusters_size) do
+    {:SeekHead, seeks} = seek_head
+    {:Seek, last_seek} = Enum.at(seeks, -1)
+    [{:SeekPosition, offset} | _rest_seek] = last_seek
+
+    {:SeekHead, [create_seek(offset + clusters_size, :Cues) | seeks]}
   end
 
   @spec construct_void({atom, list}) :: {atom, non_neg_integer}
@@ -218,7 +230,6 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   @spec construct_info(map) :: {atom, list}
   defp construct_info(options) do
     info = [
-      # FIXME: off by last frame duration
       Duration: options.duration * @timestamp_scale,
       WritingApp: "membrane_matroska_plugin-#{@version}",
       MuxingApp: "membrane_matroska_plugin-#{@version}",
@@ -234,7 +245,4 @@ defmodule Membrane.Matroska.Serializer.Matroska do
       {:Info, Keyword.drop(info, [:DateUTC])}
     end
   end
-
-  # TODO: add callback or option to supply tag values
-  # https://matroska.org/technical/tagging.html
 end

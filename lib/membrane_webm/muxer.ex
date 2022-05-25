@@ -56,6 +56,7 @@ defmodule Membrane.Matroska.Muxer do
   defmodule State do
     @moduledoc false
     defstruct tracks: %{},
+              tracks_copy: %{},
               segment_position: 0,
               expected_tracks: 0,
               active_tracks: 0,
@@ -65,13 +66,13 @@ defmodule Membrane.Matroska.Muxer do
               cues: [],
               time_min: 0,
               time_max: 0,
-              options: %{},
-              track_number_to_id: %{}
+              options: %{}
   end
 
   @impl true
   def handle_init(options) do
     options = Map.put(options, :duration, 0)
+    options = Map.put(options, :clusters_size, 0)
     {:ok, %State{options: options}}
   end
 
@@ -120,15 +121,11 @@ defmodule Membrane.Matroska.Muxer do
     }
 
     state = put_in(state.tracks[id], track)
-    state = put_in(state.track_number_to_id[state.active_tracks], id)
 
     if state.active_tracks == state.expected_tracks do
-      {segment_position, matroska_header} =
-        Serializer.Matroska.serialize_matroska_header(state.tracks, state.options)
-
-      state = update_in(state.segment_position, &(&1 + segment_position))
+      state = put_in(state.tracks_copy, state.tracks)
       demands = Enum.map(state.tracks, fn {id, _track_data} -> {:demand, Pad.ref(:input, id)} end)
-      {{:ok, [{:buffer, {:output, %Buffer{payload: matroska_header}}} | demands]}, state}
+      {{:ok, demands}, state}
     else
       {:ok, state}
     end
@@ -167,7 +164,6 @@ defmodule Membrane.Matroska.Muxer do
     state = update_in(state.active_tracks, &(&1 - 1))
     state = update_in(state.expected_tracks, &(&1 - 1))
     {_track, state} = pop_in(state.tracks[id])
-    # state = update_in(state.tracks[id].cached_blocks, &(&1 ++ [:end_stream]))
 
     process_next_block_or_redemand(state)
   end
@@ -175,16 +171,31 @@ defmodule Membrane.Matroska.Muxer do
   @impl true
   def handle_end_of_stream(Pad.ref(:input, _id), _context, state) do
     cluster = Helper.serialize({:Cluster, state.cluster_acc})
-    cues = Helper.serialize({:Cues, state.cues})
-    _cues_segment_position = state.segment_position + byte_size(cluster)
-    state = put_in(state.options.duration, state.time_max - state.time_min)
+    clusters_size = state.segment_position + byte_size(cluster)
+    state = put_in(state.options.clusters_size, clusters_size)
+    duration = (state.time_max - state.time_min) / @timestamp_scale
+    state = put_in(state.options.duration, duration)
 
-    # TODO: Now I know the location of Cues so Seek can reference it.
-    # Seek was the first serialized Segment element returned by the muxer and updating Seek requires rewriting data
-    # If I choose to rewrite it I could just as well insert Cues at the beginning of the Matroska file
-    # This provides superior seeking speed when playing the file
-    # Likewise the Info element's Duration field can now be known
-    {{:ok, buffer: {:output, %Buffer{payload: cluster <> cues}}, end_of_stream: :output}, state}
+    {segment_position, matroska_header} =
+      Serializer.Matroska.serialize_matroska_header(state.tracks_copy, state.options)
+
+    cues = update_cues_postion(state.cues, segment_position)
+    cues = Helper.serialize({:Cues, cues})
+    buffer_cluster = %Buffer{payload: cluster <> cues}
+    seek_event = %Membrane.File.SeekEvent{position: 0, insert?: true}
+
+    {{:ok,
+      buffer: {:output, buffer_cluster},
+      event: {:output, seek_event},
+      buffer: {:output, %Buffer{payload: matroska_header}},
+      end_of_stream: :output}, state}
+  end
+
+  defp update_cues_postion(cues, header_size) do
+    Enum.map(cues, fn {:CuePoint, cue} ->
+      cue = Keyword.update!(cue, :CueClusterPosition, &(&1 + header_size))
+      {:CuePoint, cue}
+    end)
   end
 
   defp ingest_buffer(state, Pad.ref(:input, id), %Buffer{} = buffer) do
@@ -203,7 +214,6 @@ defmodule Membrane.Matroska.Muxer do
 
     state = put_in(state.tracks[id], track)
     timestamp = div(Buffer.get_dts_or_pts(buffer) - track.offset, @timestamp_scale)
-    # timestamp = get_proper_timestamp(buffer, track)
 
     state = update_in(state.time_min, &min(timestamp, &1))
     state = update_in(state.time_max, &max(timestamp, &1))
@@ -283,7 +293,6 @@ defmodule Membrane.Matroska.Muxer do
       IO.warn("Simpleblock timecode overflow. Still writing but some data will be lost.")
     end
 
-    # FIXME: The new cluster should be created BEFORE this condition is met
     begin_new_cluster =
       cluster_size >= @cluster_bytes_limit or
         relative_time * @timestamp_scale >= @cluster_time_limit or
@@ -334,11 +343,6 @@ defmodule Membrane.Matroska.Muxer do
     end
   end
 
-  # FIXME: Why in h264 it happens
-  defp step_cluster({%State{} = state, nil, _track}) do
-    {state, <<>>}
-  end
-
   defp get_proper_timestamp(buffer, track) do
     buffer_timestamp = Map.get(buffer, track.which_timestamp)
 
@@ -346,18 +350,10 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   defp enough_cached_blocks?(track) do
-    # Enum.count(track.cached_blocks) != 2 and Enum.at(track.cached_blocks, -1) != :end_stream
     track.cached_block == nil
   end
 
   # Blocks are written in timestamp order.
-  # Per Matroska Muxer Guidelines:
-  # FIXME: this condition is not supported
-  # - Audio blocks that contain the video key frame's timecode SHOULD be in the same cluster
-  #   as the video key frame block.
-  # - Audio blocks that have same absolute timecode as video blocks SHOULD be written before
-  #   the video blocks.
-  # See https://www.matroskaproject.org/docs/container/
   defp block_sorter({_id1, track1}, {_id2, track2}) do
     block_track1 = track1.cached_block
     block_track2 = track2.cached_block

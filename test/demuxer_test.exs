@@ -56,8 +56,6 @@ defmodule Membrane.Matroska.DemuxerTest do
           {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
 
         track_info.codec in [:vp8, :vp9] ->
-          codec = Atom.to_string(track_info.codec)
-
           children = %{
             {:serializer, track_id} => %Membrane.Element.IVF.Serializer{width: 1920, height: 1080},
             {:sink, track_id} => %Membrane.File.Sink{
@@ -75,8 +73,6 @@ defmodule Membrane.Matroska.DemuxerTest do
           {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
 
         track_info.codec == :h264 ->
-          codec = Atom.to_string(track_info.codec)
-
           children = %{
             :parser => %Membrane.H264.FFmpeg.Parser{
               skip_until_parameters?: false,

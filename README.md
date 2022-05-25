@@ -4,13 +4,14 @@
 [![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/membrane_webm_plugin)
 [![CircleCI](https://circleci.com/gh/membraneframework/membrane_webm_plugin.svg?style=svg)](https://circleci.com/gh/membraneframework/membrane_webm_plugin)
 
-Membrane plugin for muxing and demuxing files in the [WebM](https://www.webmproject.org/) format
+Membrane plugin for muxing and demuxing files in the [Matrioska](https://www.matroska.org/index.html) format
 
 It is part of [Membrane Multimedia Framework](https://membraneframework.org).
 
-- WebM files can contain tracks encoded with VP8, VP9 and Opus.
+- Both muxer and demuxer support tracks encoded with VP8, VP9, H264 and Opus.
 - Opus tracks with more than 2 channels are not supported.
 - Demuxing of files containing [laced](https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-12.3) frames is not supported.
+- Passing tag values is not supported
 
 ## Installation
 

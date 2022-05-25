@@ -1,6 +1,6 @@
 defmodule Membrane.Matroska.Printer do
   @moduledoc """
-  Implementation of a standalone parser of a webm bytestream (you shouldn't need to use this, no other element uses this).
+  Implementation of a standalone parser of a mkv bytestream (you shouldn't need to use this, no other element uses this).
   """
   use Membrane.Filter
 

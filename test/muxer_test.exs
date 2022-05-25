@@ -12,7 +12,7 @@ defmodule Membrane.Matroska.MuxerTest do
   require Membrane.Pad
 
   alias Membrane.Testing
-  alias Membrane.{Opus, FLV, RemoteStream, Pad}
+  alias Membrane.{Opus, FLV, Pad}
 
   @fixtures_dir "./test/fixtures/"
   @pad_id_1 17_447_232_417_024_423_937
@@ -130,7 +130,6 @@ defmodule Membrane.Matroska.MuxerTest do
   end
 
   defp test_many(tmp_dir, :h264) do
-    # input_file = Path.join(@fixtures_dir, "h264_baseline.flv")
     input_file = Path.join(@fixtures_dir, "h264.flv")
     output_file = Path.join(tmp_dir, "output_h264.mkv")
     reference_file = Path.join(@fixtures_dir, "combined_h264.mkv")
@@ -147,7 +146,7 @@ defmodule Membrane.Matroska.MuxerTest do
           h264_source: %Membrane.File.Source{
             location: input_file
           },
-          flv_demuxer: Membrane.FLV.Demuxer,
+          flv_demuxer: FLV.Demuxer,
           parser: %Membrane.H264.FFmpeg.Parser{
             attach_nalus?: true,
             skip_until_parameters?: false
