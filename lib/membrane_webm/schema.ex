@@ -48,6 +48,7 @@ defmodule Membrane.Matroska.Schema do
   """
 
   alias Membrane.Matroska.Parser
+  alias Membrane.Matroska.Parser.EBML
   alias Membrane.Matroska.Serializer
 
   @bimap BiMap.new([
@@ -802,7 +803,7 @@ defmodule Membrane.Matroska.Schema do
     fetch_serializer(name)
   end
 
-  @spec element_type(atom) :: Parser.EBML.t()
+  @spec element_type(atom) :: EBML.t()
   def element_type(name) do
     fetch_element_info(name)
   end
