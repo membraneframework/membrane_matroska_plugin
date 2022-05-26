@@ -723,51 +723,97 @@ defmodule Membrane.Matroska.Schema do
     Unknown: &Serializer.EBML.serialize_binary/3
   }
 
+  defmacro fetch_deserializer(name) do
+    quote do
+      name = unquote(name)
+
+      if Map.has_key?(@webm_deserializer_schema, name) do
+        @webm_deserializer_schema[name]
+      else
+        &Parser.EBML.parse_binary/1
+      end
+    end
+  end
+
+  defmacro fetch_deserializer_for_debug(name) do
+    quote do
+      name = unquote(name)
+
+      if name == :Cluster do
+        &Parser.EBML.parse_master/2
+      else
+        deserialize_webm(name)
+      end
+    end
+  end
+
+  defmacro fetch_serializer(name) do
+    quote do
+      name = unquote(name)
+
+      if Map.has_key?(@webm_serializer_schema, name) do
+        @webm_serializer_schema[name]
+      else
+        &Serializer.EBML.serialize_binary/3
+      end
+    end
+  end
+
+  defmacro fetch_element_info(name) do
+    quote do
+      name = unquote(name)
+      @element_info[name]
+    end
+  end
+
+  defmacro fetch_element_name(element_id) do
+    quote do
+      element_id = unquote(element_id)
+
+      case BiMap.fetch(@bimap, element_id) do
+        {:ok, name} ->
+          name
+
+        :error ->
+          :Unknown
+      end
+    end
+  end
+
+  defmacro fetch_element_id(name) do
+    quote do
+      name = unquote(name)
+      BiMap.fetch_key!(@bimap, name)
+    end
+  end
+
   @spec deserialize_webm(atom) :: function
   def deserialize_webm(name) do
-    if Map.has_key?(@webm_deserializer_schema, name) do
-      @webm_deserializer_schema[name]
-    else
-      &Parser.EBML.parse_binary/1
-    end
+    fetch_deserializer(name)
   end
 
   @spec deserialize_webm_for_debug(atom) :: function
   def deserialize_webm_for_debug(name) do
-    if name == :Cluster do
-      &Parser.EBML.parse_master/2
-    else
-      deserialize_webm(name)
-    end
+    fetch_deserializer_for_debug(name)
   end
 
   @spec serialize_webm(atom) :: function
   def serialize_webm(name) do
-    if Map.has_key?(@webm_serializer_schema, name) do
-      @webm_serializer_schema[name]
-    else
-      &Serializer.EBML.serialize_binary/3
-    end
+    fetch_serializer(name)
   end
 
-  @spec element_type(atom) :: EBML.t()
+  @spec element_type(atom) :: Parser.EBML.t()
   def element_type(name) do
-    @element_info[name]
+    fetch_element_info(name)
   end
 
   @spec element_id_to_name(integer) :: atom
   def element_id_to_name(element_id) do
-    case BiMap.fetch(@bimap, element_id) do
-      {:ok, name} ->
-        name
-
-      :error ->
-        :Unknown
-    end
+    fetch_element_name(element_id)
   end
 
   @spec name_to_element_id(atom) :: integer
   def name_to_element_id(name) do
-    BiMap.fetch_key!(@bimap, name)
+    fetch_element_id(name)
   end
 end
