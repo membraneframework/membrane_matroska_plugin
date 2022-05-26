@@ -38,15 +38,17 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
     [
       {:membrane_core, "~> 0.9.0", override: true},
       {:bimap, "~> 1.2"},
+      {:membrane_h264_format, "~> 0.3"},
       {:membrane_vp8_format, "~> 0.4.0"},
       {:membrane_vp9_format, "~> 0.3.0"},
+      {:membrane_opus_format, "~> 0.3.0"},
       {:membrane_mp4_format, "~> 0.5.0", override: true},
       {:membrane_common_c, "~> 0.11.0", override: true},
+      {:membrane_file_plugin, "~> 0.12.0", runtime: false},
       # Test dependencies
       {:membrane_opus_plugin, "~> 0.8.0", only: :test, runtime: false},
       {:membrane_flv_plugin, "~> 0.2.0", only: :test, runtime: false},
       {:membrane_mp4_plugin, "~> 0.14.0", only: :test, runtime: false},
-      {:membrane_file_plugin, "~> 0.12.0", only: :test, runtime: false},
       {:membrane_ivf_plugin,
        github: "membraneframework/membrane_ivf_plugin", only: :test, runtime: false},
       {:membrane_ogg_plugin,
