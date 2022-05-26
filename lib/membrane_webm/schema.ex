@@ -724,68 +724,35 @@ defmodule Membrane.Matroska.Schema do
     Unknown: &Serializer.EBML.serialize_binary/3
   }
 
-  defmacro fetch_deserializer(name) do
-    quote do
-      name = unquote(name)
+  for {name, function} <- @webm_serializer_schema do
+    defp fetch_serializer(unquote(name)), do: unquote(function)
+  end
 
-      if Map.has_key?(@webm_deserializer_schema, name) do
-        @webm_deserializer_schema[name]
-      else
-        &Parser.EBML.parse_binary/1
-      end
+  defp fetch_serializer(_default), do: &Serializer.EBML.serialize_binary/3
+
+  for {name, function} <- @webm_deserializer_schema do
+    defp fetch_deserializer(unquote(name)), do: unquote(function)
+  end
+
+  defp fetch_deserializer(_default), do: &Parser.EBML.parse_binary/1
+
+  defp fetch_deserializer_for_debug(name) do
+    if name == :Cluster do
+      &Parser.EBML.parse_master/2
+    else
+      fetch_deserializer(name)
     end
   end
 
-  defmacro fetch_deserializer_for_debug(name) do
-    quote do
-      name = unquote(name)
-
-      if name == :Cluster do
-        &Parser.EBML.parse_master/2
-      else
-        deserialize_webm(name)
-      end
-    end
+  for {id, name} <- BiMap.to_list(@bimap) do
+    defp fetch_element_name(unquote(id)), do: unquote(name)
+    defp fetch_element_id(unquote(name)), do: unquote(id)
   end
 
-  defmacro fetch_serializer(name) do
-    quote do
-      name = unquote(name)
+  defp fetch_element_name(_default), do: :Unknown
 
-      if Map.has_key?(@webm_serializer_schema, name) do
-        @webm_serializer_schema[name]
-      else
-        &Serializer.EBML.serialize_binary/3
-      end
-    end
-  end
-
-  defmacro fetch_element_info(name) do
-    quote do
-      name = unquote(name)
-      @element_info[name]
-    end
-  end
-
-  defmacro fetch_element_name(element_id) do
-    quote do
-      element_id = unquote(element_id)
-
-      case BiMap.fetch(@bimap, element_id) do
-        {:ok, name} ->
-          name
-
-        :error ->
-          :Unknown
-      end
-    end
-  end
-
-  defmacro fetch_element_id(name) do
-    quote do
-      name = unquote(name)
-      BiMap.fetch_key!(@bimap, name)
-    end
+  for {name, type} <- @element_info do
+    defp fetch_element_info(unquote(name)), do: unquote(type)
   end
 
   @spec deserialize_webm(atom) :: function
