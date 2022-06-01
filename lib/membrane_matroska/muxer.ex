@@ -365,10 +365,6 @@ defmodule Membrane.Matroska.Muxer do
 
     (buffer_timestamp - track.offset)
     |> div(@timestamp_scale)
-    |> then(fn
-      # val when rem(val, 100) == 66 -> val + 1
-      val -> val
-    end)
   end
 
   defp enough_cached_blocks?(track) do
