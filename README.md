@@ -45,7 +45,6 @@ elixir examples/demuxer_h264.exs
 ```
 
 You can expect `demuxing_output` folder to appear and be filled with audio file `2.ogg` and video file `1.h264`.
-```
 
 ## Copyright and License
 
