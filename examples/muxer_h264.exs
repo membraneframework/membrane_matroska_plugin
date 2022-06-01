@@ -10,9 +10,12 @@ Mix.install([
 defmodule Example do
   use Membrane.Pipeline
 
+  alias Membrane.RawAudio
+
   @samples_url "https://raw.githubusercontent.com/membraneframework/static/matroska/samples/"
   @video_url @samples_url <> "ffmpeg-testsrc.h264"
-  @audio_url @samples_url <> "beep.opus"
+  # @audio_url @samples_url <> "beep.opus"
+  @audio_url @samples_url <> "beep-s16le-48kHz-stereo.raw"
   @output_file Path.expand("example_h264.mkv")
 
   @impl true
@@ -33,7 +36,15 @@ defmodule Example do
         location: @audio_url,
         hackney_opts: [follow_redirect: true]
       },
-      audio_parser: %Membrane.Opus.Parser{input_delimitted?: :true},
+      audio_encoder: %Membrane.Opus.Encoder{
+        application: :audio,
+        input_caps: %RawAudio{
+          channels: 2,
+          sample_format: :s16le,
+          sample_rate: 48_000
+        }
+      },
+      audio_parser: %Membrane.Opus.Parser{delimitation: :delimit},
       file_sink: %Membrane.File.Sink{location: @output_file}
     ]
 
@@ -44,6 +55,7 @@ defmodule Example do
       |> via_in(Pad.ref(:input, 1))
       |> to(:muxer),
       link(:audio_source)
+      |> to(:audio_encoder)
       |> to(:audio_parser)
       |> via_in(Pad.ref(:input, 2))
       |> to(:muxer),

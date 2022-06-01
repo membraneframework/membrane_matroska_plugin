@@ -735,14 +735,6 @@ defmodule Membrane.Matroska.Schema do
 
   defp fetch_deserializer(_default), do: &Parser.EBML.parse_binary/1
 
-  defp fetch_deserializer_for_debug(name) do
-    if name == :Cluster do
-      &Parser.EBML.parse_master/2
-    else
-      fetch_deserializer(name)
-    end
-  end
-
   for {id, name} <- BiMap.to_list(@element_id_to_name) do
     defp fetch_element_name(unquote(id)), do: unquote(name)
     defp fetch_element_id(unquote(name)), do: unquote(id)

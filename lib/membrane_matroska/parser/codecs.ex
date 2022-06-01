@@ -10,7 +10,7 @@ defmodule Membrane.Matroska.Parser.Codecs do
   alias Membrane.Buffer
   @spec vp8_frame_is_keyframe(binary) :: boolean
   def vp8_frame_is_keyframe(
-        <<size_0::3, _show_frame::1, _version::3, frame_type::1, size_1, size_2,
+        <<_size_0::3, _show_frame::1, _version::3, frame_type::1, _size_1, _size_2,
           _rest::bitstring>>
       ) do
     frame_type == 0

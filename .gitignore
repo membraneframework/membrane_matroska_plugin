@@ -6,6 +6,7 @@ bundlex.bat
 # Created by https://www.gitignore.io/api/c,vim,linux,macos,elixir,windows,visualstudiocode
 # Edit at https://www.gitignore.io/?templates=c,vim,linux,macos,elixir,windows,visualstudiocode
 
+demuxing_output
 *.dump
 *.packets
 *.frames

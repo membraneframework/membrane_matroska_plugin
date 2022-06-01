@@ -14,10 +14,13 @@ defmodule Example do
   @samples_url "https://raw.githubusercontent.com/membraneframework/static/matroska/samples/big-buck-bunny/"
   @input_url @samples_url <> "bun33s.mkv"
   @output_file Path.expand("big_buck_bunny33s.mkv")
-  @output_dir "./"
+  @output_dir "./demuxing_output/"
 
   @impl true
   def handle_init(options) do
+
+    File.mkdir(@output_dir)
+
     children = [
       source: %Membrane.Hackney.Source{
         location: @input_url,

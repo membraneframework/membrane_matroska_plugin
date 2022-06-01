@@ -25,7 +25,7 @@ defmodule Membrane.Matroska.Demuxer do
 
   use Membrane.Filter
 
-  alias Membrane.{Buffer, Time, Pipeline.Action}
+  alias Membrane.{Buffer, Pipeline.Action}
   alias Membrane.{Opus, RemoteStream, VP8, VP9, H264}
 
   def_input_pad :input,
@@ -62,7 +62,6 @@ defmodule Membrane.Matroska.Demuxer do
             active: boolean,
             height: non_neg_integer,
             width: non_neg_integer,
-            rate: Membrane.Time.t(),
             scale: non_neg_integer
           }
 
@@ -135,11 +134,9 @@ defmodule Membrane.Matroska.Demuxer do
     state = %State{state | tracks: put_in(tracks[id].active, true)}
 
     state =
-      if Enum.all?(state.tracks, fn {_k, v} -> v.active end) do
-        %State{state | phase: :all_outputs_linked}
-      else
-        state
-      end
+      if Enum.all?(state.tracks, fn {_k, v} -> v.active end),
+        do: %State{state | phase: :all_outputs_linked},
+        else: state
 
     {{:ok, caps: {Pad.ref(:output, id), caps}}, state}
   end
@@ -176,7 +173,7 @@ defmodule Membrane.Matroska.Demuxer do
   end
 
   @impl true
-  def handle_demand(Pad.ref(:output, _id), _size, :buffers, context, state) do
+  def handle_demand(Pad.ref(:output, _id), _size, :buffers, _context, state) do
     {:ok, state}
   end
 
@@ -294,7 +291,6 @@ defmodule Membrane.Matroska.Demuxer do
               active: false,
               height: track[:Video][:PixelHeight],
               width: track[:Video][:PixelWidth],
-              rate: Time.second(),
               scale: timestamp_scale
             }
         end
