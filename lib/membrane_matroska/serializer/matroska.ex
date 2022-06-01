@@ -192,8 +192,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
     seeks =
       elements
       |> Enum.reduce({[], @seekhead_bytes + 1}, fn
-        {name, data}, acc ->
-          {results, offset} = acc
+        {name, data}, {results, offset} ->
           new_acc = [{name, offset} | results]
           new_offset = offset + byte_size(Helper.serialize({name, data}))
           {new_acc, new_offset}
@@ -234,15 +233,10 @@ defmodule Membrane.Matroska.Serializer.Matroska do
       WritingApp: "membrane_matroska_plugin-#{@version}",
       MuxingApp: "membrane_matroska_plugin-#{@version}",
       Title: options.title,
-      DateUTC:
-        :calendar.datetime_to_gregorian_seconds(:calendar.now_to_datetime(:erlang.timestamp())),
+      DateUTC: options.date,
       TimestampScale: @timestamp_scale
     ]
 
-    if options.add_date? do
-      {:Info, info}
-    else
-      {:Info, Keyword.drop(info, [:DateUTC])}
-    end
+    {:Info, info}
   end
 end

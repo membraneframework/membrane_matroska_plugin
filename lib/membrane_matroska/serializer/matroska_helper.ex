@@ -9,7 +9,7 @@ defmodule Membrane.Matroska.Serializer.Helper do
 
   @spec serialize({atom, any}) :: binary
   def serialize({name, data}) do
-    schema = &Schema.serialize_webm/1
+    schema = &Schema.serialize_matroska/1
     serializing_function = schema.(name)
 
     serializing_function.(data, name, schema)

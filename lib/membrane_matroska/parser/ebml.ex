@@ -3,48 +3,49 @@ defmodule Membrane.Matroska.Parser.EBML do
   Helper functions for decoding and encoding EBML elements.
 
   EBML RFC: https://www.rfc-editor.org/rfc/rfc8794.html
-  Numbers are encoded as VINTs in EBML
-  VINT - variable-length integer
-
-  A VINT consists of three parts:
-  - VINT_WIDTH - the number N of leading `0` bits in the first byte of the VINT signifies how many bytes the VINT takes up in total: N+1
-    having no leading `0` bits is also allowed in which case the VINT takes up 1 byte
-  - VINT_MARKER - the `1` bit immediately following the VINT_WIDTH `0` bits
-  - VINT_DATA - the 7*N bits following the VINT_MARKER containing the unsigned integer (big-endian)
-
-  As an example here are three ways to encode the decimal number `13`:
-  ```
-  1 0001101
-  0 1 000000 00001101
-  00 1 00000 00000000 00001101
-  ```
-
-  An EBML_ELEMENT consists of three consecutive parts:
-  - ELEMENT_ID - a VINT defined in a schema which specifies the corresponding EBML_TYPE and other constraints
-  - ELEMENT_DATA_SIZE - a VINT of how many bytes the ELEMENT_DATA field occupies
-  - ELEMENT_DATA - the actual payload of the element, interpreted differently for each EBML_TYPE
-
-  Possible EBML_TYPE values:
-  - Signed Integer
-  - Unsigned Integer
-  - Float
-  - String
-  - UTF-8
-  - Date
-  - Master
-
-  Only Master Elements can contain other Elements in their ELEMENT_DATA which occur one after the other simply concatenated.
 
   Note that this module does not support parsing Master Elements with unknown data size
   https://www.rfc-editor.org/rfc/rfc8794.html#section-6.2
   """
+
+  # Numbers are encoded as VINTs in EBML
+  # VINT - variable-length integer
+
+  # A VINT consists of three parts:
+  # - VINT_WIDTH - the number N of leading `0` bits in the first byte of the VINT signifies how many bytes the VINT takes up in total: N+1
+  #   having no leading `0` bits is also allowed in which case the VINT takes up 1 byte
+  # - VINT_MARKER - the `1` bit immediately following the VINT_WIDTH `0` bits
+  # - VINT_DATA - the 7*N bits following the VINT_MARKER containing the unsigned integer (big-endian)
+
+  # As an example here are three ways to encode the decimal number `13`:
+  # ```
+  # 1 0001101
+  # 0 1 000000 00001101
+  # 00 1 00000 00000000 00001101
+  # ```
+
+  # An EBML_ELEMENT consists of three consecutive parts:
+  # - ELEMENT_ID - a VINT defined in a schema which specifies the corresponding EBML_TYPE and other constraints
+  # - ELEMENT_DATA_SIZE - a VINT of how many bytes the ELEMENT_DATA field occupies
+  # - ELEMENT_DATA - the actual payload of the element, interpreted differently for each EBML_TYPE
+
+  # Possible EBML_TYPE values:
+  # - Signed Integer
+  # - Unsigned Integer
+  # - Float
+  # - String
+  # - UTF-8
+  # - Date
+  # - Master
+
+  # Only Master Elements can contain other Elements in their ELEMENT_DATA which occur one after the other simply concatenated.
 
   use Bitwise
 
   alias Membrane.Matroska.Schema
   alias Membrane.Time
 
-  @type t :: :integer | :uint | :float | :string | :utf_8 | :date | :master | :binary
+  @type element_type_t :: :integer | :uint | :float | :string | :utf_8 | :date | :master | :binary
 
   # https://datatracker.ietf.org/doc/html/rfc8794#section-7.6
   @date_zero {{2001, 1, 1}, {0, 0, 0}}

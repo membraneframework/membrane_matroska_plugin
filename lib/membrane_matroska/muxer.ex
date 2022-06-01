@@ -2,7 +2,7 @@ defmodule Membrane.Matroska.Muxer do
   @moduledoc """
   Filter element for muxing Matroska files.
 
-  It accepts an arbitrary number of Opus, VP8 or VP9 streams and outputs a bytestream in Matroska format containing those streams.
+  It accepts an arbitrary number of Opus, VP8, VP9 or H264 streams and outputs a bytestream in Matroska format containing those streams.
 
   Muxer guidelines
   https://www.matroskaproject.org/docs/container/
@@ -24,11 +24,15 @@ defmodule Membrane.Matroska.Muxer do
                 default: "Membrane Matroska file",
                 description: "Title to be used in the `Segment/Info/Title` element"
               ],
-              add_date?: [
-                spec: bool,
-                default: true,
+              date: [
+                spec: integer(),
+                default:
+                  :calendar.datetime_to_gregorian_seconds(
+                    :calendar.now_to_datetime(:erlang.timestamp())
+                  ),
                 description:
-                  "When true the file will include the `Segment/Info/DateUTC` element containing the datetime at file's creation."
+                  "Datetime which will be store in  file element `Segment/Info/DateUTC`,
+                  default value is file's creation datetime."
               ]
 
   # tags:
@@ -46,7 +50,7 @@ defmodule Membrane.Matroska.Muxer do
   def_output_pad :output,
     availability: :always,
     mode: :pull,
-    caps: {RemoteStream, content_format: :WEBM}
+    caps: {RemoteStream, content_format: :Matroska}
 
   # 5 mb
   @cluster_bytes_limit 5_242_880
@@ -71,8 +75,7 @@ defmodule Membrane.Matroska.Muxer do
 
   @impl true
   def handle_init(options) do
-    options = Map.put(options, :duration, 0)
-    options = Map.put(options, :clusters_size, 0)
+    options = options |> Map.put(:duration, 0) |> Map.put(:clusters_size, 0)
     {:ok, %State{options: options}}
   end
 
@@ -84,6 +87,11 @@ defmodule Membrane.Matroska.Muxer do
   @impl true
   def handle_pad_added(_pad, _context, _state) do
     raise "Can't add new input pads to muxer in state :playing!"
+  end
+
+  @impl true
+  def handle_caps(Pad.ref(:input, id), caps, _context, state) when is_map_key(state.tracks, id) do
+    {:ok, state}
   end
 
   @impl true
@@ -125,7 +133,8 @@ defmodule Membrane.Matroska.Muxer do
     if state.active_tracks == state.expected_tracks do
       state = put_in(state.tracks_copy, state.tracks)
       demands = Enum.map(state.tracks, fn {id, _track_data} -> {:demand, Pad.ref(:input, id)} end)
-      {{:ok, demands}, state}
+      caps = [caps: {:output, %RemoteStream{content_format: :Matroska, type: :bytestream}}]
+      {{:ok, caps ++ demands}, state}
     else
       {:ok, state}
     end
@@ -169,7 +178,7 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   @impl true
-  def handle_end_of_stream(Pad.ref(:input, _id), _context, state) do
+  def handle_end_of_stream(Pad.ref(:input, id), _context, state) do
     cluster = Helper.serialize({:Cluster, state.cluster_acc})
     clusters_size = state.segment_position + byte_size(cluster)
     state = put_in(state.options.clusters_size, clusters_size)
@@ -211,6 +220,11 @@ defmodule Membrane.Matroska.Muxer do
       else
         track
       end
+
+    # buffer =
+    #   if buffer.dts != nil and buffer.pts < buffer.dts,
+    #     do: Map.put(buffer, :pts, buffer.dts),
+    #     else: buffer
 
     state = put_in(state.tracks[id], track)
     timestamp = div(Buffer.get_dts_or_pts(buffer) - track.offset, @timestamp_scale)
@@ -346,7 +360,12 @@ defmodule Membrane.Matroska.Muxer do
   defp get_proper_timestamp(buffer, track) do
     buffer_timestamp = Map.get(buffer, track.which_timestamp)
 
-    div(buffer_timestamp - track.offset, @timestamp_scale)
+    (buffer_timestamp - track.offset)
+    |> div(@timestamp_scale)
+    |> then(fn
+      val when rem(val, 100) == 66 -> val + 1
+      val -> val
+    end)
   end
 
   defp enough_cached_blocks?(track) do

@@ -5,7 +5,7 @@ defmodule Membrane.Matroska.Demuxer do
   Receives a bytestream in Matroska file format as input and outputs the constituent tracks of that file
   onto seperate pads.
 
-  This demuxer is only capable of demuxing tracks encoded with VP8, VP9 or Opus.
+  This demuxer is only capable of demuxing tracks encoded with VP8, VP9, H264 or Opus.
   """
 
   # Works in three phases:
@@ -34,7 +34,7 @@ defmodule Membrane.Matroska.Demuxer do
     demand_unit: :buffers,
     caps:
       {RemoteStream,
-       content_format: Membrane.Caps.Matcher.one_of([nil, :WEBM, :MKV]), type: :bytestream}
+       content_format: Membrane.Caps.Matcher.one_of([nil, :WEBM, :Matroska]), type: :bytestream}
 
   def_output_pad :output,
     availability: :on_request,
@@ -57,7 +57,7 @@ defmodule Membrane.Matroska.Demuxer do
           }
 
     @type video_track_t :: %{
-            codec: :vp8 | :vp9,
+            codec: :vp8 | :vp9 | :h264,
             uid: non_neg_integer,
             active: boolean,
             height: non_neg_integer,
@@ -147,12 +147,18 @@ defmodule Membrane.Matroska.Demuxer do
   @impl true
   def handle_process(:input, %Buffer{payload: bytes}, context, state) do
     unparsed = state.parser_acc <> bytes
-    {parsed, unparsed} = parse(unparsed)
 
-    {actions, state} =
-      process_elements({Qex.new(), context, %State{state | parser_acc: unparsed}}, parsed)
+    {parsed, unparsed} =
+      Membrane.Matroska.Parser.Helper.parse(
+        unparsed,
+        &Membrane.Matroska.Schema.deserialize_matroska/1
+      )
 
-    # if even one element couldn't be parsed then demand more data and try again
+    state = %State{state | parser_acc: unparsed}
+
+    {actions, state} = process_elements({Qex.new(), context, state}, parsed)
+
+    # if not even a single element could be parsed then demand more data and try again
     if parsed == [] or state.phase == :reading_header do
       {{:ok, demand: :input}, state}
     else
@@ -161,15 +167,17 @@ defmodule Membrane.Matroska.Demuxer do
   end
 
   @impl true
+  def handle_demand(Pad.ref(:output, _id), _size, :buffers, context, state)
+      when state.phase == :all_outputs_linked do
+    # reconsider if cached buffers can now be sent
+    {Qex.new(), state}
+    |> reclassify_cached_buffer_actions(context)
+    |> demand_if_not_blocked()
+  end
+
+  @impl true
   def handle_demand(Pad.ref(:output, _id), _size, :buffers, context, state) do
-    if state.phase == :all_outputs_linked do
-      # reconsider if cached buffers can now be sent
-      {Qex.new(), state}
-      |> reclassify_cached_buffer_actions(context)
-      |> demand_if_not_blocked()
-    else
-      {:ok, state}
-    end
+    {:ok, state}
   end
 
   defp process_elements({actions, context, state}, elements_list) do
@@ -201,8 +209,6 @@ defmodule Membrane.Matroska.Demuxer do
         {actions, context, %State{state | current_timecode: data}}
 
       name when name in [:Block, :SimpleBlock] ->
-        # IO.inspect({state.current_timecode, data.timecode}, label: :buffer)
-
         buffer_action =
           {:buffer,
            {Pad.ref(:output, data.track_number),
@@ -295,13 +301,6 @@ defmodule Membrane.Matroska.Demuxer do
 
       {track[:TrackNumber], info}
     end
-  end
-
-  defp parse(bytes) do
-    Membrane.Matroska.Parser.Helper.parse(
-      bytes,
-      &Membrane.Matroska.Schema.deserialize_webm/1
-    )
   end
 
   defp process_codec_specific(data, codec) do

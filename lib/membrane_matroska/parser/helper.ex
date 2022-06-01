@@ -22,7 +22,7 @@ defmodule Membrane.Matroska.Parser.Helper do
   # Main function used for parsing a file
   @spec parse(binary, function) :: {parsed :: list, unparsed :: binary}
   def parse(unparsed, schema) do
-    parse_many([], unparsed, schema)
+    do_parse([], unparsed, schema)
   end
 
   @spec parse_many!(list, binary, function) :: list
@@ -36,8 +36,8 @@ defmodule Membrane.Matroska.Parser.Helper do
     end
   end
 
-  @spec parse_many(list, binary, function) :: {list, binary}
-  defp parse_many(acc, bytes, schema) do
+  @spec do_parse(list, binary, function) :: {list, binary}
+  defp do_parse(acc, bytes, schema) do
     case maybe_parse_element(bytes, schema) do
       {:error, :need_more_bytes} ->
         {acc, bytes}
@@ -46,7 +46,7 @@ defmodule Membrane.Matroska.Parser.Helper do
         {[element | acc], <<>>}
 
       {:ok, {element, rest}} ->
-        parse_many([element | acc], rest, schema)
+        do_parse([element | acc], rest, schema)
     end
   end
 

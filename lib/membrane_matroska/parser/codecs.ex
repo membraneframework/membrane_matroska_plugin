@@ -9,10 +9,10 @@ defmodule Membrane.Matroska.Parser.Codecs do
 
   alias Membrane.Buffer
   @spec vp8_frame_is_keyframe(binary) :: boolean
-  def vp8_frame_is_keyframe(<<frame_tag::binary-size(3), _rest::bitstring>>) do
-    <<size_0::3, _show_frame::1, _version::3, frame_type::1, size_1, size_2>> = frame_tag
-    <<_size::19>> = <<size_2, size_1, size_0::3>>
-
+  def vp8_frame_is_keyframe(
+        <<size_0::3, _show_frame::1, _version::3, frame_type::1, size_1, size_2,
+          _rest::bitstring>>
+      ) do
     frame_type == 0
   end
 
@@ -58,7 +58,7 @@ defmodule Membrane.Matroska.Parser.Codecs do
     type(codec) == :video and keyframe_bit(block) == 1
   end
 
-  @spec type(:opus | :vp8 | :vp9) :: :audio | :video
+  @spec type(:opus | :vp8 | :vp9 | :h264) :: :audio | :video
   def type(codec) do
     case codec do
       :opus -> :audio
@@ -83,9 +83,6 @@ defmodule Membrane.Matroska.Parser.Codecs do
       :opus ->
         0
 
-      :vorbis ->
-        raise "Vorbis is unsupported"
-
       _other ->
         raise "illegal codec #{inspect(codec)}"
     end
@@ -101,9 +98,11 @@ defmodule Membrane.Matroska.Parser.Codecs do
   # https://datatracker.ietf.org/doc/html/rfc7845#section-5.1
   @spec construct_opus_id_header(1..255) :: binary
   def construct_opus_id_header(channels) do
-    if channels > 2 do
-      raise "Handling Opus channel count of #{channels} is not supported. Cannot mux into a playable form."
-    end
+    if channels > 2,
+      do:
+        raise(
+          "Handling Opus channel count of #{channels} is not supported. Cannot mux into a playable form."
+        )
 
     # for reference see options descriptions in `Membrane.OggPlugin`
     encapsulation_version = 1
