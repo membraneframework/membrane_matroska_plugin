@@ -182,7 +182,6 @@ defmodule Membrane.Matroska.MuxerTest do
   end
 
   defp play_and_validate(pipeline, reference_file, output_file) do
-    Testing.Pipeline.play(pipeline)
     assert_pipeline_playback_changed(pipeline, :prepared, :playing)
     assert_start_of_stream(pipeline, :sink)
     assert_end_of_stream(pipeline, :sink)

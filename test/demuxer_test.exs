@@ -27,7 +27,7 @@ defmodule Membrane.Matroska.DemuxerTest do
 
       state = %{output_dir: options.output_dir, track_id_to_file: options.track_id_to_output_file}
 
-      {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
+      {{:ok, spec: %ParentSpec{children: children, links: links}, playback: :playing}, state}
     end
 
     @impl true
@@ -100,17 +100,16 @@ defmodule Membrane.Matroska.DemuxerTest do
 
   defp test_stream(input_file, track_id_to_reference, tmp_dir) do
     {:ok, pipeline} =
-      %Testing.Pipeline.Options{
+      [
         module: TestPipeline,
         custom_args: %{
           input_file: Path.join(@fixtures_dir, input_file),
           output_dir: tmp_dir,
           track_id_to_output_file: track_id_to_reference
         }
-      }
+      ]
       |> Testing.Pipeline.start_link()
 
-    Testing.Pipeline.play(pipeline)
     assert_pipeline_playback_changed(pipeline, _, :playing)
 
     references = Map.values(track_id_to_reference)
