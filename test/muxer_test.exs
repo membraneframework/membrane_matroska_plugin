@@ -19,7 +19,7 @@ defmodule Membrane.Matroska.MuxerTest do
   @pad_id_2 13_337_737_628_113_408_001
   @pad_id_3 11_020_961_587_148_742_657
   @pad_id_4 16_890_875_709_512_990_721
-  # @pad_id_5 16_890_875_709_512_990_721
+  @date 63_821_112_726
 
   defp test_from_buffers(tmp_dir) do
     output_file = Path.join(tmp_dir, "output_muxed_opus.mkv")
@@ -38,7 +38,7 @@ defmodule Membrane.Matroska.MuxerTest do
             output: Testing.Source.output_from_buffers(buffers),
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
-          muxer: %Membrane.Matroska.Muxer{add_date?: false},
+          muxer: %Membrane.Matroska.Muxer{date: @date},
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -67,7 +67,7 @@ defmodule Membrane.Matroska.MuxerTest do
             location: input_file
           },
           deserializer: Membrane.Element.IVF.Deserializer,
-          muxer: %Membrane.Matroska.Muxer{add_date?: false},
+          muxer: %Membrane.Matroska.Muxer{date: @date},
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -107,7 +107,7 @@ defmodule Membrane.Matroska.MuxerTest do
             output: Testing.Source.output_from_buffers(buffers),
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
-          muxer: %Membrane.Matroska.Muxer{add_date?: false},
+          muxer: %Membrane.Matroska.Muxer{date: @date},
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -156,7 +156,7 @@ defmodule Membrane.Matroska.MuxerTest do
             caps: %Opus{channels: 2, self_delimiting?: false}
           },
           mp4_payloader: Membrane.MP4.Payloader.H264,
-          muxer: %Membrane.Matroska.Muxer{add_date?: false},
+          muxer: %Membrane.Matroska.Muxer{date: @date},
           sink: %Membrane.File.Sink{
             location: output_file
           }
@@ -186,7 +186,7 @@ defmodule Membrane.Matroska.MuxerTest do
     assert_pipeline_playback_changed(pipeline, :prepared, :playing)
     assert_start_of_stream(pipeline, :sink)
     assert_end_of_stream(pipeline, :sink)
-    Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
+    Testing.Pipeline.terminate(pipeline, blocking?: true)
     assert_pipeline_playback_changed(pipeline, :prepared, :stopped)
 
     reference_file = File.read!(reference_file)

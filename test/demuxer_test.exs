@@ -122,7 +122,7 @@ defmodule Membrane.Matroska.DemuxerTest do
       assert_end_of_stream(pipeline, {:sink, 2}, :input)
     end
 
-    Testing.Pipeline.stop_and_terminate(pipeline, blocking?: true)
+    Testing.Pipeline.terminate(pipeline, blocking?: true)
     assert_pipeline_playback_changed(pipeline, _, :stopped)
 
     for reference <- Map.values(track_id_to_reference) do

@@ -44,7 +44,7 @@ defmodule Membrane.Matroska.Serializer.EBML do
 
   @spec serialize_date(non_neg_integer, atom, function) :: binary
   def serialize_date(date, name, schema) do
-    data = :binary.encode_unsigned(date, :big)
+    data = <<date::integer-signed-size(8)>>
     serialize_element(data, name, schema)
   end
 
