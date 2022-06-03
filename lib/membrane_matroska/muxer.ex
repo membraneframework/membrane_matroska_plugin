@@ -41,7 +41,6 @@ defmodule Membrane.Matroska.Muxer do
       Opus,
       {RemoteStream, content_format: Membrane.Caps.Matcher.one_of([VP8, VP9]), type: :packetized},
       MP4.Payload
-      # Why doesn't match correctly {MP4.Payload, content: AVC1}
     ]
 
   def_output_pad :output,
