@@ -43,7 +43,7 @@ defmodule Example do
           sample_rate: 48_000
         }
       },
-      audio_parser: Membrane.Opus.Parser,
+      audio_parser: %Membrane.Opus.Parser{delimitation: :undelimit},
       file_sink: %Membrane.File.Sink{location: @output_file}
     ]
 
