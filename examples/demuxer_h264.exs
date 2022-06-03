@@ -35,7 +35,7 @@ defmodule Example do
     ]
 
 
-    {{:ok, spec: %ParentSpec{children: children, links: links}}, %{tracks: 2}}
+    {{:ok, spec: %ParentSpec{children: children, links: links}, playback: :playing}, %{tracks: 2}}
   end
 
   @impl true
@@ -46,7 +46,7 @@ defmodule Example do
           children = %{
             {:payloader, track_id} => %Membrane.Ogg.Payloader.Opus{
               frame_size: 20,
-              serial_number: 4_210_672_757
+              serial_number: :rand.uniform(2_147_483_647)
             },
             {:sink, track_id} => %Membrane.File.Sink{
               location: Path.join(@output_dir, "#{track_id}.ogg")
@@ -87,6 +87,7 @@ defmodule Example do
     end
   end
 
+  # Next three functions are only a logic for terminating a pipeline when it's done, you don't need to worry
   @impl true
   def handle_element_end_of_stream({{:sink, _},:input}, _ctx, state) when state.tracks == 1 do
     Membrane.Pipeline.terminate(self())
@@ -103,13 +104,9 @@ defmodule Example do
   end
 end
 
-  ref =
-    Example.start_link()
-    |> elem(1)
-    |> tap(&Membrane.Pipeline.play/1)
-    |> then(&Process.monitor/1)
+{:ok, pipeline} = Example.start_link()
+monitor_ref = Process.monitor(pipeline)
 
-  receive do
-    {:DOWN, ^ref, :process, _pid, _reason} ->
-      :ok
-  end
+receive do
+  {:DOWN, ^monitor_ref, :process, _pid, _reason} -> :ok
+end

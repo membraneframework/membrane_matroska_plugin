@@ -30,9 +30,8 @@ defmodule Membrane.Matroska.Muxer do
                   :calendar.datetime_to_gregorian_seconds(
                     :calendar.now_to_datetime(:erlang.timestamp())
                   ),
-                description:
-                  "Datetime which will be store in  file element `Segment/Info/DateUTC`,
-                  default value is file's creation datetime."
+                description: "Datetime which will be store in  the `Segment/Info/DateUTC` element.
+                  Default value is the time of initialization of this element."
               ]
 
   # tags:

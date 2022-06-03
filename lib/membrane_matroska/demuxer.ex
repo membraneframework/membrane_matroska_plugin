@@ -145,11 +145,7 @@ defmodule Membrane.Matroska.Demuxer do
   def handle_process(:input, %Buffer{payload: bytes}, context, state) do
     unparsed = state.parser_acc <> bytes
 
-    {parsed, unparsed} =
-      Membrane.Matroska.Parser.Helper.parse(
-        unparsed,
-        &Membrane.Matroska.Schema.deserialize_matroska/1
-      )
+    {parsed, unparsed} = Membrane.Matroska.Parser.Helper.parse(unparsed)
 
     state = %State{state | parser_acc: unparsed}
 

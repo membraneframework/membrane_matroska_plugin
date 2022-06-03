@@ -21,7 +21,7 @@ defmodule Membrane.Matroska.Parser.Helper do
 
   # Main function used for parsing a file
   @spec parse(binary, function) :: {parsed :: list, unparsed :: binary}
-  def parse(unparsed, schema) do
+  def parse(unparsed, schema \\ &Membrane.Matroska.Schema.deserialize_matroska/1) do
     do_parse([], unparsed, schema)
   end
 
