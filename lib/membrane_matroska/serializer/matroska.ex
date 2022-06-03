@@ -228,12 +228,16 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   # this element MUST exist - because of TimestampScale
   @spec construct_info(map) :: {atom, list}
   defp construct_info(options) do
+    {seconds, _miliseconds} = DateTime.utc_now() |> DateTime.to_gregorian_seconds()
+
     info = [
       Duration: options.duration * @timestamp_scale,
       WritingApp: "membrane_matroska_plugin-#{@version}",
       MuxingApp: "membrane_matroska_plugin-#{@version}",
       Title: options.title,
-      DateUTC: options.date,
+      DateUTC:
+        options.date
+        | seconds,
       TimestampScale: @timestamp_scale
     ]
 
