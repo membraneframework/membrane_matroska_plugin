@@ -235,9 +235,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
       WritingApp: "membrane_matroska_plugin-#{@version}",
       MuxingApp: "membrane_matroska_plugin-#{@version}",
       Title: options.title,
-      DateUTC:
-        options.date
-        | seconds,
+      DateUTC: options.date || seconds,
       TimestampScale: @timestamp_scale
     ]
 
