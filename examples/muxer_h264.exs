@@ -12,7 +12,7 @@ defmodule Example do
 
   alias Membrane.RawAudio
 
-  @samples_url "https://raw.githubusercontent.com/membraneframework/static/matroska/samples/"
+  @samples_url "https://raw.githubusercontent.com/membraneframework/static/gh-pages/samples/"
   @video_url @samples_url <> "ffmpeg-testsrc.h264"
   @audio_url @samples_url <> "beep-s16le-48kHz-stereo.raw"
   @output_file Path.expand("example_h264.mkv")
@@ -51,12 +51,10 @@ defmodule Example do
       link(:video_source)
       |> to(:video_parser)
       |> to(:video_payloader)
-      |> via_in(Pad.ref(:input, 1))
       |> to(:muxer),
       link(:audio_source)
       |> to(:audio_encoder)
       |> to(:audio_parser)
-      |> via_in(Pad.ref(:input, 2))
       |> to(:muxer),
       link(:muxer) |> to(:file_sink)
     ]

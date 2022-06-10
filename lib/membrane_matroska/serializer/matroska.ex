@@ -115,7 +115,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
        TrackType: 2,
        CodecID: "A_OPUS",
        FlagLacing: 0,
-       TrackUID: id,
+       TrackUID: get_track_uid(id),
        TrackNumber: track_number
      ]}
   end
@@ -133,7 +133,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
        TrackType: 1,
        CodecID: "V_VP8",
        FlagLacing: 0,
-       TrackUID: id,
+       TrackUID: get_track_uid(id),
        TrackNumber: track_number
      ]}
   end
@@ -151,7 +151,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
        TrackType: 1,
        CodecID: "V_VP9",
        FlagLacing: 0,
-       TrackUID: id,
+       TrackUID: get_track_uid(id),
        TrackNumber: track_number
      ]}
   end
@@ -180,9 +180,19 @@ defmodule Membrane.Matroska.Serializer.Matroska do
        TrackType: 1,
        CodecID: "V_MPEG4/ISO/AVC",
        FlagLacing: 0,
-       TrackUID: id,
+       TrackUID: get_track_uid(id),
        TrackNumber: track_number
      ]}
+  end
+
+  defp get_track_uid(id) when is_reference(id) do
+    8
+    |> :crypto.strong_rand_bytes()
+    |> :binary.decode_unsigned()
+  end
+
+  defp get_track_uid(id) do
+    id
   end
 
   # explanation of segment position:

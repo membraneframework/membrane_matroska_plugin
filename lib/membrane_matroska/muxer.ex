@@ -218,18 +218,12 @@ defmodule Membrane.Matroska.Muxer do
         track
       end
 
-    # buffer =
-    #   if buffer.dts != nil and buffer.pts < buffer.dts,
-    #     do: Map.put(buffer, :pts, buffer.dts),
-    #     else: buffer
-
     state = put_in(state.tracks[id], track)
     timestamp = div(Buffer.get_dts_or_pts(buffer) - track.offset, @timestamp_scale)
 
     state = update_in(state.time_min, &min(timestamp, &1))
     state = update_in(state.time_max, &max(timestamp, &1))
     # cache last block
-
     block = {timestamp, buffer, state.tracks[id].track_number, state.tracks[id].codec}
 
     put_in(state.tracks[id].cached_block, block)
