@@ -164,11 +164,13 @@ defmodule Membrane.Matroska.Parser.Matroska do
       0b00 ->
         :no_lacing
 
+      # Other possible lacing modes which are not supported now
+      # 0b01 -> :Xiph_lacing
+      # 0b11 -> :EBML_lacing
+      # 0b10 -> :fixed_size_lacing
+
       _any_lacing ->
         raise "Demuxing matroska files with laced data is currently not supported"
-        # 0b01 -> :Xiph_lacing
-        # 0b11 -> :EBML_lacing
-        # 0b10 -> :fixed_size_lacing
     end
   end
 end

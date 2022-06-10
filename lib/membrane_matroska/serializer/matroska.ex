@@ -68,7 +68,6 @@ defmodule Membrane.Matroska.Serializer.Matroska do
 
     info = construct_info(options)
     tracks = construct_tracks(tracks)
-    # tags = construct_tags()
 
     seek_head = [info, tracks] |> construct_seek_head() |> add_cues_seek(options.clusters_size)
 
@@ -88,7 +87,6 @@ defmodule Membrane.Matroska.Serializer.Matroska do
       [
         DocTypeReadVersion: 2,
         DocTypeVersion: 4,
-        # DocType: "matroska",
         DocType: "matroska",
         EBMLMaxSizeLength: 8,
         EBMLMaxIDLength: 4,
@@ -125,10 +123,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
        ) do
     {:TrackEntry,
      [
-       Video: [
-         #  PixelHeight: height,
-         #  PixelWidth: width
-       ],
+       Video: [],
        # 1 for video
        TrackType: 1,
        CodecID: "V_VP8",
@@ -143,10 +138,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
        ) do
     {:TrackEntry,
      [
-       Video: [
-         #  PixelHeight: height,
-         #  PixelWidth: width
-       ],
+       Video: [],
        # 1 for video
        TrackType: 1,
        CodecID: "V_VP9",
@@ -238,14 +230,16 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   # this element MUST exist - because of TimestampScale
   @spec construct_info(map) :: {atom, list}
   defp construct_info(options) do
-    {seconds, _miliseconds} = DateTime.utc_now() |> DateTime.to_gregorian_seconds()
+    date = options.date || DateTime.utc_now()
+
+    {seconds, _miliseconds} = DateTime.to_gregorian_seconds(date)
 
     info = [
       Duration: options.duration * @timestamp_scale,
       WritingApp: "membrane_matroska_plugin-#{@version}",
       MuxingApp: "membrane_matroska_plugin-#{@version}",
       Title: options.title,
-      DateUTC: options.date || seconds,
+      DateUTC: seconds,
       TimestampScale: @timestamp_scale
     ]
 

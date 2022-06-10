@@ -45,8 +45,7 @@ defmodule Example do
         track_info.codec == :opus ->
           children = %{
             {:payloader, track_id} => %Membrane.Ogg.Payloader.Opus{
-              frame_size: 20,
-              serial_number: :rand.uniform(2_147_483_647)
+              frame_size: 20
             },
             {:sink, track_id} => %Membrane.File.Sink{
               location: Path.join(@output_dir, "#{track_id}.ogg")

@@ -25,7 +25,7 @@ defmodule Membrane.Matroska.Muxer do
                 description: "Title to be used in the `Segment/Info/Title` element"
               ],
               date: [
-                spec: nil | integer(),
+                spec: nil | DateTime.t(),
                 default: nil,
                 description: "Datetime which will be store in  the `Segment/Info/DateUTC` element.
                   Default value is the time of initialization of this element."

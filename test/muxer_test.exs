@@ -19,7 +19,7 @@ defmodule Membrane.Matroska.MuxerTest do
   @pad_id_2 13_337_737_628_113_408_001
   @pad_id_3 11_020_961_587_148_742_657
   @pad_id_4 16_890_875_709_512_990_721
-  @date 63_821_112_726
+  @date DateTime.from_gregorian_seconds(63_821_112_726)
 
   defp test_from_buffers(tmp_dir) do
     output_file = Path.join(tmp_dir, "output_muxed_opus.mkv")

@@ -37,7 +37,6 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
   defp deps do
     [
       {:membrane_core, "~> 0.10.0"},
-      {:bimap, "~> 1.2"},
       {:membrane_h264_format, "~> 0.3"},
       {:membrane_vp8_format, "~> 0.4.0"},
       {:membrane_vp9_format, "~> 0.4.0"},
@@ -45,6 +44,8 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
       {:membrane_mp4_format, "~> 0.7.0"},
       {:membrane_common_c, "~> 0.13.0"},
       {:membrane_file_plugin, "~> 0.12.0", runtime: false},
+      {:qex, "~> 0.5.1"},
+      {:bimap, "~> 1.2"},
       # Test dependencies
       {:membrane_opus_plugin, "~> 0.15.0", only: :test, runtime: false},
       {:membrane_flv_plugin, "~> 0.2.0", only: :test, runtime: false},
@@ -57,8 +58,7 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
       # Credo
       {:ex_doc, "~> 0.26", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false},
-      {:credo, "~> 1.5", only: :dev, runtime: false, override: true},
-      {:qex, "~> 0.5.1"}
+      {:credo, "~> 1.6", only: :dev, runtime: false}
     ]
   end
 
