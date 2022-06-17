@@ -38,7 +38,7 @@ defmodule Membrane.Matroska.Muxer do
     mode: :pull,
     demand_unit: :buffers,
     caps: [
-      Opus,
+      {Opus, self_delimiting?: false, channels: Membrane.Caps.Matcher.one_of([1, 2])},
       {RemoteStream, content_format: Membrane.Caps.Matcher.one_of([VP8, VP9]), type: :packetized},
       MP4.Payload
     ]

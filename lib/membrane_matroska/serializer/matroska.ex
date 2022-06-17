@@ -177,14 +177,14 @@ defmodule Membrane.Matroska.Serializer.Matroska do
      ]}
   end
 
-  defp get_track_uid(id) when is_reference(id) do
+  defp get_track_uid(id) when is_integer(id) do
+    id
+  end
+
+  defp get_track_uid(_id) do
     8
     |> :crypto.strong_rand_bytes()
     |> :binary.decode_unsigned()
-  end
-
-  defp get_track_uid(id) do
-    id
   end
 
   # explanation of segment position:
