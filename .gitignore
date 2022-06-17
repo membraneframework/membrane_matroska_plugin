@@ -6,6 +6,11 @@ bundlex.bat
 # Created by https://www.gitignore.io/api/c,vim,linux,macos,elixir,windows,visualstudiocode
 # Edit at https://www.gitignore.io/?templates=c,vim,linux,macos,elixir,windows,visualstudiocode
 
+*.dump
+*.packets
+*.frames
+./test/debug_test.exs
+
 ### C ###
 # Prerequisites
 *.d
@@ -174,3 +179,6 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.gitignore.io/api/c,vim,linux,macos,elixir,windows,visualstudiocode
+
+/test/debug/
+/lib/membrane_webm/parser.ex
