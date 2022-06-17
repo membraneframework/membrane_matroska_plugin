@@ -1,8 +1,8 @@
 # Membrane Matroska Plugin
 
-[![Hex.pm](https://img.shields.io/hexpm/v/membrane_webm_plugin.svg)](https://hex.pm/packages/membrane_webm_plugin)
-[![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/membrane_webm_plugin)
-[![CircleCI](https://circleci.com/gh/membraneframework/membrane_webm_plugin.svg?style=svg)](https://circleci.com/gh/membraneframework/membrane_webm_plugin)
+[![Hex.pm](https://img.shields.io/hexpm/v/membrane_matroska_plugin.svg)](https://hex.pm/packages/membrane_matroska_plugin)
+[![API Docs](https://img.shields.io/badge/api-docs-yellow.svg?style=flat)](https://hexdocs.pm/membrane_matroska_plugin)
+[![CircleCI](https://circleci.com/gh/membraneframework/membrane_matroska_plugin.svg?style=svg)](https://circleci.com/gh/membraneframework/membrane_matroska_plugin)
 
 Membrane plugin for muxing and demuxing files in the [Matroska](https://www.matroska.org/index.html) format.
 
@@ -15,12 +15,12 @@ It is part of [Membrane Multimedia Framework](https://membraneframework.org).
 
 ## Installation
 
-The package can be installed by adding `membrane_webm_plugin` to your list of dependencies in `mix.exs`:
+The package can be installed by adding `membrane_matroska_plugin` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:membrane_webm_plugin, "~> 0.1.0"}
+    {:membrane_matroska_plugin, "~> 0.1.0"}
   ]
 end
 ```
@@ -48,8 +48,8 @@ You can expect `demuxing_output` folder to appear and contain an audio file `2.o
 
 ## Copyright and License
 
-Copyright 2022, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_webm_plugin)
+Copyright 2022, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_matroska_plugin)
 
-[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=membrane-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_webm_plugin)
+[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=membrane-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=membrane_matroska_plugin)
 
 Licensed under the [Apache License, Version 2.0](LICENSE)

@@ -2,7 +2,7 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
   use Mix.Project
 
   @version "0.1.0"
-  @github_url "https://github.com/membraneframework/membrane_webm_plugin"
+  @github_url "https://github.com/membraneframework/membrane_matroska_plugin"
 
   def project do
     [
@@ -65,7 +65,7 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
   defp package do
     [
       maintainers: ["Membrane Team"],
-      licenses: ["Apache 2.0"],
+      licenses: ["Apache-2.0"],
       links: %{
         "GitHub" => @github_url,
         "Membrane Framework Homepage" => "https://membraneframework.org"
