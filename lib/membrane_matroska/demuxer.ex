@@ -26,7 +26,7 @@ defmodule Membrane.Matroska.Demuxer do
   use Membrane.Filter
 
   alias Membrane.{Buffer, Pipeline.Action}
-  alias Membrane.{Opus, RemoteStream, VP8, VP9, H264}
+  alias Membrane.{Opus, RemoteStream, VP8, VP9, H264, Matroska}
 
   def_input_pad :input,
     availability: :always,
@@ -34,7 +34,7 @@ defmodule Membrane.Matroska.Demuxer do
     demand_unit: :buffers,
     caps:
       {RemoteStream,
-       content_format: Membrane.Caps.Matcher.one_of([nil, :WEBM, :Matroska]), type: :bytestream}
+       content_format: Membrane.Caps.Matcher.one_of([nil, :WEBM, Matroska]), type: :bytestream}
 
   def_output_pad :output,
     availability: :on_request,
