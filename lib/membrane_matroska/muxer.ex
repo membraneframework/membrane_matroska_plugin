@@ -13,7 +13,7 @@ defmodule Membrane.Matroska.Muxer do
   use Membrane.Filter
 
   alias Membrane.{Buffer, RemoteStream}
-  alias Membrane.{Opus, VP8, VP9, MP4}
+  alias Membrane.{Opus, VP8, VP9, MP4, Matroska}
   alias Membrane.Matroska.Parser.Codecs
   alias Membrane.Matroska.Serializer
   alias Membrane.Matroska.Serializer.Helper
@@ -46,7 +46,7 @@ defmodule Membrane.Matroska.Muxer do
   def_output_pad :output,
     availability: :always,
     mode: :pull,
-    caps: {RemoteStream, content_format: :Matroska}
+    caps: {RemoteStream, content_format: Matroska}
 
   # 5 mb
   @cluster_bytes_limit 5_242_880
@@ -129,7 +129,7 @@ defmodule Membrane.Matroska.Muxer do
 
     if state.active_tracks == state.expected_tracks do
       demands = Enum.map(state.tracks, fn {id, _track_data} -> {:demand, Pad.ref(:input, id)} end)
-      caps = [caps: {:output, %RemoteStream{content_format: :Matroska, type: :bytestream}}]
+      caps = [caps: {:output, %RemoteStream{content_format: Matroska, type: :bytestream}}]
       {{:ok, caps ++ demands}, state}
     else
       {:ok, state}
