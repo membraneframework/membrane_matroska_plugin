@@ -11,7 +11,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   alias Membrane.{Opus, VP8, VP9, MP4, RemoteStream}
 
   @timestamp_scale Membrane.Time.millisecond()
-  @version Membrane.Matroska.Plugin.Mixfile.project()[:version]
+  @version Application.get_env(:membrane_matroska_plugin, :version, "0.1.0")
   @seekhead_bytes 160
 
   @spec serialize_empty_segment() :: binary
