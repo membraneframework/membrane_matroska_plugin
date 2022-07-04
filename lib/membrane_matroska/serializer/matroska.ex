@@ -233,7 +233,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
 
     {seconds, _miliseconds} = DateTime.to_gregorian_seconds(date)
 
-    version = Application.get_env(:membrane_matroska_plugin, :version, "0.1.0")
+    version = Application.get_env(:membrane_matroska_plugin, :version, "unknown")
 
     info = [
       Duration: options.duration * @timestamp_scale,
