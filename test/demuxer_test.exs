@@ -11,86 +11,69 @@ defmodule Membrane.Matroska.DemuxerTest do
     use Membrane.Pipeline
 
     @impl true
-    def handle_init(options) do
-      children = [
-        source: %Membrane.File.Source{
-          location: options.input_file,
-          chunk_size: 4096
-        },
-        demuxer: Membrane.Matroska.Demuxer
-      ]
-
-      links = [
-        link(:source)
-        |> to(:demuxer)
+    def handle_init(_ctx, options) do
+      structure = [
+        child(
+          :source,
+          %Membrane.File.Source{location: options.input_file, chunk_size: 4096}
+        )
+        |> child(:demuxer, Membrane.Matroska.Demuxer)
       ]
 
       state = %{output_dir: options.output_dir, track_id_to_file: options.track_id_to_output_file}
 
-      {{:ok, spec: %ParentSpec{children: children, links: links}, playback: :playing}, state}
+      {[spec: structure, playback: :playing], state}
     end
 
     @impl true
-    def handle_notification({:new_track, {track_id, track_info}}, :demuxer, _context, state) do
+    def handle_child_notification({:new_track, {track_id, track_info}}, :demuxer, _context, state) do
       output_file = state.track_id_to_file[track_id]
 
       cond do
         track_info.codec == :opus ->
-          children = %{
-            {:payloader, track_id} => %Membrane.Ogg.Payloader.Opus{
+          structure = [
+            get_child(:demuxer)
+            |> via_out(Pad.ref(:output, track_id))
+            |> child({:payloader, track_id}, %Membrane.Ogg.Payloader.Opus{
               frame_size: 20,
               serial_number: 4_210_672_757
-            },
-            {:sink, track_id} => %Membrane.File.Sink{
+            })
+            |> child({:sink, track_id}, %Membrane.File.Sink{
               location: Path.join(state.output_dir, output_file)
-            }
-          }
-
-          links = [
-            link(:demuxer)
-            |> via_out(Pad.ref(:output, track_id))
-            |> to({:payloader, track_id})
-            |> to({:sink, track_id})
+            })
           ]
 
-          {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
+          {[spec: structure], state}
 
         track_info.codec in [:vp8, :vp9] ->
-          children = %{
-            {:serializer, track_id} => %Membrane.Element.IVF.Serializer{width: 1920, height: 1080},
-            {:sink, track_id} => %Membrane.File.Sink{
-              location: Path.join(state.output_dir, output_file)
-            }
-          }
-
-          links = [
-            link(:demuxer)
+          structure = [
+            get_child(:demuxer)
             |> via_out(Pad.ref(:output, track_id))
-            |> to({:serializer, track_id})
-            |> to({:sink, track_id})
+            |> child({:serializer, track_id}, %Membrane.Element.IVF.Serializer{
+              width: 1920,
+              height: 1080
+            })
+            |> child({:sink, track_id}, %Membrane.File.Sink{
+              location: Path.join(state.output_dir, output_file)
+            })
           ]
 
-          {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
+          {[spec: structure], state}
 
         track_info.codec == :h264 ->
-          children = %{
-            :parser => %Membrane.H264.FFmpeg.Parser{
+          structure = [
+            get_child(:demuxer)
+            |> via_out(Pad.ref(:output, track_id))
+            |> child(:parser, %Membrane.H264.FFmpeg.Parser{
               skip_until_parameters?: false,
               attach_nalus?: true
-            },
-            {:sink, track_id} => %Membrane.File.Sink{
+            })
+            |> child({:sink, track_id}, %Membrane.File.Sink{
               location: Path.join(state.output_dir, output_file)
-            }
-          }
-
-          links = [
-            link(:demuxer)
-            |> via_out(Pad.ref(:output, track_id))
-            |> to(:parser)
-            |> to({:sink, track_id})
+            })
           ]
 
-          {{:ok, spec: %ParentSpec{children: children, links: links}}, state}
+          {[spec: structure], state}
 
         true ->
           raise "Unsupported codec #{track_info.codec}"
@@ -99,7 +82,7 @@ defmodule Membrane.Matroska.DemuxerTest do
   end
 
   defp test_stream(input_file, track_id_to_reference, tmp_dir) do
-    {:ok, pipeline} =
+    {:ok, _supervisor, pipeline} =
       [
         module: TestPipeline,
         custom_args: %{
@@ -109,8 +92,6 @@ defmodule Membrane.Matroska.DemuxerTest do
         }
       ]
       |> Testing.Pipeline.start_link()
-
-    assert_pipeline_playback_changed(pipeline, _, :playing)
 
     references = Map.values(track_id_to_reference)
 
@@ -122,7 +103,6 @@ defmodule Membrane.Matroska.DemuxerTest do
     end
 
     Testing.Pipeline.terminate(pipeline, blocking?: true)
-    assert_pipeline_playback_changed(pipeline, _, :stopped)
 
     for reference <- Map.values(track_id_to_reference) do
       reference_file = File.read!(Path.join(@fixtures_dir, reference))

@@ -43,8 +43,7 @@ defmodule Membrane.Matroska.Demuxer do
       any_of(
         H264.RemoteStream,
         Opus,
-        %RemoteStream{content_format: format, type: :packetized}
-        when format in [VP8, VP9]
+        %RemoteStream{content_format: format, type: :packetized} when format in [VP8, VP9]
       )
 
   defmodule State do
@@ -90,7 +89,7 @@ defmodule Membrane.Matroska.Demuxer do
   end
 
   @impl true
-  def handle_playing(_context, state) do
+  def handle_playing(_ctx, state) do
     {[demand: :input], state}
   end
 
@@ -107,7 +106,7 @@ defmodule Membrane.Matroska.Demuxer do
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, id), _context, %State{tracks: tracks} = state) do
+  def handle_pad_added(Pad.ref(:output, id), _ctx, %State{tracks: tracks} = state) do
     track = tracks[id]
 
     caps =
@@ -125,8 +124,9 @@ defmodule Membrane.Matroska.Demuxer do
 
         :h264 ->
           %H264.RemoteStream{
-            decoder_configuration_record: track.codec_private,
-            stream_format: :byte_stream
+            # TODO: AU
+            alignment: :au,
+            decoder_configuration_record: track.codec_private
           }
 
         :vorbis ->
@@ -171,12 +171,12 @@ defmodule Membrane.Matroska.Demuxer do
   end
 
   @impl true
-  def handle_demand(Pad.ref(:output, _id), _size, :buffers, _context, state) do
+  def handle_demand(Pad.ref(:output, _id), _size, :buffers, _ctx, state) do
     {[], state}
   end
 
   defp process_elements({actions, context, state}, elements_list) do
-    {actions, _context, state} =
+    {actions, _ctx, state} =
       Enum.reduce(Enum.reverse(elements_list), {actions, context, state}, &process_element/2)
 
     {actions, state}
@@ -246,7 +246,7 @@ defmodule Membrane.Matroska.Demuxer do
   end
 
   defp reclassify_cached_buffer_actions({actions, state}, context) do
-    {actions, _context, state} =
+    {actions, _ctx, state} =
       Enum.reduce(
         state.cache,
         {actions, context, %State{state | cache: Qex.new()}},
