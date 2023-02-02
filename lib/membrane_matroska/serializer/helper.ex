@@ -3,8 +3,6 @@ defmodule Membrane.Matroska.Serializer.Helper do
 
   # Module for serializing Matroska elements into writable bytes.
 
-  # import Bitwise
-
   alias Membrane.Matroska.Schema
 
   @spec serialize({atom, any}) :: binary
