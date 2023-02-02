@@ -4,9 +4,9 @@ defmodule Membrane.Matroska.MuxerTest do
   # here numbers are hardcoded to achieve reproducibility
 
   use ExUnit.Case
-  use Bitwise
 
-  import Membrane.ParentSpec
+  import Bitwise
+  import Membrane.ChildrenSpec
   import Membrane.Testing.Assertions
 
   require Membrane.Pad
@@ -31,26 +31,22 @@ defmodule Membrane.Matroska.MuxerTest do
       |> :erlang.binary_to_term()
       |> Enum.reverse()
 
-    {:ok, pipeline} =
-      %Testing.Pipeline.Options{
-        elements: [
-          source: %Testing.Source{
-            output: Testing.Source.output_from_buffers(buffers),
-            caps: %Opus{channels: 2, self_delimiting?: false}
-          },
-          muxer: %Membrane.Matroska.Muxer{date: @date},
-          sink: %Membrane.File.Sink{
-            location: output_file
-          }
-        ],
-        links: [
-          link(:source)
-          |> via_in(Pad.ref(:input, @pad_id_1))
-          |> to(:muxer)
-          |> to(:sink)
-        ]
-      }
-      |> Testing.Pipeline.start_link()
+    structure = [
+      child(
+        :source,
+        %Testing.Source{
+          output: Testing.Source.output_from_buffers(buffers),
+          stream_format: %Opus{channels: 2, self_delimiting?: false}
+        }
+      )
+      |> via_in(Pad.ref(:input, @pad_id_1))
+      |> child(:muxer, %Membrane.Matroska.Muxer{date: @date})
+      |> child(:sink, %Membrane.File.Sink{
+        location: output_file
+      })
+    ]
+
+    {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(structure: structure)
 
     play_and_validate(pipeline, reference_file, output_file)
   end
@@ -60,27 +56,19 @@ defmodule Membrane.Matroska.MuxerTest do
     output_file = Path.join(tmp_dir, "output.mkv")
     reference_file = Path.join(@fixtures_dir, reference_file)
 
-    {:ok, pipeline} =
-      %Testing.Pipeline.Options{
-        elements: [
-          source: %Membrane.File.Source{
-            location: input_file
-          },
-          deserializer: Membrane.Element.IVF.Deserializer,
-          muxer: %Membrane.Matroska.Muxer{date: @date},
-          sink: %Membrane.File.Sink{
-            location: output_file
-          }
-        ],
-        links: [
-          link(:source)
-          |> to(:deserializer)
-          |> via_in(Pad.ref(:input, @pad_id_2))
-          |> to(:muxer)
-          |> to(:sink)
-        ]
-      }
-      |> Testing.Pipeline.start_link()
+    structure = [
+      child(:source, %Membrane.File.Source{
+        location: input_file
+      })
+      |> child(:deserializer, Membrane.Element.IVF.Deserializer)
+      |> via_in(Pad.ref(:input, @pad_id_2))
+      |> child(:muxer, %Membrane.Matroska.Muxer{date: @date})
+      |> child(:sink, %Membrane.File.Sink{
+        location: output_file
+      })
+    ]
+
+    {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(structure: structure)
 
     play_and_validate(pipeline, reference_file, output_file)
   end
@@ -96,35 +84,25 @@ defmodule Membrane.Matroska.MuxerTest do
       |> :erlang.binary_to_term()
       |> Enum.reverse()
 
-    {:ok, pipeline} =
-      %Testing.Pipeline.Options{
-        elements: [
-          vpx_source: %Membrane.File.Source{
-            location: input_file
-          },
-          deserializer: Membrane.Element.IVF.Deserializer,
-          opus_source: %Testing.Source{
-            output: Testing.Source.output_from_buffers(buffers),
-            caps: %Opus{channels: 2, self_delimiting?: false}
-          },
-          muxer: %Membrane.Matroska.Muxer{date: @date},
-          sink: %Membrane.File.Sink{
-            location: output_file
-          }
-        ],
-        links: [
-          link(:vpx_source)
-          |> to(:deserializer)
-          |> via_in(Pad.ref(:input, @pad_id_3))
-          |> to(:muxer),
-          link(:opus_source)
-          |> via_in(Pad.ref(:input, @pad_id_4))
-          |> to(:muxer),
-          link(:muxer)
-          |> to(:sink)
-        ]
-      }
-      |> Testing.Pipeline.start_link()
+    structure = [
+      child(:vpx_source, %Membrane.File.Source{
+        location: input_file
+      })
+      |> child(:deserializer, Membrane.Element.IVF.Deserializer)
+      |> via_in(Pad.ref(:input, @pad_id_3))
+      |> child(:muxer, %Membrane.Matroska.Muxer{date: @date}),
+      child(:opus_source, %Testing.Source{
+        output: Testing.Source.output_from_buffers(buffers),
+        stream_format: %Opus{channels: 2, self_delimiting?: false}
+      })
+      |> via_in(Pad.ref(:input, @pad_id_4))
+      |> get_child(:muxer)
+      |> child(:sink, %Membrane.File.Sink{
+        location: output_file
+      })
+    ]
+
+    {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(structure: structure)
 
     play_and_validate(pipeline, reference_file, output_file)
   end
@@ -140,53 +118,40 @@ defmodule Membrane.Matroska.MuxerTest do
       |> :erlang.binary_to_term()
       |> Enum.reverse()
 
-    {:ok, pipeline} =
-      %Testing.Pipeline.Options{
-        elements: [
-          h264_source: %Membrane.File.Source{
-            location: input_file
-          },
-          flv_demuxer: FLV.Demuxer,
-          parser: %Membrane.H264.FFmpeg.Parser{
-            attach_nalus?: true,
-            skip_until_parameters?: false
-          },
-          opus_source: %Testing.Source{
-            output: Testing.Source.output_from_buffers(buffers),
-            caps: %Opus{channels: 2, self_delimiting?: false}
-          },
-          mp4_payloader: Membrane.MP4.Payloader.H264,
-          muxer: %Membrane.Matroska.Muxer{date: @date},
-          sink: %Membrane.File.Sink{
-            location: output_file
-          }
-        ],
-        links: [
-          link(:h264_source)
-          |> to(:flv_demuxer)
-          |> via_out(Pad.ref(:video, 0))
-          |> to(:parser)
-          |> to(:mp4_payloader)
-          |> via_in(Pad.ref(:input, @pad_id_3))
-          |> to(:muxer),
-          link(:opus_source)
-          |> via_in(Pad.ref(:input, @pad_id_4))
-          |> to(:muxer),
-          link(:muxer)
-          |> to(:sink)
-        ]
-      }
-      |> Testing.Pipeline.start_link()
+    structure = [
+      child(:h264_source, %Membrane.File.Source{
+        location: input_file
+      })
+      |> child(:flv_demuxer, FLV.Demuxer)
+      |> via_out(Pad.ref(:video, 0))
+      |> child(:parser, %Membrane.H264.FFmpeg.Parser{
+        attach_nalus?: true,
+        skip_until_parameters?: false
+      })
+      |> child(:mp4_payloader, Membrane.MP4.Payloader.H264)
+      |> via_in(Pad.ref(:input, @pad_id_3))
+      |> child(:muxer, %Membrane.Matroska.Muxer{date: @date}),
+      child(:opus_source, %Testing.Source{
+        output: Testing.Source.output_from_buffers(buffers),
+        stream_format: %Opus{channels: 2, self_delimiting?: false}
+      })
+      |> via_in(Pad.ref(:input, @pad_id_4))
+      |> get_child(:muxer)
+      |> child(:sink, %Membrane.File.Sink{
+        location: output_file
+      })
+    ]
+
+    {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(structure: structure)
 
     play_and_validate(pipeline, reference_file, output_file)
   end
 
   defp play_and_validate(pipeline, reference_file, output_file) do
-    assert_pipeline_playback_changed(pipeline, :prepared, :playing)
+    assert_pipeline_play(pipeline)
     assert_start_of_stream(pipeline, :sink)
     assert_end_of_stream(pipeline, :sink)
     Testing.Pipeline.terminate(pipeline, blocking?: true)
-    assert_pipeline_playback_changed(pipeline, :prepared, :stopped)
 
     reference_file = File.read!(reference_file)
     result_file = File.read!(output_file)

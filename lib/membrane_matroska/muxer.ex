@@ -43,7 +43,7 @@ defmodule Membrane.Matroska.Muxer do
   def_output_pad :output,
     availability: :always,
     mode: :pull,
-    accepted_format: {RemoteStream, content_format: Matroska}
+    accepted_format: %RemoteStream{content_format: Matroska}
 
   # 5 mb
   @cluster_bytes_limit 5_242_880
@@ -72,7 +72,7 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   @impl true
-  def handle_pad_added(_pad, context, state) when context.playback_state != :playing do
+  def handle_pad_added(_pad, context, state) when context.playback != :playing do
     {[], %State{state | expected_tracks: state.expected_tracks + 1}}
   end
 
@@ -82,15 +82,15 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   @impl true
-  def handle_stream_format(Pad.ref(:input, id), _caps, _ctx, state)
+  def handle_stream_format(Pad.ref(:input, id), _stream_format, _ctx, state)
       when is_map_key(state.tracks, id) do
     {[], state}
   end
 
   @impl true
-  def handle_stream_format(Pad.ref(:input, id), caps, _ctx, state) do
+  def handle_stream_format(Pad.ref(:input, id), stream_format, _ctx, state) do
     codec =
-      case caps do
+      case stream_format do
         %RemoteStream{content_format: VP8} ->
           :vp8
 
@@ -104,7 +104,7 @@ defmodule Membrane.Matroska.Muxer do
           :h264
 
         _other ->
-          raise "unsupported codec #{inspect(caps)}"
+          raise "unsupported codec #{inspect(stream_format)}"
       end
 
     state = update_in(state.active_tracks, &(&1 + 1))
@@ -114,7 +114,7 @@ defmodule Membrane.Matroska.Muxer do
       track_number: state.active_tracks,
       id: id,
       codec: codec,
-      caps: caps,
+      stream_format: stream_format,
       type: type,
       cached_block: nil,
       offset: nil,
@@ -126,8 +126,12 @@ defmodule Membrane.Matroska.Muxer do
 
     if state.active_tracks == state.expected_tracks do
       demands = Enum.map(state.tracks, fn {id, _track_data} -> {:demand, Pad.ref(:input, id)} end)
-      caps = [caps: {:output, %RemoteStream{content_format: Matroska, type: :bytestream}}]
-      {caps ++ demands, state}
+
+      stream_format = [
+        stream_format: {:output, %RemoteStream{content_format: Matroska, type: :bytestream}}
+      ]
+
+      {stream_format ++ demands, state}
     else
       {[], state}
     end

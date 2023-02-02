@@ -12,7 +12,7 @@ defmodule Membrane.Matroska.Demuxer do
 
   # - :reading_header
   #   Demands and parses the beginning bytes of the Matroska file describing it's contents and sends:
-  #   `{:notify, {:new_track, {track_id, track_t}}}`
+  #   `{:notify_parent, {:new_track, {track_id, track_t}}}`
   #   notification to the parent pipeline for every track contained in the file.
 
   # - :awaiting_linking
@@ -124,8 +124,8 @@ defmodule Membrane.Matroska.Demuxer do
 
         :h264 ->
           %H264.RemoteStream{
-            # TODO: AU
-            alignment: :au,
+            # TODO: determine H264 aligment
+            alignment: :nalu,
             decoder_configuration_record: track.codec_private
           }
 
@@ -147,7 +147,7 @@ defmodule Membrane.Matroska.Demuxer do
   def handle_process(:input, %Buffer{payload: bytes}, context, state) do
     unparsed = state.parser_acc <> bytes
 
-    {parsed, unparsed} = Membrane.Matroska.Parser.Helper.parse(unparsed)
+    {parsed, unparsed} = Matroska.Parser.Helper.parse(unparsed)
 
     state = %State{state | parser_acc: unparsed}
 

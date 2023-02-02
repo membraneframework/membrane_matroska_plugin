@@ -100,7 +100,9 @@ defmodule Membrane.Matroska.Serializer.Matroska do
     {:Tracks, Enum.map(tracks, &construct_track_entry/1)}
   end
 
-  defp construct_track_entry({id, %{caps: %Opus{channels: channels}, track_number: track_number}}) do
+  defp construct_track_entry(
+         {id, %{stream_format: %Opus{channels: channels}, track_number: track_number}}
+       ) do
     {:TrackEntry,
      [
        # this field will become important if membrane expands support for opus to more than 2 channels
@@ -118,7 +120,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   end
 
   defp construct_track_entry(
-         {id, %{caps: %RemoteStream{content_format: VP8}, track_number: track_number}}
+         {id, %{stream_format: %RemoteStream{content_format: VP8}, track_number: track_number}}
        ) do
     {:TrackEntry,
      [
@@ -133,7 +135,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   end
 
   defp construct_track_entry(
-         {id, %{caps: %RemoteStream{content_format: VP9}, track_number: track_number}}
+         {id, %{stream_format: %RemoteStream{content_format: VP9}, track_number: track_number}}
        ) do
     {:TrackEntry,
      [
@@ -150,7 +152,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   defp construct_track_entry(
          {id,
           %{
-            caps: %MP4.Payload{
+            stream_format: %MP4.Payload{
               content: %Membrane.MP4.Payload.AVC1{
                 avcc: codec_private
               },
