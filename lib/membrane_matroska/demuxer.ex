@@ -124,7 +124,8 @@ defmodule Membrane.Matroska.Demuxer do
 
         :h264 ->
           %H264.RemoteStream{
-            # TODO: determine H264 aligment
+            # Based on https://www.matroska.org/technical/codec_specs.html V_MPEG4/ISO/AVC section
+            # it's always NALu
             alignment: :nalu,
             decoder_configuration_record: track.codec_private
           }
