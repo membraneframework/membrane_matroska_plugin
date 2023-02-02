@@ -40,7 +40,7 @@ defmodule Membrane.Matroska.Parser.EBML do
 
   # Only Master Elements can contain other Elements in their ELEMENT_DATA which occur one after the other simply concatenated.
 
-  use Bitwise
+  import Bitwise
 
   alias Membrane.Matroska.Schema
   alias Membrane.Time

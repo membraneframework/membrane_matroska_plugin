@@ -3,7 +3,7 @@ defmodule Membrane.Matroska.Serializer.Helper do
 
   # Module for serializing Matroska elements into writable bytes.
 
-  use Bitwise
+  # import Bitwise
 
   alias Membrane.Matroska.Schema
 

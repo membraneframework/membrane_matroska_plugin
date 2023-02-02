@@ -54,10 +54,7 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
       {:membrane_mp4_plugin, "~> 0.18.0", only: :test, runtime: false},
       {:membrane_ivf_plugin, "~> 0.5.0", only: :test, runtime: false},
       {:membrane_ogg_plugin,
-       github: "membraneframework-labs/membrane_ogg_plugin",
-       branch: "graszka22/ogg_depayload",
-       only: :test,
-       runtime: false},
+       github: "membraneframework-labs/membrane_libogg_plugin", only: :test, runtime: false},
       {:membrane_h264_ffmpeg_plugin, "~> 0.25.0", only: :test, runtime: false},
       {:membrane_ffmpeg_swresample_plugin, "~> 0.16.0", only: :test, runtime: false},
       # Credo

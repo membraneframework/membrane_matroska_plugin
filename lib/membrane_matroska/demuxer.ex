@@ -32,18 +32,19 @@ defmodule Membrane.Matroska.Demuxer do
     availability: :always,
     mode: :pull,
     demand_unit: :buffers,
-    caps:
-      {RemoteStream,
-       content_format: Membrane.Caps.Matcher.one_of([nil, :WEBM, Matroska]), type: :bytestream}
+    accepted_format:
+      %RemoteStream{content_format: format, type: :bytestream}
+      when format in [nil, :WEBM, Matroska]
 
   def_output_pad :output,
     availability: :on_request,
     mode: :pull,
-    caps: [
-      {RemoteStream, content_format: Membrane.Caps.Matcher.one_of([VP8, VP9]), type: :packetized},
-      Opus,
-      H264.RemoteStream
-    ]
+    accepted_format:
+      any_of(
+        H264.RemoteStream,
+        Opus,
+        %RemoteStream{content_format: format, type: :packetized} when format in [VP8, VP9]
+      )
 
   defmodule State do
     @moduledoc false
@@ -83,13 +84,13 @@ defmodule Membrane.Matroska.Demuxer do
   end
 
   @impl true
-  def handle_init(_options) do
-    {:ok, %State{}}
+  def handle_init(_ctx, _options) do
+    {[], %State{}}
   end
 
   @impl true
-  def handle_prepared_to_playing(_context, state) do
-    {{:ok, demand: :input}, state}
+  def handle_playing(_ctx, state) do
+    {[demand: :input], state}
   end
 
   @impl true
@@ -101,11 +102,11 @@ defmodule Membrane.Matroska.Demuxer do
       |> Enum.filter(fn {_pad_ref, pad_data} -> pad_data.direction == :output end)
       |> Enum.map(fn {pad_ref, _pad_data} -> {:end_of_stream, pad_ref} end)
 
-    {{:ok, cached_buffers ++ end_actions}, state}
+    {cached_buffers ++ end_actions, state}
   end
 
   @impl true
-  def handle_pad_added(Pad.ref(:output, id), _context, %State{tracks: tracks} = state) do
+  def handle_pad_added(Pad.ref(:output, id), _ctx, %State{tracks: tracks} = state) do
     track = tracks[id]
 
     caps =
@@ -123,8 +124,9 @@ defmodule Membrane.Matroska.Demuxer do
 
         :h264 ->
           %H264.RemoteStream{
-            decoder_configuration_record: track.codec_private,
-            stream_format: :byte_stream
+            # TODO: AU
+            alignment: :au,
+            decoder_configuration_record: track.codec_private
           }
 
         :vorbis ->
@@ -138,7 +140,7 @@ defmodule Membrane.Matroska.Demuxer do
         do: %State{state | phase: :all_outputs_linked},
         else: state
 
-    {{:ok, caps: {Pad.ref(:output, id), caps}}, state}
+    {[stream_format: {Pad.ref(:output, id), caps}], state}
   end
 
   @impl true
@@ -153,7 +155,7 @@ defmodule Membrane.Matroska.Demuxer do
 
     # if not even a single element could be parsed then demand more data and try again
     if parsed == [] or state.phase == :reading_header do
-      {{:ok, demand: :input}, state}
+      {[demand: :input], state}
     else
       demand_if_not_blocked({actions, state})
     end
@@ -169,12 +171,12 @@ defmodule Membrane.Matroska.Demuxer do
   end
 
   @impl true
-  def handle_demand(Pad.ref(:output, _id), _size, :buffers, _context, state) do
-    {:ok, state}
+  def handle_demand(Pad.ref(:output, _id), _size, :buffers, _ctx, state) do
+    {[], state}
   end
 
   defp process_elements({actions, context, state}, elements_list) do
-    {actions, _context, state} =
+    {actions, _ctx, state} =
       Enum.reduce(Enum.reverse(elements_list), {actions, context, state}, &process_element/2)
 
     {actions, state}
@@ -219,10 +221,10 @@ defmodule Membrane.Matroska.Demuxer do
 
   defp demand_if_not_blocked({actions, state}) do
     if blocked?(state) do
-      {{:ok, Enum.into(actions, [])}, state}
+      {Enum.into(actions, []), state}
     else
       actions = Qex.push(actions, {:demand, :input})
-      {{:ok, Enum.into(actions, [])}, state}
+      {Enum.into(actions, []), state}
     end
   end
 
@@ -244,7 +246,7 @@ defmodule Membrane.Matroska.Demuxer do
   end
 
   defp reclassify_cached_buffer_actions({actions, state}, context) do
-    {actions, _context, state} =
+    {actions, _ctx, state} =
       Enum.reduce(
         state.cache,
         {actions, context, %State{state | cache: Qex.new()}},
@@ -256,7 +258,7 @@ defmodule Membrane.Matroska.Demuxer do
 
   defp notify_about_new_tracks(tracks) do
     tracks
-    |> Enum.map(fn track -> {:notify, {:new_track, track}} end)
+    |> Enum.map(fn track -> {:notify_parent, {:new_track, track}} end)
     |> Qex.new()
   end
 
