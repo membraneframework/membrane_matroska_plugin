@@ -39,7 +39,7 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
     [
       {:membrane_core, "~> 0.11.2"},
       {:membrane_matroska_format, "~> 0.1.0"},
-      {:membrane_h264_format, "~> 0.4.0"},
+      {:membrane_h264_format, "~> 0.5.0"},
       {:membrane_vp8_format, "~> 0.4.0"},
       {:membrane_vp9_format, "~> 0.4.0"},
       {:membrane_opus_format, "~> 0.3.0"},
@@ -50,17 +50,16 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
       {:bimap, "~> 1.2"},
       # Test dependencies
       {:membrane_opus_plugin, "~> 0.16.0", only: :test, runtime: false},
-      {:membrane_flv_plugin, "~> 0.4.0", only: :test, runtime: false},
-      {:membrane_mp4_plugin, "~> 0.18.0", only: :test, runtime: false},
+      {:membrane_flv_plugin, "~> 0.5.0", only: :test},
+      {:membrane_mp4_plugin, "~> 0.19.0", only: :test},
       {:membrane_ivf_plugin, "~> 0.5.0", only: :test, runtime: false},
       {:membrane_ogg_plugin,
        github: "membraneframework-labs/membrane_libogg_plugin", only: :test, runtime: false},
-      {:membrane_h264_ffmpeg_plugin, "~> 0.25.0", only: :test, runtime: false},
-      {:membrane_ffmpeg_swresample_plugin, "~> 0.16.0", only: :test, runtime: false},
+      {:membrane_h264_ffmpeg_plugin, "~> 0.25.3", only: :test, runtime: false},
+      {:membrane_ffmpeg_swresample_plugin, "~> 0.16.1", only: :test, runtime: false},
       # Credo
-      {:ex_doc, "~> 0.26", only: :dev, runtime: false},
-      {:dialyxir, "~> 1.1", only: :dev, runtime: false},
-      {:credo, "~> 1.6", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.28", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.1", only: :dev, runtime: false}
     ]
   end
 
