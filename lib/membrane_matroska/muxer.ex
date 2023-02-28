@@ -103,8 +103,11 @@ defmodule Membrane.Matroska.Muxer do
         %MP4.Payload{content: %AVC1{}} ->
           :h264
 
+        format when is_struct(format) ->
+          raise "unsupported stream format #{inspect(format.__struct__)}"
+
         _other ->
-          raise "unsupported codec #{inspect(stream_format)}"
+          raise "unsupported stream format #{inspect(stream_format)}"
       end
 
     state = update_in(state.active_tracks, &(&1 + 1))
