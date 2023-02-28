@@ -59,6 +59,7 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
       {:membrane_ffmpeg_swresample_plugin, "~> 0.16.1", only: :test, runtime: false},
       # Credo
       {:ex_doc, "~> 0.28", only: :dev, runtime: false},
+      {:credo, "~> 1.6", only: :dev, runtime: false},
       {:dialyxir, "~> 1.1", only: :dev, runtime: false}
     ]
   end
