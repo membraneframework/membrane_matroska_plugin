@@ -73,24 +73,37 @@ defmodule Membrane.Matroska.MuxerTest do
     play_and_validate(pipeline, reference_file, output_file)
   end
 
-  defp test_many(tmp_dir, codec) when codec in [:vp8, :vp9] do
-    input_file = Path.join(@fixtures_dir, "1_#{Atom.to_string(codec)}.ivf")
-    output_file = Path.join(tmp_dir, "output_#{Atom.to_string(codec)}.mkv")
-    reference_file = Path.join(@fixtures_dir, "combined_#{Atom.to_string(codec)}.mkv")
+  defp get_test_many_structure(input_file, output_file, buffers, :h264) do
+    [
+      child(:h264_source, %Membrane.File.Source{
+        location: input_file
+      })
+      |> child(:flv_demuxer, FLV.Demuxer)
+      |> via_out(Pad.ref(:video, 0))
+      |> child(:parser, %Membrane.H264.FFmpeg.Parser{
+        attach_nalus?: true,
+        skip_until_parameters?: false
+      })
+      |> child(:mp4_payloader, Membrane.MP4.Payloader.H264)
+      |> via_in(Pad.ref(:input, @pad_id_3))
+      |> child(:muxer, %Membrane.Matroska.Muxer{date: @date})
+    ] ++ common_structure(output_file, buffers)
+  end
 
-    buffers =
-      Path.join(@fixtures_dir, "buffers_dump.opus")
-      |> File.read!()
-      |> :erlang.binary_to_term()
-      |> Enum.reverse()
-
-    structure = [
+  defp get_test_many_structure(input_file, output_file, buffers, codec)
+       when codec in [:vp8, :vp9] do
+    [
       child(:vpx_source, %Membrane.File.Source{
         location: input_file
       })
       |> child(:deserializer, Membrane.Element.IVF.Deserializer)
       |> via_in(Pad.ref(:input, @pad_id_3))
-      |> child(:muxer, %Membrane.Matroska.Muxer{date: @date}),
+      |> child(:muxer, %Membrane.Matroska.Muxer{date: @date})
+    ] ++ common_structure(output_file, buffers)
+  end
+
+  defp common_structure(output_file, buffers) do
+    [
       child(:opus_source, %Testing.Source{
         output: Testing.Source.output_from_buffers(buffers),
         stream_format: %Opus{channels: 2, self_delimiting?: false}
@@ -101,6 +114,20 @@ defmodule Membrane.Matroska.MuxerTest do
         location: output_file
       })
     ]
+  end
+
+  defp test_many(tmp_dir, codec) when codec in [:vp8, :vp9] do
+    input_file = Path.join(@fixtures_dir, "1_#{Atom.to_string(codec)}.ivf")
+    output_file = Path.join(tmp_dir, "output_many_#{Atom.to_string(codec)}.mkv")
+    reference_file = Path.join(@fixtures_dir, "combined_#{Atom.to_string(codec)}.mkv")
+
+    buffers =
+      Path.join(@fixtures_dir, "buffers_dump.opus")
+      |> File.read!()
+      |> :erlang.binary_to_term()
+      |> Enum.reverse()
+
+    structure = get_test_many_structure(input_file, output_file, buffers, codec)
 
     {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(structure: structure)
 
@@ -118,29 +145,7 @@ defmodule Membrane.Matroska.MuxerTest do
       |> :erlang.binary_to_term()
       |> Enum.reverse()
 
-    structure = [
-      child(:h264_source, %Membrane.File.Source{
-        location: input_file
-      })
-      |> child(:flv_demuxer, FLV.Demuxer)
-      |> via_out(Pad.ref(:video, 0))
-      |> child(:parser, %Membrane.H264.FFmpeg.Parser{
-        attach_nalus?: true,
-        skip_until_parameters?: false
-      })
-      |> child(:mp4_payloader, Membrane.MP4.Payloader.H264)
-      |> via_in(Pad.ref(:input, @pad_id_3))
-      |> child(:muxer, %Membrane.Matroska.Muxer{date: @date}),
-      child(:opus_source, %Testing.Source{
-        output: Testing.Source.output_from_buffers(buffers),
-        stream_format: %Opus{channels: 2, self_delimiting?: false}
-      })
-      |> via_in(Pad.ref(:input, @pad_id_4))
-      |> get_child(:muxer)
-      |> child(:sink, %Membrane.File.Sink{
-        location: output_file
-      })
-    ]
+    structure = get_test_many_structure(input_file, output_file, buffers, :h264)
 
     {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(structure: structure)
 
@@ -159,12 +164,18 @@ defmodule Membrane.Matroska.MuxerTest do
     fixtures_list = :binary.bin_to_list(reference_file)
     result_list = :binary.bin_to_list(result_file)
 
-    zipped_with_indexes = fixtures_list |> Enum.zip(result_list) |> Enum.with_index()
+    zipped_with_indexes =
+      fixtures_list
+      |> Enum.zip(result_list)
+      |> Enum.with_index()
 
-    for {{elem1, elem2}, idx} = _elem <- zipped_with_indexes do
-      if elem1 != elem2 do
-        raise "#{elem1} is not equal #{elem2} on index #{idx}"
-      end
+    count =
+      Enum.reduce(zipped_with_indexes, 0, fn {{e1, e2}, idx}, count ->
+        if e1 != e2, do: count + 1, else: count
+      end)
+
+    if count != 0 do
+      raise "#{count} bytes are different"
     end
 
     assert byte_size(reference_file) == byte_size(result_file)

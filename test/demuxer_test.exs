@@ -93,6 +93,8 @@ defmodule Membrane.Matroska.DemuxerTest do
       ]
       |> Testing.Pipeline.start_link()
 
+    assert_pipeline_play(pipeline)
+
     references = Map.values(track_id_to_reference)
 
     if Enum.count(references) == 1 do
