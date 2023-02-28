@@ -5,14 +5,13 @@ defmodule Membrane.Matroska.MuxerTest do
 
   use ExUnit.Case
 
-  import Bitwise
   import Membrane.ChildrenSpec
   import Membrane.Testing.Assertions
 
   require Membrane.Pad
 
   alias Membrane.Testing
-  alias Membrane.{Opus, FLV, Pad}
+  alias Membrane.{FLV, Opus, Pad}
 
   @fixtures_dir "./test/fixtures/"
   @pad_id_1 17_447_232_417_024_423_937
@@ -109,7 +108,8 @@ defmodule Membrane.Matroska.MuxerTest do
         stream_format: %Opus{channels: 2, self_delimiting?: false}
       })
       |> via_in(Pad.ref(:input, @pad_id_4))
-      |> get_child(:muxer)
+      |> get_child(:muxer),
+      get_child(:muxer)
       |> child(:sink, %Membrane.File.Sink{
         location: output_file
       })
@@ -170,7 +170,7 @@ defmodule Membrane.Matroska.MuxerTest do
       |> Enum.with_index()
 
     count =
-      Enum.reduce(zipped_with_indexes, 0, fn {{e1, e2}, idx}, count ->
+      Enum.reduce(zipped_with_indexes, 0, fn {{e1, e2}, _idx}, count ->
         if e1 != e2, do: count + 1, else: count
       end)
 
