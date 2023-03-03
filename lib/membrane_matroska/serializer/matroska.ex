@@ -6,9 +6,8 @@ defmodule Membrane.Matroska.Serializer.Matroska do
 
   alias Membrane.Buffer
   alias Membrane.Matroska.Parser.Codecs
-  alias Membrane.Matroska.Serializer.Helper
-  alias Membrane.Matroska.Serializer.EBML
-  alias Membrane.{Opus, VP8, VP9, MP4, RemoteStream}
+  alias Membrane.Matroska.Serializer.{EBML, Helper}
+  alias Membrane.{MP4, Opus, RemoteStream, VP8, VP9}
 
   @timestamp_scale Membrane.Time.millisecond()
   @seekhead_bytes 160

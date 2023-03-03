@@ -98,10 +98,10 @@ defmodule Membrane.Matroska.DemuxerTest do
     references = Map.values(track_id_to_reference)
 
     if Enum.count(references) == 1 do
-      assert_end_of_stream(pipeline, {:sink, 1})
+      assert_end_of_stream(pipeline, {:sink, 1}, :input, 5_000)
     else
-      assert_end_of_stream(pipeline, {:sink, 1}, :input)
-      assert_end_of_stream(pipeline, {:sink, 2}, :input)
+      assert_end_of_stream(pipeline, {:sink, 1}, :input, 5_000)
+      assert_end_of_stream(pipeline, {:sink, 2}, :input, 5_000)
     end
 
     Testing.Pipeline.terminate(pipeline, blocking?: true)

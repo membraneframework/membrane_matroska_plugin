@@ -10,8 +10,7 @@ defmodule Membrane.Matroska.Muxer do
   use Bunch
   use Membrane.Filter
 
-  alias Membrane.{Buffer, RemoteStream}
-  alias Membrane.{Opus, VP8, VP9, MP4, Matroska}
+  alias Membrane.{Buffer, Matroska, MP4, Opus, RemoteStream, VP8, VP9}
   alias Membrane.Matroska.Parser.Codecs
   alias Membrane.Matroska.Serializer
   alias Membrane.Matroska.Serializer.Helper
@@ -52,9 +51,11 @@ defmodule Membrane.Matroska.Muxer do
 
   defmodule State do
     @moduledoc false
+    use Bunch.Access
+
     defstruct tracks: %{},
               segment_position: 0,
-              expected_tracks: 0,
+              expected_tracks: %{},
               active_tracks: 0,
               cluster_acc: Helper.serialize({:Timecode, 0}),
               cluster_time: nil,
@@ -72,8 +73,10 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   @impl true
-  def handle_pad_added(_pad, context, state) when context.playback != :playing do
-    {[], %State{state | expected_tracks: state.expected_tracks + 1}}
+  def handle_pad_added(Pad.ref(:input, id), context, state) when context.playback != :playing do
+    expected_tracks = Map.put(state.expected_tracks, id, map_size(state.expected_tracks) + 1)
+
+    {[], %State{state | expected_tracks: expected_tracks}}
   end
 
   @impl true
@@ -114,7 +117,7 @@ defmodule Membrane.Matroska.Muxer do
     type = Codecs.type(codec)
 
     track = %{
-      track_number: state.active_tracks,
+      track_number: state.expected_tracks[id],
       id: id,
       codec: codec,
       stream_format: stream_format,
@@ -127,7 +130,7 @@ defmodule Membrane.Matroska.Muxer do
 
     state = put_in(state.tracks[id], track)
 
-    if state.active_tracks == state.expected_tracks do
+    if state.active_tracks == map_size(state.expected_tracks) do
       demands = Enum.map(state.tracks, fn {id, _track_data} -> {:demand, Pad.ref(:input, id)} end)
 
       stream_format = [
@@ -143,7 +146,7 @@ defmodule Membrane.Matroska.Muxer do
   # demand all tracks for which the last frame is not cached
   @impl true
   def handle_demand(:output, _size, :buffers, _ctx, state)
-      when state.expected_tracks == state.active_tracks do
+      when map_size(state.expected_tracks) == state.active_tracks do
     demands = get_demands(state)
 
     if demands == [] do
@@ -168,7 +171,7 @@ defmodule Membrane.Matroska.Muxer do
   @impl true
   def handle_end_of_stream(Pad.ref(:input, id), _ctx, state) when state.active_tracks != 1 do
     state = update_in(state.active_tracks, &(&1 - 1))
-    state = update_in(state.expected_tracks, &(&1 - 1))
+    {_track_number, state} = pop_in(state, [:expected_tracks, id])
     state = put_in(state.tracks[id][:active?], false)
     # {_track, state} = pop_in(state.tracks[id])
 
@@ -177,6 +180,10 @@ defmodule Membrane.Matroska.Muxer do
 
   @impl true
   def handle_end_of_stream(Pad.ref(:input, _id), _ctx, state) do
+    if Enum.any?(state.tracks, fn {_track_id, track} -> track.cached_block != nil end) do
+      raise "Not empty tracks"
+    end
+
     cluster = Helper.serialize({:Cluster, state.cluster_acc})
     clusters_size = state.segment_position + byte_size(cluster)
     state = put_in(state.options.clusters_size, clusters_size)
@@ -191,12 +198,15 @@ defmodule Membrane.Matroska.Muxer do
     buffer_cluster = %Buffer{payload: cluster <> cues}
     seek_event = %Membrane.File.SeekEvent{position: 0, insert?: true}
 
-    {[
-       buffer: {:output, buffer_cluster},
-       event: {:output, seek_event},
-       buffer: {:output, %Buffer{payload: matroska_header}},
-       end_of_stream: :output
-     ], state}
+    {
+      [
+        buffer: {:output, buffer_cluster},
+        event: {:output, seek_event},
+        buffer: {:output, %Buffer{payload: matroska_header}},
+        end_of_stream: :output
+      ],
+      state
+    }
   end
 
   defp update_cues_postion(cues, header_size) do
@@ -253,7 +263,11 @@ defmodule Membrane.Matroska.Muxer do
 
   defp pop_next_block(state) do
     # find next block
-    tracks = Enum.filter(state.tracks, fn {_track_id, track} -> track.active? end)
+    tracks =
+      Enum.filter(state.tracks, fn {_track_id, track} ->
+        track.active? or track.cached_block != nil
+      end)
+
     sorted = Enum.sort(tracks, &block_sorter/2)
     {id, track} = hd(sorted)
     block = track.cached_block

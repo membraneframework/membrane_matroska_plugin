@@ -10,6 +10,7 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
       version: @version,
       elixir: "~> 1.13",
       elixirc_paths: elixirc_paths(Mix.env()),
+      compilers: Mix.compilers(),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       dialyzer: dialyzer(),
@@ -58,9 +59,9 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
       {:membrane_h264_ffmpeg_plugin, "~> 0.25.3", only: :test, runtime: false},
       {:membrane_ffmpeg_swresample_plugin, "~> 0.16.1", only: :test, runtime: false},
       # Credo
-      {:ex_doc, "~> 0.28", only: :dev, runtime: false},
-      {:credo, "~> 1.6", only: :dev, runtime: false},
-      {:dialyxir, "~> 1.1", only: :dev, runtime: false}
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
+      {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
+      {:credo, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
 

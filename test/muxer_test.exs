@@ -5,14 +5,13 @@ defmodule Membrane.Matroska.MuxerTest do
 
   use ExUnit.Case
 
-  import Bitwise
   import Membrane.ChildrenSpec
   import Membrane.Testing.Assertions
 
   require Membrane.Pad
 
   alias Membrane.Testing
-  alias Membrane.{Opus, FLV, Pad}
+  alias Membrane.{FLV, Opus, Pad}
 
   @fixtures_dir "./test/fixtures/"
   @pad_id_1 17_447_232_417_024_423_937
@@ -74,32 +73,34 @@ defmodule Membrane.Matroska.MuxerTest do
   end
 
   defp get_test_many_structure(input_file, output_file, buffers, :h264) do
-    [
-      child(:h264_source, %Membrane.File.Source{
-        location: input_file
-      })
-      |> child(:flv_demuxer, FLV.Demuxer)
-      |> via_out(Pad.ref(:video, 0))
-      |> child(:parser, %Membrane.H264.FFmpeg.Parser{
-        attach_nalus?: true,
-        skip_until_parameters?: false
-      })
-      |> child(:mp4_payloader, Membrane.MP4.Payloader.H264)
-      |> via_in(Pad.ref(:input, @pad_id_3))
-      |> child(:muxer, %Membrane.Matroska.Muxer{date: @date})
-    ] ++ common_structure(output_file, buffers)
+    common_structure(output_file, buffers) ++
+      [
+        child(:h264_source, %Membrane.File.Source{
+          location: input_file
+        })
+        |> child(:flv_demuxer, FLV.Demuxer)
+        |> via_out(Pad.ref(:video, 0))
+        |> child(:parser, %Membrane.H264.FFmpeg.Parser{
+          attach_nalus?: true,
+          skip_until_parameters?: false
+        })
+        |> child(:mp4_payloader, Membrane.MP4.Payloader.H264)
+        |> via_in(Pad.ref(:input, @pad_id_3))
+        |> child(:muxer, %Membrane.Matroska.Muxer{date: @date})
+      ]
   end
 
   defp get_test_many_structure(input_file, output_file, buffers, codec)
        when codec in [:vp8, :vp9] do
-    [
-      child(:vpx_source, %Membrane.File.Source{
-        location: input_file
-      })
-      |> child(:deserializer, Membrane.Element.IVF.Deserializer)
-      |> via_in(Pad.ref(:input, @pad_id_3))
-      |> child(:muxer, %Membrane.Matroska.Muxer{date: @date})
-    ] ++ common_structure(output_file, buffers)
+    common_structure(output_file, buffers) ++
+      [
+        child(:vpx_source, %Membrane.File.Source{
+          location: input_file
+        })
+        |> child(:deserializer, Membrane.Element.IVF.Deserializer)
+        |> via_in(Pad.ref(:input, @pad_id_3))
+        |> child(:muxer, %Membrane.Matroska.Muxer{date: @date})
+      ]
   end
 
   defp common_structure(output_file, buffers) do
@@ -109,7 +110,8 @@ defmodule Membrane.Matroska.MuxerTest do
         stream_format: %Opus{channels: 2, self_delimiting?: false}
       })
       |> via_in(Pad.ref(:input, @pad_id_4))
-      |> get_child(:muxer)
+      |> get_child(:muxer),
+      get_child(:muxer)
       |> child(:sink, %Membrane.File.Sink{
         location: output_file
       })
@@ -155,7 +157,7 @@ defmodule Membrane.Matroska.MuxerTest do
   defp play_and_validate(pipeline, reference_file, output_file) do
     assert_pipeline_play(pipeline)
     assert_start_of_stream(pipeline, :sink)
-    assert_end_of_stream(pipeline, :sink)
+    assert_end_of_stream(pipeline, :sink, :input, 5_000)
     Testing.Pipeline.terminate(pipeline, blocking?: true)
 
     reference_file = File.read!(reference_file)
@@ -170,7 +172,7 @@ defmodule Membrane.Matroska.MuxerTest do
       |> Enum.with_index()
 
     count =
-      Enum.reduce(zipped_with_indexes, 0, fn {{e1, e2}, idx}, count ->
+      Enum.reduce(zipped_with_indexes, 0, fn {{e1, e2}, _idx}, count ->
         if e1 != e2, do: count + 1, else: count
       end)
 

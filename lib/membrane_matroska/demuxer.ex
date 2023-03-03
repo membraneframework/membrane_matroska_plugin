@@ -25,8 +25,8 @@ defmodule Membrane.Matroska.Demuxer do
 
   use Membrane.Filter
 
-  alias Membrane.{Buffer, Pipeline.Action}
-  alias Membrane.{Opus, RemoteStream, VP8, VP9, H264, Matroska}
+  alias Membrane.{Buffer, H264, Matroska, Opus, RemoteStream, VP8, VP9}
+  alias Membrane.Pipeline.Action
 
   def_input_pad :input,
     availability: :always,
