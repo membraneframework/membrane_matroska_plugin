@@ -55,8 +55,8 @@ defmodule Membrane.Matroska.Muxer do
 
     defstruct tracks: %{},
               segment_position: 0,
-              expected_tracks: %{},
-              active_tracks: 0,
+              expected_tracks_ordering: %{},
+              active_tracks_cnt: 0,
               cluster_acc: Helper.serialize({:Timecode, 0}),
               cluster_time: nil,
               cluster_size: 0,
@@ -74,9 +74,10 @@ defmodule Membrane.Matroska.Muxer do
 
   @impl true
   def handle_pad_added(Pad.ref(:input, id), context, state) when context.playback != :playing do
-    expected_tracks = Map.put(state.expected_tracks, id, map_size(state.expected_tracks) + 1)
+    expected_tracks_ordering =
+      Map.put(state.expected_tracks_ordering, id, map_size(state.expected_tracks_ordering) + 1)
 
-    {[], %State{state | expected_tracks: expected_tracks}}
+    {[], %State{state | expected_tracks_ordering: expected_tracks_ordering}}
   end
 
   @impl true
@@ -113,11 +114,11 @@ defmodule Membrane.Matroska.Muxer do
           raise "unsupported stream format #{inspect(stream_format)}"
       end
 
-    state = update_in(state.active_tracks, &(&1 + 1))
+    state = update_in(state.active_tracks_cnt, &(&1 + 1))
     type = Codecs.type(codec)
 
     track = %{
-      track_number: state.expected_tracks[id],
+      track_number: state.expected_tracks_ordering[id],
       id: id,
       codec: codec,
       stream_format: stream_format,
@@ -130,7 +131,7 @@ defmodule Membrane.Matroska.Muxer do
 
     state = put_in(state.tracks[id], track)
 
-    if state.active_tracks == map_size(state.expected_tracks) do
+    if state.active_tracks_cnt == map_size(state.expected_tracks_ordering) do
       demands = Enum.map(state.tracks, fn {id, _track_data} -> {:demand, Pad.ref(:input, id)} end)
 
       stream_format = [
@@ -146,7 +147,7 @@ defmodule Membrane.Matroska.Muxer do
   # demand all tracks for which the last frame is not cached
   @impl true
   def handle_demand(:output, _size, :buffers, _ctx, state)
-      when map_size(state.expected_tracks) == state.active_tracks do
+      when map_size(state.expected_tracks_ordering) == state.active_tracks_cnt do
     demands = get_demands(state)
 
     if demands == [] do
@@ -169,9 +170,9 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   @impl true
-  def handle_end_of_stream(Pad.ref(:input, id), _ctx, state) when state.active_tracks != 1 do
-    state = update_in(state.active_tracks, &(&1 - 1))
-    {_track_number, state} = pop_in(state, [:expected_tracks, id])
+  def handle_end_of_stream(Pad.ref(:input, id), _ctx, state) when state.active_tracks_cnt != 1 do
+    state = update_in(state.active_tracks_cnt, &(&1 - 1))
+    {_track_number, state} = pop_in(state, [:expected_tracks_ordering, id])
     state = put_in(state.tracks[id][:active?], false)
     # {_track, state} = pop_in(state.tracks[id])
 

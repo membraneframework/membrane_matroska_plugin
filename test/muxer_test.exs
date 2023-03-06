@@ -110,8 +110,7 @@ defmodule Membrane.Matroska.MuxerTest do
         stream_format: %Opus{channels: 2, self_delimiting?: false}
       })
       |> via_in(Pad.ref(:input, @pad_id_4))
-      |> get_child(:muxer),
-      get_child(:muxer)
+      |> get_child(:muxer)
       |> child(:sink, %Membrane.File.Sink{
         location: output_file
       })
