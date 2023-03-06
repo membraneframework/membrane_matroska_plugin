@@ -20,7 +20,7 @@ The package can be installed by adding `membrane_matroska_plugin` to your list o
 ```elixir
 def deps do
   [
-    {:membrane_matroska_plugin, "~> 0.1.2"}
+    {:membrane_matroska_plugin, "~> 0.2.0"}
   ]
 end
 ```

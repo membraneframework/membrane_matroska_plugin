@@ -7,13 +7,10 @@ defmodule Membrane.Matroska.Muxer do
   Muxer guidelines
   https://www.matroskaproject.org/docs/container/
   """
-  use Bitwise
   use Bunch
-
   use Membrane.Filter
 
-  alias Membrane.{Buffer, RemoteStream}
-  alias Membrane.{Opus, VP8, VP9, MP4, Matroska}
+  alias Membrane.{Buffer, Matroska, MP4, Opus, RemoteStream, VP8, VP9}
   alias Membrane.Matroska.Parser.Codecs
   alias Membrane.Matroska.Serializer
   alias Membrane.Matroska.Serializer.Helper
@@ -31,22 +28,21 @@ defmodule Membrane.Matroska.Muxer do
                   Default value is the time of initialization of this element."
               ]
 
-  # tags:
-
   def_input_pad :input,
     availability: :on_request,
     mode: :pull,
     demand_unit: :buffers,
-    caps: [
-      {Opus, self_delimiting?: false, channels: Membrane.Caps.Matcher.one_of([1, 2])},
-      {RemoteStream, content_format: Membrane.Caps.Matcher.one_of([VP8, VP9]), type: :packetized},
-      MP4.Payload
-    ]
+    accepted_format:
+      any_of(
+        MP4.Payload,
+        %Opus{self_delimiting?: false, channels: channels} when channels in [1, 2],
+        %RemoteStream{content_format: format, type: :packetized} when format in [VP8, VP9]
+      )
 
   def_output_pad :output,
     availability: :always,
     mode: :pull,
-    caps: {RemoteStream, content_format: Matroska}
+    accepted_format: %RemoteStream{content_format: Matroska}
 
   # 5 mb
   @cluster_bytes_limit 5_242_880
@@ -55,10 +51,12 @@ defmodule Membrane.Matroska.Muxer do
 
   defmodule State do
     @moduledoc false
+    use Bunch.Access
+
     defstruct tracks: %{},
               segment_position: 0,
-              expected_tracks: 0,
-              active_tracks: 0,
+              expected_tracks_ordering: %{},
+              active_tracks_cnt: 0,
               cluster_acc: Helper.serialize({:Timecode, 0}),
               cluster_time: nil,
               cluster_size: 0,
@@ -69,31 +67,34 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   @impl true
-  def handle_init(options) do
+  def handle_init(_ctx, options) do
     options = options |> Map.put(:duration, 0) |> Map.put(:clusters_size, 0)
-    {:ok, %State{options: options}}
+    {[], %State{options: options}}
   end
 
   @impl true
-  def handle_pad_added(_pad, context, state) when context.playback_state != :playing do
-    {:ok, %State{state | expected_tracks: state.expected_tracks + 1}}
+  def handle_pad_added(Pad.ref(:input, id), context, state) when context.playback != :playing do
+    expected_tracks_ordering =
+      Map.put(state.expected_tracks_ordering, id, map_size(state.expected_tracks_ordering) + 1)
+
+    {[], %State{state | expected_tracks_ordering: expected_tracks_ordering}}
   end
 
   @impl true
-  def handle_pad_added(_pad, _context, _state) do
+  def handle_pad_added(_pad, _ctx, _state) do
     raise "Can't add new input pads to muxer in state :playing!"
   end
 
   @impl true
-  def handle_caps(Pad.ref(:input, id), _caps, _context, state)
+  def handle_stream_format(Pad.ref(:input, id), _stream_format, _ctx, state)
       when is_map_key(state.tracks, id) do
-    {:ok, state}
+    {[], state}
   end
 
   @impl true
-  def handle_caps(Pad.ref(:input, id), caps, _context, state) do
+  def handle_stream_format(Pad.ref(:input, id), stream_format, _ctx, state) do
     codec =
-      case caps do
+      case stream_format do
         %RemoteStream{content_format: VP8} ->
           :vp8
 
@@ -106,18 +107,21 @@ defmodule Membrane.Matroska.Muxer do
         %MP4.Payload{content: %AVC1{}} ->
           :h264
 
+        format when is_struct(format) ->
+          raise "unsupported stream format #{inspect(format.__struct__)}"
+
         _other ->
-          raise "unsupported codec #{inspect(caps)}"
+          raise "unsupported stream format #{inspect(stream_format)}"
       end
 
-    state = update_in(state.active_tracks, &(&1 + 1))
+    state = update_in(state.active_tracks_cnt, &(&1 + 1))
     type = Codecs.type(codec)
 
     track = %{
-      track_number: state.active_tracks,
+      track_number: state.expected_tracks_ordering[id],
       id: id,
       codec: codec,
-      caps: caps,
+      stream_format: stream_format,
       type: type,
       cached_block: nil,
       offset: nil,
@@ -127,47 +131,48 @@ defmodule Membrane.Matroska.Muxer do
 
     state = put_in(state.tracks[id], track)
 
-    if state.active_tracks == state.expected_tracks do
+    if state.active_tracks_cnt == map_size(state.expected_tracks_ordering) do
       demands = Enum.map(state.tracks, fn {id, _track_data} -> {:demand, Pad.ref(:input, id)} end)
-      caps = [caps: {:output, %RemoteStream{content_format: Matroska, type: :bytestream}}]
-      {{:ok, caps ++ demands}, state}
+
+      stream_format = [
+        stream_format: {:output, %RemoteStream{content_format: Matroska, type: :bytestream}}
+      ]
+
+      {stream_format ++ demands, state}
     else
-      {:ok, state}
+      {[], state}
     end
   end
 
   # demand all tracks for which the last frame is not cached
   @impl true
-  def handle_demand(:output, _size, :buffers, _context, state)
-      when state.expected_tracks == state.active_tracks do
+  def handle_demand(:output, _size, :buffers, _ctx, state)
+      when map_size(state.expected_tracks_ordering) == state.active_tracks_cnt do
     demands = get_demands(state)
 
-    {demands, state} =
-      if demands == [] do
-        {state, _maybe_cluster} = process_next_block(state)
-        {get_demands(state), state}
-      else
-        {demands, state}
-      end
-
-    {{:ok, demands}, state}
+    if demands == [] do
+      {state, _maybe_cluster} = process_next_block(state)
+      {get_demands(state), state}
+    else
+      {demands, state}
+    end
   end
 
   @impl true
-  def handle_demand(:output, _size, :buffers, _context, state) do
-    {:ok, state}
+  def handle_demand(:output, _size, :buffers, _ctx, state) do
+    {[], state}
   end
 
   @impl true
-  def handle_process(pad_ref, buffer, _context, state) do
+  def handle_process(pad_ref, buffer, _ctx, state) do
     state = ingest_buffer(state, pad_ref, buffer)
     process_next_block_or_redemand(state)
   end
 
   @impl true
-  def handle_end_of_stream(Pad.ref(:input, id), _context, state) when state.active_tracks != 1 do
-    state = update_in(state.active_tracks, &(&1 - 1))
-    state = update_in(state.expected_tracks, &(&1 - 1))
+  def handle_end_of_stream(Pad.ref(:input, id), _ctx, state) when state.active_tracks_cnt != 1 do
+    state = update_in(state.active_tracks_cnt, &(&1 - 1))
+    {_track_number, state} = pop_in(state, [:expected_tracks_ordering, id])
     state = put_in(state.tracks[id][:active?], false)
     # {_track, state} = pop_in(state.tracks[id])
 
@@ -175,7 +180,11 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   @impl true
-  def handle_end_of_stream(Pad.ref(:input, _id), _context, state) do
+  def handle_end_of_stream(Pad.ref(:input, _id), _ctx, state) do
+    if Enum.any?(state.tracks, fn {_track_id, track} -> track.cached_block != nil end) do
+      raise "Not empty tracks"
+    end
+
     cluster = Helper.serialize({:Cluster, state.cluster_acc})
     clusters_size = state.segment_position + byte_size(cluster)
     state = put_in(state.options.clusters_size, clusters_size)
@@ -190,11 +199,15 @@ defmodule Membrane.Matroska.Muxer do
     buffer_cluster = %Buffer{payload: cluster <> cues}
     seek_event = %Membrane.File.SeekEvent{position: 0, insert?: true}
 
-    {{:ok,
-      buffer: {:output, buffer_cluster},
-      event: {:output, seek_event},
-      buffer: {:output, %Buffer{payload: matroska_header}},
-      end_of_stream: :output}, state}
+    {
+      [
+        buffer: {:output, buffer_cluster},
+        event: {:output, seek_event},
+        buffer: {:output, %Buffer{payload: matroska_header}},
+        end_of_stream: :output
+      ],
+      state
+    }
   end
 
   defp update_cues_postion(cues, header_size) do
@@ -242,16 +255,20 @@ defmodule Membrane.Matroska.Muxer do
 
     case maybe_cluster do
       <<>> ->
-        {{:ok, redemand: :output}, state}
+        {[redemand: :output], state}
 
       serialized_payload ->
-        {{:ok, buffer: {:output, %Buffer{payload: serialized_payload}}, redemand: :output}, state}
+        {[buffer: {:output, %Buffer{payload: serialized_payload}}, redemand: :output], state}
     end
   end
 
   defp pop_next_block(state) do
     # find next block
-    tracks = Enum.filter(state.tracks, fn {_track_id, track} -> track.active? end)
+    tracks =
+      Enum.filter(state.tracks, fn {_track_id, track} ->
+        track.active? or track.cached_block != nil
+      end)
+
     sorted = Enum.sort(tracks, &block_sorter/2)
     {id, track} = hd(sorted)
     block = track.cached_block
@@ -375,7 +392,7 @@ defmodule Membrane.Matroska.Muxer do
 
   defp process_next_block_or_redemand(state) do
     if Enum.any?(state.tracks, fn {_id, track} -> enough_cached_blocks?(track) end) do
-      {{:ok, redemand: :output}, state}
+      {[redemand: :output], state}
     else
       process_next_block_and_return(state)
     end
