@@ -169,7 +169,11 @@ defmodule Membrane.Matroska.Parser.EBML do
     0
   end
 
-  def parse_float(<<num::float-big>>) do
+  def parse_float(<<num::float-64>>) do
+    num
+  end
+
+  def parse_float(<<num::float-32>>) do
     num
   end
 
