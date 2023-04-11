@@ -2,10 +2,10 @@ defmodule Membrane.Matroska.Parser.EBML do
   @moduledoc """
   Helper functions for decoding and encoding EBML elements.
 
-  EBML RFC: https://www.rfc-editor.org/rfc/rfc8794.html
+  EBML RFC: https://datatracker.ietf.org/doc/html/rfc8794
 
   Note that this module does not support parsing Master Elements with unknown data size
-  https://www.rfc-editor.org/rfc/rfc8794.html#section-6.2
+  https://datatracker.ietf.org/doc/html/rfc8794#name-unknown-data-size
   """
 
   # Numbers are encoded as VINTs in EBML
@@ -169,7 +169,11 @@ defmodule Membrane.Matroska.Parser.EBML do
     0
   end
 
-  def parse_float(<<num::float-big>>) do
+  def parse_float(<<num::float-64>>) do
+    num
+  end
+
+  def parse_float(<<num::float-32>>) do
     num
   end
 

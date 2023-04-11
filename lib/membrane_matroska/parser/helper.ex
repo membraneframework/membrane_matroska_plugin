@@ -7,7 +7,7 @@ defmodule Membrane.Matroska.Parser.Helper do
   # A Matroska file is an EBML file (Extendable-Binary-Meta-Language) satisfying certain other constraints.
 
   # Docs:
-  #   - EBML https://www.rfc-editor.org/rfc/rfc8794.html
+  #   - EBML https://datatracker.ietf.org/doc/html/rfc8794
   #   - Matroska https://www.webmproject.org/docs/container/
   #   - Matroska https://matroska.org/technical/basics.html
 

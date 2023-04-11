@@ -3,7 +3,7 @@ defmodule Membrane.Matroska.Schema do
   Matroska structure schema for muxing and demuxing
 
   Docs:
-    - EBML https://www.rfc-editor.org/rfc/rfc8794.html
+    - EBML https://datatracker.ietf.org/doc/html/rfc8794
     - Matroska https://matroska.org/technical/basics.html
 
   Matroska elements and ID's https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-10.html#name-matroska-schema
