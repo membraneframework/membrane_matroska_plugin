@@ -4,8 +4,15 @@ Mix.install([
   :membrane_hackney_plugin,
   :membrane_h264_ffmpeg_plugin,
   :membrane_mp4_plugin,
-  :membrane_opus_plugin,
+  :membrane_opus_plugin
 ])
+
+# In this example pipeline will:
+# - download an audio and video file
+# - make some preprocessing on this files. For audio it will encode it to opus and for H264 it will parse this stream.
+# - create matroska stream from preprocesed streams
+# - save matroska stream to file
+
 
 defmodule Example do
   use Membrane.Pipeline
@@ -18,38 +25,38 @@ defmodule Example do
   @output_file Path.expand("example_h264.mkv")
 
   @impl true
-  def handle_init(_ctx,_options) do
-    structure = [child(:video_source, %Membrane.Hackney.Source{
-      location: @video_url,
-      hackney_opts: [follow_redirect: true]
-    })
-    |> child(      :video_parser, %Membrane.H264.FFmpeg.Parser{
-      framerate: {30, 1},
-      alignment: :au,
-      attach_nalus?: true
-    })
-    |> child(      :video_payloader, %Membrane.MP4.Payloader.H264{parameters_in_band?: true})
-    |> child(      :muxer, Membrane.Matroska.Muxer),
-    child(:audio_source, %Membrane.Hackney.Source{
-      location: @audio_url,
-      hackney_opts: [follow_redirect: true]
-    })
-    |> child(      :audio_encoder, %Membrane.Opus.Encoder{
-      application: :audio,
-      input_stream_format: %RawAudio{
-        channels: 2,
-        sample_format: :s16le,
-        sample_rate: 48_000
-      }
-    })
-    |> child(      :audio_parser, %Membrane.Opus.Parser{delimitation: :undelimit})
-    |> get_child(:muxer)
-    |> child(:file_sink, %Membrane.File.Sink{location: @output_file})
+  def handle_init(_ctx, _options) do
+    structure = [
+      child(:video_source, %Membrane.Hackney.Source{
+        location: @video_url,
+        hackney_opts: [follow_redirect: true]
+      })
+      |> child(:video_parser, %Membrane.H264.FFmpeg.Parser{
+        framerate: {30, 1},
+        alignment: :au,
+        attach_nalus?: true
+      })
+      |> child(:video_payloader, %Membrane.MP4.Payloader.H264{parameters_in_band?: true})
+      |> child(:muxer, Membrane.Matroska.Muxer),
+      child(:audio_source, %Membrane.Hackney.Source{
+        location: @audio_url,
+        hackney_opts: [follow_redirect: true]
+      })
+      |> child(:audio_encoder, %Membrane.Opus.Encoder{
+        application: :audio,
+        input_stream_format: %RawAudio{
+          channels: 2,
+          sample_format: :s16le,
+          sample_rate: 48_000
+        }
+      })
+      |> child(:audio_parser, %Membrane.Opus.Parser{delimitation: :undelimit})
+      |> get_child(:muxer)
+      |> child(:file_sink, %Membrane.File.Sink{location: @output_file})
     ]
 
     {[spec: structure, playback: :playing], %{}}
   end
-
 
   # Next two functions are only a logic for terminating a pipeline when it's done, you don't need to worry
   @impl true
@@ -63,7 +70,7 @@ defmodule Example do
   end
 end
 
-{:ok,_supervisor, pipeline} = Example.start_link()
+{:ok, _supervisor, pipeline} = Example.start_link()
 monitor_ref = Process.monitor(pipeline)
 
 receive do
