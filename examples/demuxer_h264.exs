@@ -8,11 +8,13 @@ Mix.install([
   {:membrane_ogg_plugin, github: "membraneframework-labs/membrane_libogg_plugin"}
 ])
 
-# In this example pipeline will:
+# In this example, the pipeline will:
 # - download matroska file
-# - demux this matroska file to two output streams audio and video.
-# - make processing on both output streams, for audio it will payload it to ogg and for video will parse it
-# - save both streams to a sepearte files
+# - demux this matroska file to two output streams: audio stream and video stream
+# - conduct processing on both output streams:
+# 	  - payload the audio stream to ogg format
+# 	  - parse the video stream
+# - save both streams to separate files
 
 defmodule Example do
   use Membrane.Pipeline
