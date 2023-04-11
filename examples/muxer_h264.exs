@@ -7,11 +7,13 @@ Mix.install([
   :membrane_opus_plugin
 ])
 
-# In this example pipeline will:
-# - download an audio and video file
-# - make some preprocessing on this files. For audio it will encode it to opus and for H264 it will parse this stream.
-# - create matroska stream from preprocesed streams
-# - save matroska stream to file
+# In this example, the pipeline will:
+# - download audio and video files
+# - conduct preprocessing of streams from files:
+# 	  - encode audio stream to opus
+# 	  - parse the H264 video stream and then payload it
+# - create a matroska stream from the preprocessed streams
+# - save the matroska stream to the file
 
 
 defmodule Example do
