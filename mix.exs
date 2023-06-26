@@ -1,7 +1,7 @@
 defmodule Membrane.Matroska.Plugin.Mixfile do
   use Mix.Project
 
-  @version "0.2.1"
+  @version "0.3.0"
   @github_url "https://github.com/membraneframework/membrane_matroska_plugin"
 
   def project do
@@ -51,13 +51,13 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
       {:bimap, "~> 1.2"},
       # Test dependencies
       {:membrane_opus_plugin, "~> 0.17.0", only: :test, runtime: false},
-      {:membrane_flv_plugin, "~> 0.7.0", only: :test},
+      {:membrane_flv_plugin, "~> 0.6.0", only: :test},
       {:membrane_mp4_plugin, "~> 0.24.1", only: :test},
       {:membrane_ivf_plugin, "~> 0.6.0", only: :test, runtime: false},
       {:membrane_ogg_plugin,
        github: "membraneframework-labs/membrane_ogg_plugin", tag: "v0.2.0", only: :test, runtime: false},
       {:membrane_h264_ffmpeg_plugin, "~> 0.27.0", only: :test, runtime: false},
-      {:membrane_ffmpeg_swresample_plugin, "~> 0.17.1", only: :test, runtime: false},
+      {:membrane_ffmpeg_swresample_plugin, "~> 0.17.0", only: :test, runtime: false},
       # Credo
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
