@@ -197,7 +197,7 @@ defmodule Membrane.Matroska.Muxer do
     cues = update_cues_postion(state.cues, segment_position)
     cues = Helper.serialize({:Cues, cues})
     buffer_cluster = %Buffer{payload: cluster <> cues}
-    seek_event = %Membrane.File.SeekEvent{position: 0, insert?: true}
+    seek_event = %Membrane.File.SeekSinkEvent{position: 0, insert?: true}
 
     {
       [
