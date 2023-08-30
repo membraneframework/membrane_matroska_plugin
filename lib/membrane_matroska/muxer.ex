@@ -10,11 +10,10 @@ defmodule Membrane.Matroska.Muxer do
   use Bunch
   use Membrane.Filter
 
-  alias Membrane.{Buffer, Matroska, MP4, Opus, RemoteStream, VP8, VP9}
+  alias Membrane.{Buffer, Matroska, H264, Opus, RemoteStream, VP8, VP9}
   alias Membrane.Matroska.Parser.Codecs
   alias Membrane.Matroska.Serializer
   alias Membrane.Matroska.Serializer.Helper
-  alias Membrane.MP4.Payload.AVC1
 
   def_options title: [
                 spec: String.t(),
@@ -34,7 +33,7 @@ defmodule Membrane.Matroska.Muxer do
     demand_unit: :buffers,
     accepted_format:
       any_of(
-        MP4.Payload,
+        %H264{stream_structure: {avc, _dcr}} when avc in [:avc1, :avc3],
         %Opus{self_delimiting?: false, channels: channels} when channels in [1, 2],
         %RemoteStream{content_format: format, type: :packetized} when format in [VP8, VP9]
       )
@@ -104,7 +103,7 @@ defmodule Membrane.Matroska.Muxer do
         %Opus{} ->
           :opus
 
-        %MP4.Payload{content: %AVC1{}} ->
+        %H264{} ->
           :h264
 
         format when is_struct(format) ->

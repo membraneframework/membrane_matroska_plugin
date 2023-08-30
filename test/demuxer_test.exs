@@ -64,9 +64,8 @@ defmodule Membrane.Matroska.DemuxerTest do
           structure = [
             get_child(:demuxer)
             |> via_out(Pad.ref(:output, track_id))
-            |> child(:parser, %Membrane.H264.FFmpeg.Parser{
-              skip_until_parameters?: false,
-              attach_nalus?: true
+            |> child(:parser, %Membrane.H264.Parser{
+              output_stream_structure: :annexb
             })
             |> child({:sink, track_id}, %Membrane.File.Sink{
               location: Path.join(state.output_dir, output_file)

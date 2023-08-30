@@ -7,7 +7,7 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   alias Membrane.Buffer
   alias Membrane.Matroska.Parser.Codecs
   alias Membrane.Matroska.Serializer.{EBML, Helper}
-  alias Membrane.{MP4, Opus, RemoteStream, VP8, VP9}
+  alias Membrane.{Opus, RemoteStream, VP8, VP9}
 
   @timestamp_scale Membrane.Time.millisecond()
   @seekhead_bytes 160
@@ -151,16 +151,14 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   defp construct_track_entry(
          {id,
           %{
-            stream_format: %MP4.Payload{
-              content: %Membrane.MP4.Payload.AVC1{
-                avcc: codec_private
-              },
+            stream_format: %Membrane.H264{
+              stream_structure: {avc, codec_private},
               width: width,
               height: height
             },
             track_number: track_number
           }}
-       ) do
+       ) when avc in [:avc1, :avc3] do
     {:TrackEntry,
      [
        CodecPrivate: codec_private,
