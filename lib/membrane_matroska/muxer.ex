@@ -10,7 +10,7 @@ defmodule Membrane.Matroska.Muxer do
   use Bunch
   use Membrane.Filter
 
-  alias Membrane.{Buffer, Matroska, H264, Opus, RemoteStream, VP8, VP9}
+  alias Membrane.{Buffer, H264, Matroska, Opus, RemoteStream, VP8, VP9}
   alias Membrane.Matroska.Parser.Codecs
   alias Membrane.Matroska.Serializer
   alias Membrane.Matroska.Serializer.Helper

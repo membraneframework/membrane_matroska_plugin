@@ -158,7 +158,8 @@ defmodule Membrane.Matroska.Serializer.Matroska do
             },
             track_number: track_number
           }}
-       ) when avc in [:avc1, :avc3] do
+       )
+       when avc in [:avc1, :avc3] do
     {:TrackEntry,
      [
        CodecPrivate: codec_private,
