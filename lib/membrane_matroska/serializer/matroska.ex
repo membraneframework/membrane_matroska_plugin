@@ -4,10 +4,11 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   # Module for constructing the top-level elements constituting a Matroska file Segment
   # https://www.ietf.org/archive/id/draft-ietf-cellar-matroska-08.html#section-7
 
-  alias Membrane.Buffer
+  require Membrane.H264
+  alias Membrane.{Buffer, H264}
   alias Membrane.Matroska.Parser.Codecs
   alias Membrane.Matroska.Serializer.{EBML, Helper}
-  alias Membrane.{MP4, Opus, RemoteStream, VP8, VP9}
+  alias Membrane.{Opus, RemoteStream, VP8, VP9}
 
   @timestamp_scale Membrane.Time.millisecond()
   @seekhead_bytes 160
@@ -151,16 +152,15 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   defp construct_track_entry(
          {id,
           %{
-            stream_format: %MP4.Payload{
-              content: %Membrane.MP4.Payload.AVC1{
-                avcc: codec_private
-              },
+            stream_format: %Membrane.H264{
+              stream_structure: {_avc, codec_private} = structure,
               width: width,
               height: height
             },
             track_number: track_number
           }}
-       ) do
+       )
+       when H264.is_avc(structure) do
     {:TrackEntry,
      [
        CodecPrivate: codec_private,

@@ -80,11 +80,10 @@ defmodule Membrane.Matroska.MuxerTest do
         })
         |> child(:flv_demuxer, FLV.Demuxer)
         |> via_out(Pad.ref(:video, 0))
-        |> child(:parser, %Membrane.H264.FFmpeg.Parser{
-          attach_nalus?: true,
-          skip_until_parameters?: false
+        |> child(:parser, %Membrane.H264.Parser{
+          output_alignment: :au,
+          output_stream_structure: :avc1
         })
-        |> child(:mp4_payloader, Membrane.MP4.Payloader.H264)
         |> via_in(Pad.ref(:input, @pad_id_3))
         |> child(:muxer, %Membrane.Matroska.Muxer{date: @date})
       ]

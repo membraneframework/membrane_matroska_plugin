@@ -41,7 +41,7 @@ defmodule Membrane.Matroska.Demuxer do
     mode: :pull,
     accepted_format:
       any_of(
-        H264.RemoteStream,
+        %H264{stream_structure: {:avc3, _dcr}},
         Opus,
         %RemoteStream{content_format: format, type: :packetized} when format in [VP8, VP9]
       )
@@ -123,11 +123,11 @@ defmodule Membrane.Matroska.Demuxer do
           %RemoteStream{content_format: VP9, type: :packetized}
 
         :h264 ->
-          %H264.RemoteStream{
+          %H264{
             # Based on https://www.matroska.org/technical/codec_specs.html V_MPEG4/ISO/AVC section
             # it's always NALu
             alignment: :nalu,
-            decoder_configuration_record: track.codec_private
+            stream_structure: {:avc3, track.codec_private}
           }
 
         :vorbis ->
@@ -209,7 +209,7 @@ defmodule Membrane.Matroska.Demuxer do
           {:buffer,
            {Pad.ref(:output, data.track_number),
             %Buffer{
-              payload: process_codec_specific(data.data, state.tracks[data.track_number].codec),
+              payload: data.data,
               pts: (state.current_timecode + data.timecode) * state.timestamp_scale
             }}}
 
@@ -296,23 +296,5 @@ defmodule Membrane.Matroska.Demuxer do
 
       {track[:TrackNumber], info}
     end
-  end
-
-  defp process_codec_specific(data, codec) do
-    case codec do
-      :h264 ->
-        convert_to_annexb(data)
-
-      _data ->
-        data
-    end
-  end
-
-  defp convert_to_annexb(<<size::32, data::binary-size(size), rest::binary>>) do
-    <<0, 0, 1>> <> data <> convert_to_annexb(rest)
-  end
-
-  defp convert_to_annexb(<<>>) do
-    <<>>
   end
 end
