@@ -40,7 +40,7 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
     [
       {:membrane_core, "~> 0.12.3"},
       {:membrane_matroska_format, "~> 0.1.0"},
-      {:membrane_h264_format, "~> 0.6.0"},
+      {:membrane_h264_format, "~> 0.6.1"},
       {:membrane_vp8_format, "~> 0.4.0"},
       {:membrane_vp9_format, "~> 0.4.0"},
       {:membrane_opus_format, "~> 0.3.0"},

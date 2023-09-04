@@ -10,6 +10,7 @@ defmodule Membrane.Matroska.Muxer do
   use Bunch
   use Membrane.Filter
 
+  require Membrane.H264
   alias Membrane.{Buffer, H264, Matroska, Opus, RemoteStream, VP8, VP9}
   alias Membrane.Matroska.Parser.Codecs
   alias Membrane.Matroska.Serializer
@@ -33,7 +34,7 @@ defmodule Membrane.Matroska.Muxer do
     demand_unit: :buffers,
     accepted_format:
       any_of(
-        %H264{stream_structure: {avc, _dcr}} when avc in [:avc1, :avc3],
+        %H264{nalu_in_metadata?: true, stream_structure: structure} when H264.is_avc(structure),
         %Opus{self_delimiting?: false, channels: channels} when channels in [1, 2],
         %RemoteStream{content_format: format, type: :packetized} when format in [VP8, VP9]
       )
