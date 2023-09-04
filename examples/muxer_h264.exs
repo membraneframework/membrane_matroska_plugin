@@ -2,8 +2,8 @@ Mix.install([
   :membrane_core,
   {:membrane_matroska_plugin, path: __DIR__ |> Path.join("..") |> Path.expand()},
   :membrane_hackney_plugin,
-  :membrane_h264_ffmpeg_plugin,
-  :membrane_mp4_plugin,
+  :membrane_h264_plugin,
+  :membrane_h264_format,
   :membrane_opus_plugin
 ])
 
@@ -33,12 +33,10 @@ defmodule Example do
         location: @video_url,
         hackney_opts: [follow_redirect: true]
       })
-      |> child(:video_parser, %Membrane.H264.FFmpeg.Parser{
-        framerate: {30, 1},
-        alignment: :au,
-        attach_nalus?: true
+      |> child(:video_parser, %Membrane.H264.Parser{
+        generate_best_effort_timestamps: %{framerate: {30, 1}},
+        output_stream_structure: :avc3
       })
-      |> child(:video_payloader, %Membrane.MP4.Payloader.H264{parameters_in_band?: true})
       |> child(:muxer, Membrane.Matroska.Muxer),
       child(:audio_source, %Membrane.Hackney.Source{
         location: @audio_url,
@@ -63,8 +61,7 @@ defmodule Example do
   # Next two functions are only a logic for terminating a pipeline when it's done, you don't need to worry
   @impl true
   def handle_element_end_of_stream(:file_sink, _pad, _ctx, state) do
-    Membrane.Pipeline.terminate(self())
-    {[], state}
+    {[terminate: :normal], state}
   end
 
   def handle_element_end_of_stream(_element, _pad, _ctx, state) do

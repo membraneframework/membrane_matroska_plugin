@@ -2,8 +2,8 @@ Mix.install([
   :membrane_core,
   {:membrane_matroska_plugin, path: __DIR__ |> Path.join("..") |> Path.expand()},
   :membrane_hackney_plugin,
-  :membrane_h264_ffmpeg_plugin,
-  :membrane_mp4_plugin,
+  :membrane_h264_plugin,
+  :membrane_h264_format,
   :membrane_opus_plugin,
   {:membrane_ogg_plugin, github: "membraneframework-labs/membrane_libogg_plugin"}
 ])
@@ -58,9 +58,8 @@ defmodule Example do
         structure =
           get_child(:demuxer)
           |> via_out(Pad.ref(:output, track_id))
-          |> child(:parser, %Membrane.H264.FFmpeg.Parser{
-            skip_until_parameters?: false,
-            attach_nalus?: true
+          |> child(:parser, %Membrane.H264.Parser{
+            output_stream_structure: :annexb
           })
           |> child({:sink, track_id}, %Membrane.File.Sink{
             location: Path.join(@output_dir, "#{track_id}.h264")
@@ -76,8 +75,7 @@ defmodule Example do
   # Next three functions are only a logic for terminating a pipeline when it's done, you don't need to worry
   @impl true
   def handle_element_end_of_stream({:sink, _}, :input, _ctx, state) when state.tracks == 1 do
-    Membrane.Pipeline.terminate(self())
-    {[], state}
+    {[terminate: :normal], state}
   end
 
   @impl true

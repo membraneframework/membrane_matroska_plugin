@@ -1,7 +1,7 @@
 defmodule Membrane.Matroska.Plugin.Mixfile do
   use Mix.Project
 
-  @version "0.3.1"
+  @version "0.4.0"
   @github_url "https://github.com/membraneframework/membrane_matroska_plugin"
 
   def project do
@@ -50,11 +50,7 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
       {:bimap, "~> 1.2"},
       # Test dependencies
       {:membrane_opus_plugin, "~> 0.17.0", only: :test, runtime: false},
-      {:membrane_flv_plugin,
-       github: "membraneframework/membrane_flv_plugin",
-       branch: "update-to-new-formats",
-       only: :test,
-       runtime: false},
+      {:membrane_flv_plugin, "~> 0.9.0", only: :test, runtime: false},
       {:membrane_ivf_plugin, "~> 0.6.0", only: :test, runtime: false},
       {:membrane_ogg_plugin,
        github: "membraneframework-labs/membrane_libogg_plugin",
