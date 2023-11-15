@@ -29,8 +29,7 @@ defmodule Membrane.Matroska.Demuxer do
   alias Membrane.Pipeline.Action
 
   def_input_pad :input,
-    availability: :always,
-    mode: :pull,
+    flow_control: :manual,
     demand_unit: :buffers,
     accepted_format:
       %RemoteStream{content_format: format, type: :bytestream}
@@ -38,7 +37,7 @@ defmodule Membrane.Matroska.Demuxer do
 
   def_output_pad :output,
     availability: :on_request,
-    mode: :pull,
+    flow_control: :manual,
     accepted_format:
       any_of(
         %H264{stream_structure: {:avc3, _dcr}},
@@ -145,7 +144,7 @@ defmodule Membrane.Matroska.Demuxer do
   end
 
   @impl true
-  def handle_process(:input, %Buffer{payload: bytes}, context, state) do
+  def handle_buffer(:input, %Buffer{payload: bytes}, context, state) do
     unparsed = state.parser_acc <> bytes
 
     {parsed, unparsed} = Matroska.Parser.Helper.parse(unparsed)

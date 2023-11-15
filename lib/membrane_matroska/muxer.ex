@@ -30,7 +30,7 @@ defmodule Membrane.Matroska.Muxer do
 
   def_input_pad :input,
     availability: :on_request,
-    mode: :pull,
+    flow_control: :manual,
     demand_unit: :buffers,
     accepted_format:
       any_of(
@@ -40,8 +40,7 @@ defmodule Membrane.Matroska.Muxer do
       )
 
   def_output_pad :output,
-    availability: :always,
-    mode: :pull,
+    flow_control: :manual,
     accepted_format: %RemoteStream{content_format: Matroska}
 
   # 5 mb
@@ -164,7 +163,7 @@ defmodule Membrane.Matroska.Muxer do
   end
 
   @impl true
-  def handle_process(pad_ref, buffer, _ctx, state) do
+  def handle_buffer(pad_ref, buffer, _ctx, state) do
     state = ingest_buffer(state, pad_ref, buffer)
     process_next_block_or_redemand(state)
   end

@@ -45,7 +45,7 @@ defmodule Membrane.Matroska.MuxerTest do
       })
     ]
 
-    {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(structure: structure)
+    {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(spec: structure)
 
     play_and_validate(pipeline, reference_file, output_file)
   end
@@ -67,7 +67,7 @@ defmodule Membrane.Matroska.MuxerTest do
       })
     ]
 
-    {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(structure: structure)
+    {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(spec: structure)
 
     play_and_validate(pipeline, reference_file, output_file)
   end
@@ -129,7 +129,7 @@ defmodule Membrane.Matroska.MuxerTest do
 
     structure = get_test_many_structure(input_file, output_file, buffers, codec)
 
-    {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(structure: structure)
+    {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(spec: structure)
 
     play_and_validate(pipeline, reference_file, output_file)
   end
@@ -147,16 +147,15 @@ defmodule Membrane.Matroska.MuxerTest do
 
     structure = get_test_many_structure(input_file, output_file, buffers, :h264)
 
-    {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(structure: structure)
+    {:ok, _supervisor, pipeline} = Testing.Pipeline.start_link(spec: structure)
 
     play_and_validate(pipeline, reference_file, output_file)
   end
 
   defp play_and_validate(pipeline, reference_file, output_file) do
-    assert_pipeline_play(pipeline)
     assert_start_of_stream(pipeline, :sink)
     assert_end_of_stream(pipeline, :sink, :input, 5_000)
-    Testing.Pipeline.terminate(pipeline, blocking?: true)
+    Testing.Pipeline.terminate(pipeline)
 
     reference_file = File.read!(reference_file)
     result_file = File.read!(output_file)

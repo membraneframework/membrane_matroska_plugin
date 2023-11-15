@@ -22,7 +22,7 @@ defmodule Membrane.Matroska.DemuxerTest do
 
       state = %{output_dir: options.output_dir, track_id_to_file: options.track_id_to_output_file}
 
-      {[spec: structure, playback: :playing], state}
+      {[spec: structure], state}
     end
 
     @impl true
@@ -92,8 +92,6 @@ defmodule Membrane.Matroska.DemuxerTest do
       ]
       |> Testing.Pipeline.start_link()
 
-    assert_pipeline_play(pipeline)
-
     references = Map.values(track_id_to_reference)
 
     if Enum.count(references) == 1 do
@@ -103,7 +101,7 @@ defmodule Membrane.Matroska.DemuxerTest do
       assert_end_of_stream(pipeline, {:sink, 2}, :input, 5_000)
     end
 
-    Testing.Pipeline.terminate(pipeline, blocking?: true)
+    Testing.Pipeline.terminate(pipeline)
 
     for reference <- Map.values(track_id_to_reference) do
       reference_file = File.read!(Path.join(@fixtures_dir, reference))
