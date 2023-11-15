@@ -35,7 +35,7 @@ defmodule Example do
       })
       |> child(:demuxer, Membrane.Matroska.Demuxer)
 
-    {[spec: structure, playback: :playing], %{tracks: 2}}
+    {[spec: structure], %{tracks: 2}}
   end
 
   @impl true

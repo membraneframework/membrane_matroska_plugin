@@ -55,7 +55,7 @@ defmodule Example do
       |> child(:file_sink, %Membrane.File.Sink{location: @output_file})
     ]
 
-    {[spec: structure, playback: :playing], %{}}
+    {[spec: structure], %{}}
   end
 
   # Next two functions are only a logic for terminating a pipeline when it's done, you don't need to worry
