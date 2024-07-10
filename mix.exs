@@ -1,7 +1,7 @@
 defmodule Membrane.Matroska.Plugin.Mixfile do
   use Mix.Project
 
-  @version "0.5.1"
+  @version "0.5.2"
   @github_url "https://github.com/membraneframework/membrane_matroska_plugin"
 
   def project do
@@ -41,8 +41,8 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
       {:membrane_core, "~> 1.0"},
       {:membrane_matroska_format, "~> 0.1.0"},
       {:membrane_h264_format, "~> 0.6.1"},
-      {:membrane_vp8_format, "~> 0.4.0"},
-      {:membrane_vp9_format, "~> 0.4.0"},
+      {:membrane_vp8_format, "~> 0.5.0"},
+      {:membrane_vp9_format, "~> 0.5.0"},
       {:membrane_opus_format, "~> 0.3.0"},
       {:membrane_common_c, "~> 0.16.0"},
       {:membrane_file_plugin, "~> 0.17.0", runtime: false},
