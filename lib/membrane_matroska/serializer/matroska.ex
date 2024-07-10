@@ -134,9 +134,35 @@ defmodule Membrane.Matroska.Serializer.Matroska do
      ]}
   end
 
+  defp construct_track_entry({id, %{stream_format: %VP8{}, track_number: track_number}}) do
+    {:TrackEntry,
+     [
+       Video: [],
+       # 1 for video
+       TrackType: 1,
+       CodecID: "V_VP8",
+       FlagLacing: 0,
+       TrackUID: get_track_uid(id),
+       TrackNumber: track_number
+     ]}
+  end
+
   defp construct_track_entry(
          {id, %{stream_format: %RemoteStream{content_format: VP9}, track_number: track_number}}
        ) do
+    {:TrackEntry,
+     [
+       Video: [],
+       # 1 for video
+       TrackType: 1,
+       CodecID: "V_VP9",
+       FlagLacing: 0,
+       TrackUID: get_track_uid(id),
+       TrackNumber: track_number
+     ]}
+  end
+
+  defp construct_track_entry({id, %{stream_format: %VP9{}, track_number: track_number}}) do
     {:TrackEntry,
      [
        Video: [],

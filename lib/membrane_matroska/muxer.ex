@@ -99,7 +99,13 @@ defmodule Membrane.Matroska.Muxer do
         %RemoteStream{content_format: VP8} ->
           :vp8
 
+        %VP8{} ->
+          :vp8
+
         %RemoteStream{content_format: VP9} ->
+          :vp9
+
+        %VP9{} ->
           :vp9
 
         %Opus{} ->
