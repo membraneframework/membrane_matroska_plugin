@@ -36,7 +36,9 @@ defmodule Membrane.Matroska.Muxer do
       any_of(
         %H264{nalu_in_metadata?: true, stream_structure: structure} when H264.is_avc(structure),
         %Opus{self_delimiting?: false, channels: channels} when channels in [1, 2],
-        %RemoteStream{content_format: format, type: :packetized} when format in [VP8, VP9]
+        %RemoteStream{content_format: format, type: :packetized} when format in [VP8, VP9],
+        %VP8{},
+        %VP9{}
       )
 
   def_output_pad :output,
