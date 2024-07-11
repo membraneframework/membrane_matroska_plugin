@@ -1,7 +1,7 @@
 defmodule Membrane.Matroska.Plugin.Mixfile do
   use Mix.Project
 
-  @version "0.5.2"
+  @version "0.6.0"
   @github_url "https://github.com/membraneframework/membrane_matroska_plugin"
 
   def project do

@@ -96,17 +96,11 @@ defmodule Membrane.Matroska.Muxer do
   def handle_stream_format(Pad.ref(:input, id), stream_format, _ctx, state) do
     codec =
       case stream_format do
-        %RemoteStream{content_format: VP8} ->
-          :vp8
+        %RemoteStream{content_format: format} when format in [VP8, VP9] ->
+          module_to_codec(format)
 
-        %RemoteStream{content_format: VP9} ->
-          :vp9
-
-        %Opus{} ->
-          :opus
-
-        %H264{} ->
-          :h264
+        %module{} when module in [VP8, VP9, H264, Opus] ->
+          module_to_codec(module)
 
         format when is_struct(format) ->
           raise "unsupported stream format #{inspect(format.__struct__)}"
@@ -144,6 +138,11 @@ defmodule Membrane.Matroska.Muxer do
       {[], state}
     end
   end
+
+  defp module_to_codec(VP8), do: :vp8
+  defp module_to_codec(VP9), do: :vp9
+  defp module_to_codec(H264), do: :h264
+  defp module_to_codec(Opus), do: :opus
 
   # demand all tracks for which the last frame is not cached
   @impl true
@@ -320,7 +319,7 @@ defmodule Membrane.Matroska.Muxer do
     begin_new_cluster =
       cluster_size >= @cluster_bytes_limit or
         relative_time * @timestamp_scale >= @cluster_time_limit or
-        Codecs.is_video_keyframe?(block)
+        Codecs.video_keyframe?(block)
 
     if begin_new_cluster do
       timecode = {:Timecode, absolute_time}
