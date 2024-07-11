@@ -45,8 +45,8 @@ defmodule Membrane.Matroska.Parser.Codecs do
     frame_type == 0
   end
 
-  @spec is_video_keyframe?({integer, Buffer.t(), non_neg_integer, atom}) :: boolean
-  def is_video_keyframe?({_timecode, _data, _track_number, codec} = block) do
+  @spec video_keyframe?({integer, Buffer.t(), non_neg_integer, atom}) :: boolean
+  def video_keyframe?({_timecode, _data, _track_number, codec} = block) do
     type(codec) == :video and keyframe_bit(block) == 1
   end
 

@@ -319,7 +319,7 @@ defmodule Membrane.Matroska.Muxer do
     begin_new_cluster =
       cluster_size >= @cluster_bytes_limit or
         relative_time * @timestamp_scale >= @cluster_time_limit or
-        Codecs.is_video_keyframe?(block)
+        Codecs.video_keyframe?(block)
 
     if begin_new_cluster do
       timecode = {:Timecode, absolute_time}
