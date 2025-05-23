@@ -20,7 +20,7 @@ The package can be installed by adding `membrane_matroska_plugin` to your list o
 ```elixir
 def deps do
   [
-    {:membrane_matroska_plugin, "~> 0.6.0"}
+    {:membrane_matroska_plugin, "~> 0.6.1"}
   ]
 end
 ```
@@ -34,10 +34,10 @@ For an example of muxing streams to a regular matroska file, refer to [`examples
 To run the example, you can use the following command:
  ```bash
 elixir examples/muxer_h264.exs
-``` 
+```
 
 ### `Membrane.Matroska.Demuxer`
-For an example of demuxing streams, refer to [`examples/demuxer_h264.exs`](examples/demuxer_h264.exs). 
+For an example of demuxing streams, refer to [`examples/demuxer_h264.exs`](examples/demuxer_h264.exs).
 
 To run the example, use the following command:
 ```bash

@@ -124,7 +124,11 @@ defmodule Membrane.Matroska.Serializer.Matroska do
        ) do
     {:TrackEntry,
      [
-       Video: [],
+       Video: [
+         # PixelWidth and PixelHeight are mandatory, we must set them to a nonnegative integer
+         PixelWidth: 100,
+         PixelHeight: 100
+       ],
        # 1 for video
        TrackType: 1,
        CodecID: "V_VP8",
@@ -134,10 +138,15 @@ defmodule Membrane.Matroska.Serializer.Matroska do
      ]}
   end
 
-  defp construct_track_entry({id, %{stream_format: %VP8{}, track_number: track_number}}) do
+  defp construct_track_entry(
+         {id, %{stream_format: %VP8{width: width, height: height}, track_number: track_number}}
+       ) do
     {:TrackEntry,
      [
-       Video: [],
+       Video: [
+         PixelWidth: width,
+         PixelHeight: height
+       ],
        # 1 for video
        TrackType: 1,
        CodecID: "V_VP8",
@@ -152,7 +161,11 @@ defmodule Membrane.Matroska.Serializer.Matroska do
        ) do
     {:TrackEntry,
      [
-       Video: [],
+       Video: [
+         # PixelWidth and PixelHeight are mandatory, we must set them to a nonnegative integer
+         PixelWidth: 100,
+         PixelHeight: 100
+       ],
        # 1 for video
        TrackType: 1,
        CodecID: "V_VP9",
@@ -162,10 +175,15 @@ defmodule Membrane.Matroska.Serializer.Matroska do
      ]}
   end
 
-  defp construct_track_entry({id, %{stream_format: %VP9{}, track_number: track_number}}) do
+  defp construct_track_entry(
+         {id, %{stream_format: %VP9{width: width, height: height}, track_number: track_number}}
+       ) do
     {:TrackEntry,
      [
-       Video: [],
+       Video: [
+         PixelWidth: width,
+         PixelHeight: height
+       ],
        # 1 for video
        TrackType: 1,
        CodecID: "V_VP9",
