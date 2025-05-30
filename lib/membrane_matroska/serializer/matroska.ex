@@ -13,6 +13,12 @@ defmodule Membrane.Matroska.Serializer.Matroska do
   @timestamp_scale Membrane.Time.millisecond()
   @seekhead_bytes 160
 
+  # HACK: According to [the spec](https://www.matroska.org/technical/elements.html),
+  #       `PixelWidth` and `PixelHeight` elements are mandatory for video tracks.
+  #       In the case where resolution metadata is absent in the stream format,
+  #       setting them to an arbitrary nonnegative number is sufficient to make the files playable.
+  @default_pixel_width_height 100
+
   @spec serialize_empty_segment() :: binary
   defp serialize_empty_segment() do
     element_id = EBML.encode_element_id(:Segment)
@@ -126,8 +132,8 @@ defmodule Membrane.Matroska.Serializer.Matroska do
      [
        Video: [
          # PixelWidth and PixelHeight are mandatory, we must set them to a nonnegative integer
-         PixelWidth: 100,
-         PixelHeight: 100
+         PixelWidth: @default_pixel_width_height,
+         PixelHeight: @default_pixel_width_height
        ],
        # 1 for video
        TrackType: 1,
@@ -163,8 +169,8 @@ defmodule Membrane.Matroska.Serializer.Matroska do
      [
        Video: [
          # PixelWidth and PixelHeight are mandatory, we must set them to a nonnegative integer
-         PixelWidth: 100,
-         PixelHeight: 100
+         PixelWidth: @default_pixel_width_height,
+         PixelHeight: @default_pixel_width_height
        ],
        # 1 for video
        TrackType: 1,
