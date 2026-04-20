@@ -10,8 +10,8 @@ defmodule Membrane.Matroska.MuxerTest do
 
   require Membrane.Pad
 
-  alias Membrane.Testing
   alias Membrane.{FLV, Opus, Pad}
+  alias Membrane.Testing
 
   @fixtures_dir "./test/fixtures/"
   @pad_id_1 17_447_232_417_024_423_937

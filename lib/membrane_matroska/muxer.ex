@@ -78,7 +78,7 @@ defmodule Membrane.Matroska.Muxer do
     expected_tracks_ordering =
       Map.put(state.expected_tracks_ordering, id, map_size(state.expected_tracks_ordering) + 1)
 
-    {[], %State{state | expected_tracks_ordering: expected_tracks_ordering}}
+    {[], %{state | expected_tracks_ordering: expected_tracks_ordering}}
   end
 
   @impl true
