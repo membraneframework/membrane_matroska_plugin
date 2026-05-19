@@ -133,11 +133,11 @@ defmodule Membrane.Matroska.Demuxer do
           raise "Track #{id} is encoded with Vorbis which is not supported by the demuxer"
       end
 
-    state = %State{state | tracks: put_in(tracks[id].active, true)}
+    state = %{state | tracks: put_in(tracks[id].active, true)}
 
     state =
       if Enum.all?(state.tracks, fn {_k, v} -> v.active end),
-        do: %State{state | phase: :all_outputs_linked},
+        do: %{state | phase: :all_outputs_linked},
         else: state
 
     {[stream_format: {Pad.ref(:output, id), caps}], state}
@@ -149,7 +149,7 @@ defmodule Membrane.Matroska.Demuxer do
 
     {parsed, unparsed} = Matroska.Parser.Helper.parse(unparsed)
 
-    state = %State{state | parser_acc: unparsed}
+    state = %{state | parser_acc: unparsed}
 
     {actions, state} = process_elements({Qex.new(), context, state}, parsed)
 
@@ -187,21 +187,21 @@ defmodule Membrane.Matroska.Demuxer do
       :Info ->
         # scale of block timecodes in nanoseconds
         # should be 1_000_000 i.e. 1 ms
-        {actions, context, %State{state | timestamp_scale: data[:TimestampScale]}}
+        {actions, context, %{state | timestamp_scale: data[:TimestampScale]}}
 
       :Tracks ->
         tracks = identify_tracks(data, state.timestamp_scale)
         new_actions = notify_about_new_tracks(tracks)
 
         {Qex.join(new_actions, actions), context,
-         %State{
+         %{
            state
            | tracks: tracks,
              phase: :awaiting_linking
          }}
 
       :Timecode ->
-        {actions, context, %State{state | current_timecode: data}}
+        {actions, context, %{state | current_timecode: data}}
 
       name when name in [:Block, :SimpleBlock] ->
         buffer_action =
@@ -237,7 +237,7 @@ defmodule Membrane.Matroska.Demuxer do
       context = update_in(context.pads[Pad.ref(:output, id)].demand, &(&1 - 1))
       {Qex.push(actions, buffer_action), context, state}
     else
-      {actions, context, %State{state | cache: Qex.push(state.cache, buffer_action)}}
+      {actions, context, %{state | cache: Qex.push(state.cache, buffer_action)}}
     end
   end
 
@@ -249,7 +249,7 @@ defmodule Membrane.Matroska.Demuxer do
     {actions, _ctx, state} =
       Enum.reduce(
         state.cache,
-        {actions, context, %State{state | cache: Qex.new()}},
+        {actions, context, %{state | cache: Qex.new()}},
         &classify_buffer_action/2
       )
 

@@ -1,7 +1,7 @@
 defmodule Membrane.Matroska.Plugin.Mixfile do
   use Mix.Project
 
-  @version "0.6.1"
+  @version "0.6.2"
   @github_url "https://github.com/membraneframework/membrane_matroska_plugin"
 
   def project do
@@ -84,6 +84,7 @@ defmodule Membrane.Matroska.Plugin.Mixfile do
 
     if System.get_env("CI") == "true" do
       # Store PLTs in cacheable directory for CI
+      File.mkdir_p!(Path.join([__DIR__, "priv", "plts"]))
       [plt_local_path: "priv/plts", plt_core_path: "priv/plts"] ++ opts
     else
       opts
