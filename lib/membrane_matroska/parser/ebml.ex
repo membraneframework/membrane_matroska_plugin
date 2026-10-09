@@ -74,7 +74,7 @@ defmodule Membrane.Matroska.Parser.EBML do
     vint_width = get_vint_width(first_byte)
 
     case element do
-      <<vint::integer-size(vint_width)-unit(8), rest::binary>> ->
+      <<vint::integer-size(^vint_width)-unit(8), rest::binary>> ->
         {:ok, {Schema.element_id_to_name(vint), rest}}
 
       _too_short ->
@@ -92,7 +92,7 @@ defmodule Membrane.Matroska.Parser.EBML do
     vint_width = get_vint_width(first_byte)
 
     case bytes do
-      <<vint::integer-size(vint_width)-unit(8), rest::binary>> ->
+      <<vint::integer-size(^vint_width)-unit(8), rest::binary>> ->
         {:ok, {get_vint_data(vint, vint_width), rest}}
 
       _too_short ->
@@ -108,7 +108,7 @@ defmodule Membrane.Matroska.Parser.EBML do
     if how_many > byte_size(bytes) do
       {:error, :need_more_bytes}
     else
-      <<bytes::binary-size(how_many), rest::binary>> = bytes
+      <<bytes::binary-size(^how_many), rest::binary>> = bytes
       {:ok, {bytes, rest}}
     end
   end
@@ -149,7 +149,7 @@ defmodule Membrane.Matroska.Parser.EBML do
 
   def parse_integer(bytes) do
     s = bit_size(bytes)
-    <<num::signed-big-integer-size(s)>> = bytes
+    <<num::signed-big-integer-size(^s)>> = bytes
     num
   end
 
